@@ -138,3 +138,59 @@ records every paired delta. `perf-confirmation/` records the sole confirmation b
 `noise-policy-verdict.json` records the accepted verdict with SHA-256 references to both input datasets. The
 accepted release binary SHA-256 is `83daa2fa410ca5fbb6bc02ff35ac70022d11841fbdf290bd737425ba19571134`; all 113
 bundled library files remain byte-identical to the preceding accepted snapshot.
+
+## 3. Named expression declaration names — passed
+
+Upstream: `81d3f3f5e89786acc33d1881a0864bb0bd68068b` — Fix flaky diagnostic added by declaration emit through
+`MarkLinkedReferencesRecursively` (#64482).
+
+`is_in_expression_context` now treats the name of a function or class expression as a declaration name, matching
+the new Go switch arm. Before the port, `noFlakyDiagnosticsExpressionNameShadowedInBody1` gained a spurious
+post-emit TS2448 diagnostic for the function name, and its `.types` baseline incorrectly resolved that name to the
+shadowing body's `number` variable. After the port, its diagnostics, types, symbols and JavaScript all pass. The
+same case's emitted files match a Go compiler built at this source revision. The ignored reference checkout
+advances to this revision; the published TypeScript pin stays unchanged.
+
+Both checker histories retain every previous passing baseline and add the new case: 13,460 diagnostics and
+12,781 types/symbols in Go history; 13,460 diagnostics and 12,780 types/symbols in canonical history. Full emit
+passes 13,464 diagnostics, 12,781 types/symbols, 13,394 JS/declaration outputs, 149 JS maps and 156 source maps.
+All twelve complete passing sets retain every preceding pass, with no crashes or timeouts. The four existing
+checker diagnostic differences and canonical `objectLiteralNormalization` difference remain unchanged.
+
+Workspace checks pass (1,064 passed, four existing ignored), as do native/WASM checks, Clippy, source checks,
+formatting and all 36 regressions. Regeneration leaves all 1,167 crate files byte-identical to their pre-generation
+snapshot. Because editor type and symbol queries share the changed predicate, the full Go fourslash gate also
+runs at this source revision: 4,074 exercised groups pass, 472 are skipped, and none fail. An isolated metadata
+wrapper selects the current source without changing the published pin. No additional source fixes were required.
+
+Performance compares the frozen preceding release with this candidate across all eight project/mode cells under
+`paired-sign-test-v1`. The reusable `target/port-623/collect.py` collects every initial cell without the superseded
+raw-median stop; `noise_gate.py` evaluates those measurements and collects the prescribed confirmation batches.
+One warmup and ten alternating pairs per cell yield these initial medians:
+
+| Project / mode | Instructions, billions before → after | Wall seconds before → after | Peak RSS MiB before → after |
+| --- | ---: | ---: | ---: |
+| vscode / single | 79.775161 → 79.759270 | 7.513546 → 7.511081 | 1607.609 → 1607.609 |
+| vscode / default | 91.417699 → 91.442431 | 1.039140 → 1.023495 | 2107.812 → 2109.258 |
+| webpack / single | 10.570323 → 10.568779 | 0.902873 → 0.904547 | 311.328 → 311.328 |
+| webpack / default | 14.627140 → 14.504238 | 0.202013 → 0.204132 | 495.719 → 491.234 |
+| Compiler-Unions / single | 3.212018 → 3.212066 | 0.260791 → 0.259606 | 59.625 → 59.625 |
+| Compiler-Unions / default | 3.886428 → 3.883809 | 0.148370 → 0.147829 | 83.305 → 83.219 |
+| t3code-server / single | 38.183003 → 38.181974 | 3.197595 → 3.206484 | 728.703 → 728.703 |
+| t3code-server / default | 121.235186 → 121.856587 | 1.370333 → 1.379313 | 2083.805 → 2088.070 |
+
+Only webpack/default wall time and t3code-server/single wall time screen for confirmation: each has eight positive
+pairs out of ten, exact p = 0.0546875. Each receives exactly one independent ten-pair batch with reversed pair
+order. webpack/default wall time changes from 0.2029849795 to 0.202675500 seconds (-0.152464%); its pooled p is
+0.0576591492. t3code-server/single changes from 3.1910962295 to 3.209990125 seconds (+0.592082%), but only four
+confirmation pairs increase, and pooled p is 0.2517223358. Neither meets the confirmed-regression rule. The verdict
+is **no detected regression**, not proof of exact equality; no performance source changes were needed. All
+measured runs retain identical diagnostics and exit codes. No build or correctness workload overlaps measurement.
+
+Artifacts are under `target/port-623/0003-81d3f3f5e8/`: before/after reproduction, complete conformance lists,
+`pass-set-comparison.json`, unchanged-difference lists, generator snapshots, gate logs, isolated fourslash
+metadata/reference/JSON results, the Go oracle, and the frozen release and 113 bundled library files.
+`perf-initial/` and `perf-confirmation/` retain every raw sample; `noise-policy-verdict.json` references both
+datasets by SHA-256. `identity.json` records binary, asset and evidence hashes. The accepted release binary has
+SHA-256 `994dfbdb156784716df7ed9cb8bf342769f91b38624afec1f701d9450234cb56`; all 113 bundled library files remain
+byte-identical to the preceding accepted snapshot.
