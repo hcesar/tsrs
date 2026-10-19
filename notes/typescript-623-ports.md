@@ -194,3 +194,111 @@ metadata/reference/JSON results, the Go oracle, and the frozen release and 113 b
 datasets by SHA-256. `identity.json` records binary, asset and evidence hashes. The accepted release binary has
 SHA-256 `994dfbdb156784716df7ed9cb8bf342769f91b38624afec1f701d9450234cb56`; all 113 bundled library files remain
 byte-identical to the preceding accepted snapshot.
+
+## 4. Cyclic structures and declaration truncation — passed
+
+Upstream: `834e7862c031a3f5f24c53acf51056a4f558c3e4` — Report cyclic structures and truncation during declaration
+emit (#64461).
+
+The node builder routes anonymous and union cycle guards through `create_cyclic_structure_placeholder`, which
+reports the cyclic-structure error unless anonymous identifiers are allowed. Exceeding the symbol nesting limit
+also sets `truncating`, so declaration emit reports the existing serialization-length diagnostic. This follows
+the Go helper, call sites and control flow. The new `declarationEmitUnserializableTypes` case previously omitted
+four TS5088 diagnostics and one TS7056 diagnostic; it now matches the reference, including the explicitly
+annotated recursive declarations. Across all 13 changed or new fixtures, the pre-port run had 11 diagnostic and
+JavaScript/declaration failures and three type failures; every diagnostic, type, symbol and emit baseline passes
+after the port. All 13 cases also match the emitted files of a Go compiler built at this revision (one produces
+no files). The additional filesystem gate repairs and performance repair are described below.
+
+Both checker histories retain every previous passing baseline and add the new case: 13,461 diagnostics and
+12,782 types/symbols in Go history; 13,461 diagnostics and 12,781 types/symbols in canonical history. Full emit
+passes 13,465 diagnostics, 12,782 types/symbols, 13,395 JS/declaration outputs, 149 JS maps and 156 source maps.
+All twelve complete passing sets retain every preceding pass, with no crashes or timeouts. The four existing
+checker diagnostic differences and canonical `objectLiteralNormalization` difference remain unchanged. No
+upstream cases were removed or renamed.
+
+Workspace checks pass (1,066 passed, four existing ignored), as do native/WASM checks, Clippy, source checks,
+formatting and all 36 regressions. Regeneration leaves all 1,168 crate files byte-identical to their pre-generation
+snapshot. The full Go fourslash gate at this revision passes the same 4,074 exercised groups, with 472 skipped
+and none failing; its complete passing group set is unchanged. An isolated metadata wrapper selects this source
+without changing the published pin.
+
+Two unrelated filesystem failures surfaced during revalidation and were repaired in this corresponding commit.
+The FSEvents burst fixture required all 20 files in one callback, but received valid batches of one and 19 files:
+its five-millisecond sleeps cannot guarantee the OS native batch shape. The real-filesystem fixture now waits
+for the exact delivered path set. An isolated controlled callback case verifies that a single complete file
+is immediate while one native multi-file batch holds the leading edge and delivers all files together.
+
+A later parallel workspace run panicked in `ReadDir` cleanup with EBADF. Inspection found that kqueue cached raw
+descriptors in subscriptions after an entry had been closed or replaced. A deterministic isolated regression
+proved that both watch close and backend shutdown closed an unrelated file that reused the old descriptor,
+leaked the replacement descriptor, and leaked one descriptor when overlapping watches were closed. The fix
+removes redundant descriptor ownership from subscriptions: shutdown closes the current descriptor registry,
+and watch close releases an entries map's current descriptors when its last subscription leaves. The regression
+now passes all close, shutdown and overlap cases. The stale-descriptor bug also exists in the reference Go
+algorithm; this is an explicit Rust I/O ownership repair. It is consistent with the observed parallel EBADF,
+whose precise scheduling race was not reconstructed. Native filesystem and CLI watch integration gates pass.
+
+The initial release failed the agreed performance gate on Compiler-Unions/single peak RSS. Its first ten-pair
+median increased from 62,537,728 to 62,554,112 bytes (+16 KiB, +0.0262%); the independent reversed-order
+confirmation increased from 62,521,344 to 62,545,920 bytes (+24 KiB, +0.0393%). Across both batches, 16 pairs
+increase and four tie, with no decreases: pooled sign-test p = 0.0000152588. Compiler-Unions/default instructions
+also screened initially but did not confirm (pooled p = 0.0576591492). The failed candidate and every raw sample
+remain at their original paths. Initial medians for that candidate:
+
+| Project / mode | Instructions, billions before → after | Wall seconds before → after | Peak RSS MiB before → after |
+| --- | ---: | ---: | ---: |
+| vscode / single | 79.531368 → 79.519333 | 7.362400 → 7.353514 | 1607.609 → 1607.609 |
+| vscode / default | 91.335771 → 91.360507 | 0.997510 → 1.000161 | 2122.750 → 2116.070 |
+| webpack / single | 10.566985 → 10.566332 | 0.895866 → 0.915597 | 311.328 → 311.328 |
+| webpack / default | 14.617355 → 14.602850 | 0.205301 → 0.204599 | 496.203 → 496.938 |
+| Compiler-Unions / single | 3.211780 → 3.211759 | 0.265617 → 0.263570 | 59.641 → 59.656 |
+| Compiler-Unions / default | 3.882342 → 3.884291 | 0.148847 → 0.150356 | 83.258 → 83.242 |
+| t3code-server / single | 38.155625 → 38.158179 | 3.122199 → 3.153594 | 728.703 → 728.703 |
+| t3code-server / default | 121.885298 → 121.808789 | 1.346027 → 1.339640 | 2091.891 → 2090.469 |
+
+A temporary entry probe showed neither changed branch executes in this workload. The release's data-section
+sizes are unchanged; its text grows by 128 bytes, and page reclaims and physical footprint usually rise with RSS.
+These observations suggest code generation affecting stack or other dirty-page residency; they do not establish
+the exact mechanism. The existing rare-path and layout notes were reviewed before experimenting. Marking the new
+helper `#[cold]` did not repair the focused RSS increase (+32 KiB), and plain `#[inline]` produced identical
+executable sections, so both were rejected. Each measured experimental candidate received one focused batch; failed candidates were retained.
+
+The repair keeps only `#[inline(never)]` on `create_cyclic_structure_placeholder`, preserving the Go helper and
+control flow while preventing its recovery body from being inlined into callers. A focused ten-pair comparison
+then gives identical peak RSS medians of 62,521,344 bytes; instructions change by +0.00512% and wall time by
++2.00303%, so this focused experiment is not an acceptance verdict. No cache, thread, allocator or algorithm
+change is involved. Both checker histories, full emit, all 36 regressions and full fourslash were rerun for the repaired compiler.
+The final filesystem repair changes no compiler inputs; its workspace, native/WASM, lint and generator gates
+are rerun before full measurement.
+
+The final release is compared with the same frozen source-3 baseline across all eight project/mode cells under
+`paired-sign-test-v1`, with one warmup and ten alternating pairs per cell. Final initial-batch medians:
+
+| Project / mode | Instructions, billions before → after | Wall seconds before → after | Peak RSS MiB before → after |
+| --- | ---: | ---: | ---: |
+| vscode / single | 79.500755 → 79.505384 | 7.289498 → 7.282193 | 1607.609 → 1607.578 |
+| vscode / default | 91.285955 → 91.347801 | 0.984374 → 1.001522 | 2115.078 → 2111.188 |
+| webpack / single | 10.562779 → 10.562005 | 0.906454 → 0.904980 | 311.328 → 311.305 |
+| webpack / default | 14.650723 → 14.651033 | 0.205286 → 0.203064 | 497.578 → 498.086 |
+| Compiler-Unions / single | 3.211742 → 3.211923 | 0.264454 → 0.266140 | 59.625 → 59.594 |
+| Compiler-Unions / default | 3.884599 → 3.884684 | 0.150327 → 0.149670 | 83.133 → 82.984 |
+| t3code-server / single | 38.134394 → 38.135493 | 3.110807 → 3.133931 | 728.688 → 728.672 |
+| t3code-server / default | 122.154342 → 122.007797 | 1.372061 → 1.343244 | 2093.641 → 2091.094 |
+
+Compiler-Unions/single instructions screen at +0.00564%; the sole confirmation gives +0.00272%, with five
+positive and five negative pairs. Its pooled p = 0.0206947327 exceeds the 0.01 confirmation threshold.
+t3code-server/single wall time screens at +0.74332%; its sole confirmation decreases by 0.37563%, with pooled
+p = 0.4119014740. No RSS metric screens. The final verdict is **no detected regression**, not exact equality.
+Every run preserves the baseline's output and exit status. No unchanged candidate was retried for a favorable
+result; each screened cell received exactly the one prescribed confirmation.
+
+The accepted frozen binary is `target/port-623/0004-834e7862c0/candidate-5/tsrs-release`, SHA-256
+`36e55d4877ca18488bfddcecc7bf622278a1d843004e0ac3c78651a0f79a1af8`; all 113 runtime library files remain
+byte-identical to the preceding snapshot. Artifacts under `target/port-623/0004-834e7862c0/` retain the upstream
+patch, before/after reproductions, all complete passing sets, rejected immutable candidates and raw measurements,
+controlled descriptor-reuse failure and repair, and final source/input identities. `candidate-4/` contains the
+repaired compiler's full conformance, emit, oracle and fourslash evidence; `candidate-5/` records the final
+filesystem, workspace, native/WASM, lint, formatting, generator and regression gates plus unchanged compiler
+input evidence. Final performance data are in `perf-final/` and `perf-final-confirmation/`, with the acceptance
+verdict in `noise-policy-final-verdict.json`. The published TypeScript pin remains unchanged.

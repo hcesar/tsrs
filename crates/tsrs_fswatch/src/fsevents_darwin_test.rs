@@ -129,3 +129,86 @@ fn a_drop_under_one_root_does_not_overflow_another() {
     }
     let _ = std::fs::remove_dir_all(&base);
 }
+
+#[test]
+fn write_settling_holds_multi_file_native_batches() {
+    const CHILD: &str = "write-settling-batch-child";
+    if !std::env::args().any(|arg| arg == CHILD) {
+        // Write settling is process-wide. Run only this case in the child so other watcher tests keep their setting.
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "fsevents_darwin::tests::write_settling_holds_multi_file_native_batches",
+                "--nocapture",
+                CHILD,
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains("1 passed;"),
+            "the child must run the isolated case"
+        );
+        return;
+    }
+
+    crate::set_write_settling(true);
+    let (base, dirs) = root_dirs(1);
+    let paths: Vec<_> = (0..20).map(|i| format!("{}/f{i}.ts", dirs[0])).collect();
+    for path in &paths {
+        std::fs::write(path, "export {};\n").unwrap();
+    }
+    let db = debounce::new_without_loop_for_test();
+    let watch =
+        dirWatch::new(dirs[0].clone(), dirs[0].clone(), &db, pathComparer::default(), None, true);
+    let batches = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let seen = Arc::clone(&batches);
+    watch.add_callback(
+        &dirs[0],
+        &dirs[0],
+        true,
+        Arc::new(move |events, err| {
+            assert!(err.is_none());
+            let paths: std::collections::BTreeSet<_> =
+                events.iter().map(|e| e.path.clone()).collect();
+            seen.lock().unwrap().push(paths);
+        }),
+        None,
+        "",
+    );
+    let cb = crate::fsevents_darwin_ffi::new_stream_callback(&[super::fseventsWatchSnapshot {
+        w: Arc::clone(&watch),
+        state: Arc::new(super::fseventsState::default()),
+    }])
+    .unwrap();
+    let flags = super::flagItemCreated | super::flagItemIsFile;
+
+    dispatch_test_event(&cb, &paths[0], flags);
+    assert!(
+        !db.leading_edge_is_held_for_test(),
+        "one complete save must not hold the leading edge"
+    );
+    watch.trigger_callbacks_for_test();
+    assert_eq!(
+        *batches.lock().unwrap(),
+        vec![std::collections::BTreeSet::from([paths[0].clone()])]
+    );
+    batches.lock().unwrap().clear();
+
+    let events: Vec<_> = paths.iter().map(|path| (path.as_str(), flags)).collect();
+    crate::fsevents_darwin_ffi::dispatch_test_events(&cb, &events);
+    assert!(
+        db.leading_edge_is_held_for_test(),
+        "a native multi-file batch must hold the leading edge"
+    );
+    assert!(batches.lock().unwrap().is_empty());
+    watch.trigger_callbacks_for_test();
+    assert_eq!(*batches.lock().unwrap(), vec![paths.into_iter().collect()]);
+    watch.destroy_debounce_for_test();
+    let _ = std::fs::remove_dir_all(&base);
+}

@@ -509,3 +509,19 @@ pub(crate) fn teardown_stream(stream: fsEventStream, cb: Option<&mut Box<streamC
         FSEventStreamRelease(stream.0);
     }
 }
+
+#[cfg(test)]
+pub(crate) fn dispatch_test_events(cb: &streamCallback, events: &[(&str, u32)]) {
+    let path_refs: Vec<_> =
+        events.iter().map(|(path, _)| cf_string_create(path).unwrap()).collect();
+    let paths = cf_array_create(&path_refs).unwrap();
+    let flags: Vec<_> = events.iter().map(|(_, flags)| *flags).collect();
+    let ids: Vec<_> = (1..=events.len() as u64).collect();
+    let payload = fsEventsCallbackPayload {
+        num_events: events.len(),
+        paths: paths.0,
+        flags: flags.as_ptr(),
+        ids: ids.as_ptr(),
+    };
+    fs_events_callback(cb, &payload);
+}

@@ -2,6 +2,7 @@
 // file is empty. Its own test binary: the setting is process-wide, and the crate's unit tests run in parallel threads.
 #![cfg(target_os = "macos")]
 
+use std::collections::BTreeSet;
 use std::io::Write;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
@@ -65,7 +66,7 @@ fn write_settling() {
     a_truncation_waits_for_the_data();
     a_complete_save_is_not_delayed();
     an_emptied_file_stops_holding_after_the_idle_time();
-    a_burst_of_writes_is_one_batch();
+    a_burst_of_writes_delivers_every_path();
 }
 
 fn a_truncation_waits_for_the_data() {
@@ -142,32 +143,43 @@ fn an_emptied_file_stops_holding_after_the_idle_time() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-fn a_burst_of_writes_is_one_batch() {
+fn a_burst_of_writes_delivers_every_path() {
     let dir = temp_dir("burst");
-    let batches = Arc::new(Mutex::new(Vec::new()));
-    let b = Arc::clone(&batches);
+    let seen = Arc::new((Mutex::new(BTreeSet::new()), Condvar::new()));
+    let callback_seen = Arc::clone(&seen);
     let watch = fsevents()
         .watch_directory(
             dir.to_str().unwrap(),
             Arc::new(move |events, _err| {
                 if !events.is_empty() {
-                    b.lock().unwrap().push(events.len());
+                    let (paths, ready) = &*callback_seen;
+                    paths.lock().unwrap().extend(events.iter().map(|event| event.path.clone()));
+                    ready.notify_all();
                 }
             }),
             Vec::new(),
         )
         .unwrap();
     std::thread::sleep(Duration::from_millis(700));
-    batches.lock().unwrap().clear();
+    seen.0.lock().unwrap().clear();
 
-    // A formatter: 20 files, 5 ms apart (100 ms in all, much longer than FSEvents takes to deliver the first).
+    // FSEvents can deliver the first file before the next write. That single-file native batch correctly fires
+    // immediately; only a native batch with multiple files holds the leading edge. Verify OS delivery here;
+    // fsevents_darwin_test::write_settling_holds_multi_file_native_batches injects controlled native batches.
+    let mut expected = BTreeSet::new();
     for i in 0..20 {
-        std::fs::write(dir.join(format!("f{i}.ts")), format!("export const f{i} = {i};\n"))
-            .unwrap();
+        let path = dir.join(format!("f{i}.ts"));
+        std::fs::write(&path, format!("export const f{i} = {i};\n")).unwrap();
+        expected.insert(path.to_str().unwrap().to_string());
         std::thread::sleep(Duration::from_millis(5));
     }
-    std::thread::sleep(Duration::from_millis(700));
-    assert_eq!(*batches.lock().unwrap(), vec![20], "one batch for the whole burst");
+    let (paths, ready) = &*seen;
+    let paths = paths.lock().unwrap();
+    let (paths, _) = ready
+        .wait_timeout_while(paths, Duration::from_secs(5), |paths| *paths != expected)
+        .unwrap();
+    assert_eq!(*paths, expected, "every written path must be delivered");
+    drop(paths);
     let _ = watch.close();
     let _ = std::fs::remove_dir_all(&dir);
 }

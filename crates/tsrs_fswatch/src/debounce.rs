@@ -231,3 +231,20 @@ impl debounce {
         }
     }
 }
+
+#[cfg(all(test, target_os = "macos"))]
+impl debounce {
+    // Drive the real event classifier synchronously without a background thread draining its pending batch.
+    pub(crate) fn new_without_loop_for_test() -> Arc<Self> {
+        Arc::new(Self {
+            mu: Mutex::new(debounceState { callbacks: FxHashMap::default(), last_time: None }),
+            latch_mu: Mutex::new(latchState::default()),
+            latch_cv: Condvar::new(),
+            writes: Mutex::new(writeState::default()),
+        })
+    }
+
+    pub(crate) fn leading_edge_is_held_for_test(&self) -> bool {
+        self.mu.lock().unwrap().last_time.is_some()
+    }
+}

@@ -1825,7 +1825,7 @@ impl NodeBuilderImpl {
                     // in turn try to reuse the same node again. Mark the type as visited around the reuse
                     // attempt so the inner recursion bottoms out via the visitedTypes guard below.
                     if self.ctx().visited_types.borrow().has(&type_id) {
-                        return Some(self.create_elided_information_placeholder(c));
+                        return Some(self.create_cyclic_structure_placeholder(c));
                     }
                     self.ctx().visited_types.borrow_mut().add(type_id);
                     let type_node =
@@ -1836,7 +1836,7 @@ impl NodeBuilderImpl {
                     }
                 }
                 if self.ctx().visited_types.borrow().has(&type_id) {
-                    return Some(self.create_elided_information_placeholder(c));
+                    return Some(self.create_cyclic_structure_placeholder(c));
                 }
                 return self.visit_and_transform_type(c, t, |c, b, t| {
                     b.create_type_node_from_object_type(c, t)
@@ -1871,7 +1871,7 @@ impl NodeBuilderImpl {
                     // The specified symbol flags need to be reinterpreted as type flags
                     self.symbol_to_type_node(c, type_alias, SymbolFlags::Type, None)
                 } else {
-                    Some(self.create_elided_information_placeholder(c))
+                    Some(self.create_cyclic_structure_placeholder(c))
                 }
             } else {
                 self.visit_and_transform_type(c, t, |c, b, t| {
@@ -1915,18 +1915,24 @@ impl NodeBuilderImpl {
     ) -> Option<P<Node>> {
         if t.flags().intersects(TypeFlags::Union) {
             if self.ctx().visited_types.borrow().has(&t.id) {
-                if !self.ctx().flags.get().intersects(Flags::AllowAnonymousIdentifier) {
-                    self.ctx().encountered_error.set(true);
-                    self.tracker().report_cyclic_structure_error();
-                }
-                return Some(self.create_elided_information_placeholder(c));
+                return Some(self.create_cyclic_structure_placeholder(c));
             }
             return self.visit_and_transform_type(c, t, |c, b, t| b.type_to_type_node(c, Some(t)));
         }
         self.type_to_type_node(c, Some(t))
     }
 
-    // nodebuilderimpl.go:3009
+    // nodebuilderimpl.go:3005
+    #[inline(never)]
+    pub(crate) fn create_cyclic_structure_placeholder(&self, c: &mut Checker) -> P<Node> {
+        if !self.ctx().flags.get().intersects(Flags::AllowAnonymousIdentifier) {
+            self.ctx().encountered_error.set(true);
+            self.tracker().report_cyclic_structure_error();
+        }
+        self.create_elided_information_placeholder(c)
+    }
+
+    // nodebuilderimpl.go:3013
     pub(crate) fn conditional_type_to_type_node(&self, c: &mut Checker, typ: P<Type>) -> P<Node> {
         if self.check_truncation_length(c) {
             return self.create_elided_information_placeholder(c);
@@ -2371,6 +2377,7 @@ impl NodeBuilderImpl {
         if let Some(id) = id {
             depth = self.ctx().symbol_depth.borrow().get(&id).copied().unwrap_or(0);
             if depth > 10 {
+                self.ctx().truncating.set(true);
                 return Some(self.create_elided_information_placeholder(c));
             }
             self.ctx().symbol_depth.borrow_mut().insert(id, depth + 1);

@@ -7,11 +7,11 @@ The goal is 100% conformance with TypeScript 7. This page records the current ev
 tsrs is a function-by-function port of the Go implementation of TypeScript (`microsoft/TypeScript`, commit
 `b85298b6a81f`, TypeScript 7.1.0-dev). The Go code is the spec: any difference from it in diagnostics, their order,
 message text or exit code is a tsrs bug, even when tsrs's output looks better. The in-progress source upgrade is
-validated through `81d3f3f5e897`; the [port log](../notes/typescript-623-ports.md) records each step. The published
+validated through `834e7862c031`; the [port log](../notes/typescript-623-ports.md) records each step. The published
 pin remains unchanged until that upgrade is complete.
 
-On that revision's conformance suite, tsrs matches the reference on 13,460 of 13,464 error baselines (the other four are
-test-harness artifacts) and on all 12,781 `.types` and `.symbols` baselines. It has also been run on a large private
+On that revision's conformance suite, tsrs matches the reference on 13,461 of 13,465 error baselines (the other four are
+test-harness artifacts) and on all 12,782 `.types` and `.symbols` baselines. It has also been run on a large private
 monorepo. See the [status log](STATUS.md) for conformance details.
 
 [Top repository conformance](../tools/repo-conformance/README.md) compares diagnostics against pinned tsgo on 1,000
@@ -37,13 +37,13 @@ defaults, unsupported features and known parity gaps.
 
 | feature | status | evidence and notes |
 | --- | --- | --- |
-| Type checking (`--noEmit`) | yes | 13,460 of 13,464 error baselines and all 12,781 `.types` / `.symbols` baselines match |
+| Type checking (`--noEmit`) | yes | 13,461 of 13,465 error baselines and all 12,782 `.types` / `.symbols` baselines match |
 | Multithreaded checking, `--singleThreaded`, `--pretty`, `--listFiles`, `--listFilesOnly` | yes | every core up to 16, then at least 16 or half the cores, at most 32 checkers, capped for small programs; build mode uses four; 0.13.0 enables module affinity from 8 checkers on programs with at least 24,000 checked files ([experiment note](../notes/perf-icount-hillclimb.md)) |
 | Compiler statistics (`--diagnostics`, `--extendedDiagnostics`) | yes | Since 0.17.0, timings are collected only when requested; config-read timing requires the flag on the command line. Internal flow-memo, lazy-list, filesystem-call and reclaimed-page counters have been removed ([debugging](DEBUGGING.md)) |
 | Memory target (`--maxMemory <size>`) | `--noEmit` checks, opt-in | Replaces the largest checker after crossing the target, trading CPU for memory; testdata/regressions identical with a checker retired after nearly every file, also in poison mode ([experiment note](../notes/mem-recycle-checkers.md)) |
 | Same output regardless of thread count | yes, with known exceptions (tsgo: no) | a few projects still depend on file order through tsgo's own logic ([experiment note](../notes/open-history-dependence.md)); `--checkerAssignment go` reproduces tsgo exactly, together with `--noLazyMembers` where an instantiation depth limit is reached |
-| JavaScript emit | yes | all of tsgo's transforms; 13,394 `.js` baselines pass, 0 fail; named function/class expressions avoid spurious emit diagnostics (`noFlakyDiagnosticsExpressionNameShadowedInBody1`) |
-| Declaration emit (`.d.ts`) | yes | part of the `.js` baselines; late expando alias exports preserve earlier namespace exports (`declarationEmitLateExpandoAliasAddsExports`) |
+| JavaScript emit | yes | all of tsgo's transforms; 13,395 `.js` baselines pass, 0 fail; named function/class expressions avoid spurious emit diagnostics (`noFlakyDiagnosticsExpressionNameShadowedInBody1`) |
+| Declaration emit (`.d.ts`) | yes | part of the `.js` baselines; late expando alias exports preserve earlier namespace exports (`declarationEmitLateExpandoAliasAddsExports`); cyclic inferred structures and serializer depth truncation report declaration errors (`declarationEmitUnserializableTypes`) |
 | Source maps, declaration maps | yes | 149 `.js.map` and 156 `.sourcemap.txt` baselines pass, 0 fail |
 | Incremental builds (`.tsbuildinfo`) | yes | Go-history and API formats unchanged; default CLI adds an optional canonical-slot signature for safe warm reuse; old caches upgrade once ([details](../notes/fix-history-dependent-diagnostics.md)) |
 | `--build` (project references) | yes | 189 of 192 `tsbuild` and 191 of 223 `tsc` scenario baselines pass; the failures are CLI commands tsrs doesn't port (`--help`, `--init`, …). 0.17.0 frees each project's program once it is built: a synthetic 7,500-project graph peaks at 4.8 GB at `--builders 64 --checkers 1`, where it aborted with the arena range exhausted before ([experiment note](../notes/mem-build-free-programs.md)) |
@@ -58,7 +58,7 @@ defaults, unsupported features and known parity gaps.
 | WebAssembly (`@tsrs/wasm`) | yes | single-threaded; renamed to `@ts-rs/wasm` in 0.12.0 and `@tsrs/wasm` in 0.16.0; byte-identical to native `--singleThreaded` on a 2,000-case conformance sample ([experiment note](../notes/wasm-build.md)) |
 | Browser playground | yes | [hosted on Void](https://tsrs-playground.void.app), also available as a [local/static build with the vendored official TypeScript Playground page and styles](../playground/README.md): tsrs WASM checking and emit, virtual files, errors, JS/declarations, examples, Run/Logs, share links and compatible plugins; pinned visual-source integrity, native-equivalence integration checks and local/hosted production browser checks. Basic editing only: no semantic autocomplete/hover, AST/type inspection, inlay hints, or automatic package type acquisition |
 | Options TypeScript 7 removed (ES5 target, AMD/UMD/System, `baseUrl`, …) | rejected, as in tsgo | same TS5102 / TS5108 errors |
-| `--watch`, `-b --watch` | yes; Linux and macOS (Windows: exits with "not supported") | 39 of 42 `tscWatch` and all 65 `tsbuildWatch` scenario baselines pass; the three failures are `--help` and `--init`. Watches with inotify on Linux (tsgo uses fanotify where the kernel allows it, inotify otherwise) and FSEvents or kqueue on macOS. On Linux a cycle starts when the writer closes the saved file, where tsgo starts at the first write (often the truncation) and checks a half-written file. A watch session frees each replaced program and each parsed file version nothing refers to any more (notes/watch-memory.md), and `-b --watch` reuses parsed files whose text is unchanged; tsgo reparses every file each cycle. Ctrl-C ends the session |
+| `--watch`, `-b --watch` | yes; Linux and macOS (Windows: exits with "not supported") | 39 of 42 `tscWatch` and all 65 `tsbuildWatch` scenario baselines pass; the three failures are `--help` and `--init`. Watches with inotify on Linux (tsgo uses fanotify where the kernel allows it, inotify otherwise) and FSEvents or kqueue on macOS. Controlled descriptor-reuse and overlapping-watch cases verify kqueue closes only its current owned descriptors; controlled native batches and real filesystem delivery cover FSEvents write settling. On Linux a cycle starts when the writer closes the saved file, where tsgo starts at the first write (often the truncation) and checks a half-written file. A watch session frees each replaced program and each parsed file version nothing refers to any more (notes/watch-memory.md), and `-b --watch` reuses parsed files whose text is unchanged; tsgo reparses every file each cycle. Ctrl-C ends the session |
 | `--init`, `--showConfig` | no | exits with "not supported"; `--help` prints a short usage |
 | `--locale` | ignored | messages are English only |
 | `--generateTrace` | no | warns "Failed to start tracing" (tsgo's message when it can't write a trace) and type-checks as without the flag |

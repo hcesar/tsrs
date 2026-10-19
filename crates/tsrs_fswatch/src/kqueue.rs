@@ -158,7 +158,6 @@ struct kqueueSubscription {
     dir_watch: Arc<dirWatch>,
     path: String,
     entries: entriesID,
-    fd: i32,
 }
 
 #[derive(Default)]
@@ -335,24 +334,18 @@ impl kqueueBackend {
     // kqueue.go:234
     fn close_subscriptions(&self) {
         let mut st = self.mu.lock().unwrap();
-        let mut seen_fds = rustc_hash::FxHashSet::default();
+        // tsrs-only: subscriptions outlive descriptor replacement. Close the current owned descriptors, not
+        // Go's cached subscription fd, which may already have been reused by an unrelated Rust File/ReadDir.
         #[expect(
             clippy::iter_over_hash_type,
-            reason = "closes each distinct fd once, then clears the maps; Go ranges the map too"
+            reason = "closes each owned fd once, then clears the maps; the order is irrelevant"
         )]
-        for list in st.subs_by_path.values() {
-            for sub in list {
-                if sub.fd < 0 {
-                    continue;
-                }
-                if !seen_fds.insert(sub.fd) {
-                    continue;
-                }
-                close_fd(sub.fd);
-            }
+        for &fd in st.fd_to_entry.keys() {
+            close_fd(fd);
         }
         st.subs_by_path = FxHashMap::default();
         st.fd_to_entry = FxHashMap::default();
+        st.entry_maps = FxHashMap::default();
     }
 
     // kqueue.go:266
@@ -493,9 +486,7 @@ impl kqueueBackend {
             return false;
         };
 
-        let fd = if let Some(fd) = entry.state {
-            fd
-        } else {
+        if entry.state.is_none() {
             let fd = match open_for_events(&entry.watch_path) {
                 Ok(fd) => fd,
                 Err(err) => {
@@ -517,14 +508,12 @@ impl kqueueBackend {
             }
             st.set_entry_state(map_id, path, Some(fd));
             st.fd_to_entry.insert(fd, (map_id, path.to_string()));
-            fd
-        };
+        }
         let sub = kqueueSubscription {
             id: self.next_id(),
             dir_watch: Arc::clone(w),
             path: path.to_string(),
             entries: map_id,
-            fd,
         };
         st.subs_by_path.entry(path.to_string()).or_default().push(sub);
         true
@@ -992,14 +981,12 @@ impl watcherImpl for kqueueBackend {
             clippy::iter_over_hash_type,
             reason = "one subscription per distinct path; subscription ids are only compared for equality; Go ranges the map too"
         )]
-        for (path, entry) in &entries {
-            let fd = entry.state.unwrap();
+        for path in entries.keys() {
             let sub = kqueueSubscription {
                 id: self.next_id(),
                 dir_watch: Arc::clone(w),
                 path: path.clone(),
                 entries: map_id,
-                fd,
             };
             st.subs_by_path.entry(path.clone()).or_default().push(sub);
         }
@@ -1023,30 +1010,38 @@ impl watcherImpl for kqueueBackend {
             maps_of_watch.extend(
                 list.iter().filter(|s| dwKey(Arc::clone(&s.dir_watch)) == key).map(|s| s.entries),
             );
-            let first_fd = list[0].fd;
             let kept: Vec<kqueueSubscription> =
                 list.iter().filter(|s| dwKey(Arc::clone(&s.dir_watch)) != key).cloned().collect();
             if kept.is_empty() {
-                // Closing the file descriptor automatically unwatches it in kqueue.
-                close_fd(first_fd);
-                st.fd_to_entry.remove(&first_fd);
                 st.subs_by_path.remove(&path);
             } else {
                 st.subs_by_path.insert(path, kept);
             }
         }
-        // Go drops the entries map with its last subscription (GC).
+        // tsrs-only: each subscribe owns an independent entries map, including overlapping watches. Close its
+        // current descriptors when its last subscription leaves; cached subscription fds can be stale after rewatch.
         #[expect(
             clippy::iter_over_hash_type,
-            reason = "drops each entry map that no subscription references; the removals are independent"
+            reason = "closes each unreferenced entry map's owned descriptors; the removals are independent"
         )]
         for map_id in maps_of_watch {
             let still_used =
                 st.subs_by_path.values().any(|l| l.iter().any(|s| s.entries == map_id));
             if !still_used {
-                st.entry_maps.remove(&map_id);
+                if let Some(entries) = st.entry_maps.remove(&map_id) {
+                    for entry in entries.into_values() {
+                        if let Some(fd) = entry.state {
+                            close_fd(fd);
+                            st.fd_to_entry.remove(&fd);
+                        }
+                    }
+                }
             }
         }
         Ok(())
     }
 }
+
+#[cfg(all(test, target_os = "macos"))]
+#[path = "kqueue_test.rs"]
+mod tests;
