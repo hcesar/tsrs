@@ -378,3 +378,114 @@ full correctness evidence, complete pass-set comparisons, unchanged source-input
 113 byte-identical runtime library files. Final performance samples are in `perf-final/` and
 `perf-final-confirmation/`, referenced by SHA-256 in `noise-policy-final-verdict.json`. The accepted release is
 `candidate-2/tsrs-release`, SHA-256 `9c6bba2d437088e45963d774a9f6e2fa7d54614df33b3d49345ab3860634a46a`.
+
+
+## 6. String literal module import attribute types — passed with build-identity adjudication
+
+Upstream: `792ffccb90f548cd3bdd7fc0b44f0ca9e1b169a7` — fix: disallow NoSubstitutionTemplate in module import
+attribute types (#64243).
+
+`check_grammar_import_attributes_type` now requires a literal type node containing a string literal, preserving
+the Go short-circuit order before accessing the literal. The updated `importAttributeType1` fixture fails before
+the port because the no-substitution template `css` lacks TS1555; its interpolated template already errors.
+After the port, all 33 import-attribute variants pass, including 28 applicable type/symbol and 32 emit baselines.
+A Go compiler built at this exact source revision produces byte-identical diagnostics and the same exit status
+for the materialized upstream case. The ignored reference checkout advances; the published TypeScript pin stays
+unchanged. The measurement problem and its controlled resolution are described below.
+
+All twelve complete passing sets exactly match source 5's accepted candidate: 13,462 diagnostics and 12,783
+types/symbols in Go checker history; 13,462 diagnostics and 12,782 types/symbols in canonical history; full emit
+passes 13,466 diagnostics, 12,783 types/symbols, 13,396 JS/declaration outputs, 149 JS maps and 156 source maps.
+There are no crashes or timeouts. The four existing checker diagnostic artifacts and canonical
+`objectLiteralNormalization` type/symbol difference remain unchanged.
+
+The workspace passes 1,066 checks with four existing ignored. Native/WASM checks, Clippy, source checks,
+formatting and all 36 regressions pass. All seven generators plus formatting leave all 1,168 crate files
+byte-identical. Full Go fourslash retains every one of the preceding 4,074 exercised groups and 4,130 passing
+events, with 472 groups skipped; its six Python gate checks and local-socket bridge checks pass. The isolated
+metadata wrapper selects this source without changing the published pin. The initial Go oracle build could not
+access the default Go cache in the sandbox; its retained failure log precedes the successful build using a cache
+under `target/`.
+
+Performance compares the frozen preceding `candidate-2/tsrs-release` with this release on all four public
+projects, single-threaded and at the default checker count, under `paired-sign-test-v1`. No build or correctness
+workload overlaps measurement. One warmup and ten alternating pairs per cell give these initial medians:
+
+| Project / mode | Instructions, billions before → after | Wall seconds before → after | Peak RSS MiB before → after |
+| --- | ---: | ---: | ---: |
+| vscode / single | 79.709651 → 79.714917 | 7.367043 → 7.384303 | 1607.562 → 1607.594 |
+| vscode / default | 91.435059 → 91.530841 | 1.064486 → 1.085740 | 2112.938 → 2109.008 |
+| webpack / single | 10.563169 → 10.561039 | 0.905310 → 0.864459 | 311.266 → 311.312 |
+| webpack / default | 14.576860 → 14.643088 | 0.207951 → 0.209863 | 494.555 → 497.656 |
+| Compiler-Unions / single | 3.211774 → 3.211768 | 0.266543 → 0.268167 | 59.578 → 59.594 |
+| Compiler-Unions / default | 3.884214 → 3.883863 | 0.149601 → 0.144370 | 83.266 → 83.070 |
+| t3code-server / single | 38.149629 → 38.150524 | 3.126021 → 3.154399 | 728.641 → 728.672 |
+| t3code-server / default | 122.045047 → 122.229939 | 1.315348 → 1.335166 | 2102.773 → 2099.227 |
+
+The ordinary fixed-build verdict **confirms four single-thread RSS increases**: VS Code +32 KiB in both
+batches (pooled p = 0.0000009537), webpack +48 KiB initially and +40 KiB in confirmation (p = 0.0000009537),
+Compiler-Unions +16 KiB in both (p = 0.0000305176), and t3code-server +32 KiB in both (p = 0.0000019073).
+Other screened instruction/wall metrics do not confirm. This verdict remains unchanged at
+`noise-policy-verdict.json`; it is not relabeled passed. Every original and rejected candidate and raw sample
+remains at its original path.
+
+After reviewing earlier rejected work, temporary entry probes observe zero calls to this grammar helper in
+VS Code, Compiler-Unions and t3code-server. Mach-O inspection finds unchanged text-section size and unchanged
+192-byte parent stack frame. Three focused experiments fail: outlining the grammar helper gives +16 KiB
+Compiler-Unions RSS; adding cold placement gives +64 KiB; outlining the parent reduces its frame to 160 bytes
+but gives +24 KiB. All attributes are reverted. These observations do not establish a code-layout mechanism.
+The source-4 cyclic-recovery and source-5 static-context helper attributes remain unchanged.
+
+Equal-byte copies at the original short and long path lengths do not reproduce the RSS increase. Debugger and
+external vmmap attempts yield no usable snapshot and their failure logs remain. A diagnostic injected
+self-inspection library instead localizes a repeatable startup difference to system `MALLOC_SMALL` residency.
+The equal-length-path controls have equal live allocation counts and bytes; the original short/long paths
+differ by 48 live bytes. The residency difference also occurs with `--version`, before checker work. Injection changes the environment and exit residency need not equal peak residency, so these probes are
+not acceptance measurements.
+
+Strict reciprocal metadata controls then change only the 16-byte Mach-O UUID and its 32-byte signature hash
+covering the header. All executable/data sections, remaining bytes, signature identifier/flags/hash-page format
+and 113 runtime assets stay unchanged; all copies pass strict signature verification and use equal-length paths.
+Normal non-injected measurements reproduce a metadata-only +16-KiB startup increase (ten positive pairs) and
++24-KiB Compiler-Unions median increase (eight positive, two tied pairs) for baseline code. Initial-code copies
+also differ by +16 KiB at startup (ten positive pairs), though their Compiler-Unions medians tie (six positive,
+four tied pairs). Every output and exit matches. `diagnosis/strict-control-summary.json` retains exact byte
+locations, complete section hashes, signatures and all pairs. These controls demonstrate a benchmark nuisance;
+they do not independently exclude a code memory effect.
+
+The measurement problem is addressed with root-reviewed, preregistered **build-identity sampling**, described in
+[the reusable evidence note](perf-build-identity.md). Apple's revision-pinned primary allocator documentation
+supports entropy stable across executions of a binary within one boot, so repeated launches of one build do not
+independently sample that nuisance. The complete installed allocator mechanism remains unproven. Before any new
+measurement, `diagnosis/build-identity-protocol.json` freezes ten SHA-256-derived UUID identities, each applied
+symmetrically to both original code variants, plus ten disjoint reserved confirmation identities. Every identity
+counts; none is selected for favorable results. Each of the four previously confirmed single-thread cells gets
+one warmup and one timed run per binary/identity in alternating order, with no injection or allocator override.
+All three ordinary metrics are retained and screened using the existing exact sign-test thresholds. Only a
+screened cell receives the single reserved confirmation, reversing pair order. No forced UUID or production
+workaround ships, and the original frozen release remains the candidate. Controlled initial medians:
+
+| Project / mode | Instructions, billions before → after | Wall seconds before → after | Peak RSS MiB before → after |
+| --- | ---: | ---: | ---: |
+| vscode / single | 79.487772 → 79.484529 | 7.269334 → 7.280619 | 1607.594 → 1607.594 |
+| webpack / single | 10.562651 → 10.562622 | 0.887391 → 0.860729 | 311.305 → 311.297 |
+| Compiler-Unions / single | 3.211773 → 3.211704 | 0.264461 → 0.269008 | 59.609 → 59.609 |
+| t3code-server / single | 38.134651 → 38.134738 | 3.129247 → 3.106347 | 728.672 → 728.672 |
+
+No controlled RSS or instruction metric screens. Compiler-Unions wall time screens at +1.719593%
+(0.264461 → 0.269008 seconds, eight positive pairs, p = 0.0546875). Its sole confirmation decreases by
+0.213206% (0.269771 → 0.269196 seconds), with five positive and five negative pairs; pooled p = 0.1315879822.
+The controlled verdict is **no detected code-associated regression across the preregistered identities**,
+not proof of equality. The original shipping binaries still measure +16–48 KiB RSS in the fixed-build initial
+batch. `diagnosis/build-identity-final-verdict.json` links the frozen protocol and both complete datasets.
+Its evaluator verifies exact coverage, hashes, UUIDs, run order, unchanged binaries/assets and output parity.
+This source-6 adjudication does not automatically change later sources' policy.
+
+After removing the experiments, all 1,608 original correctness inputs and all 1,640 broader build inputs match
+the completed gate snapshots byte-for-byte, so those gates are reused with recorded proof. The dev CLI is rebuilt
+to remove the temporary probe and again matches the exact-source Go diagnostic oracle. Final source lint,
+formatting and diff checks pass. The frozen original release is `tsrs-release`, SHA-256
+`9b0a663ce1fe83506e50952d0ec4827d33c6fd658a9a5f7d22985dc983864d7d`; its 113 runtime assets match the
+preceding accepted snapshot. `target/port-623/0006-792ffccb90/` contains the upstream patch, reproduction,
+full correctness and pass-set evidence, unchanged-input proofs, original eight-cell performance rejection,
+all failed candidates, diagnostic controls, preregistration/review and final controlled verdict.

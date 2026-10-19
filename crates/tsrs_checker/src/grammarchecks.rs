@@ -3606,7 +3606,9 @@ impl Checker {
                 );
             }
 
-            if !ast::is_string_literal_like_type(type_node) {
+            if !ast::is_literal_type_node(type_node)
+                || !ast::is_string_literal(type_node.as_literal_type_node().literal)
+            {
                 return self.grammar_error_on_node(type_node, &diagnostics::An_import_attributes_property_must_have_a_string_literal_type_annotation, &[]);
             }
         }
