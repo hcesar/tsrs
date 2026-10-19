@@ -302,3 +302,79 @@ repaired compiler's full conformance, emit, oracle and fourslash evidence; `cand
 filesystem, workspace, native/WASM, lint, formatting, generator and regression gates plus unchanged compiler
 input evidence. Final performance data are in `perf-final/` and `perf-final-confirmation/`, with the acceptance
 verdict in `noise-policy-final-verdict.json`. The published TypeScript pin remains unchanged.
+
+## 5. Static properties and self-contextual typing — passed
+
+Upstream: `619d485a639c83a2d82860b5797db4984cecfc91` — Avoid contextually typing static properties by their own
+class to prevent spurious circularities (#64525).
+
+`get_contextual_type_for_static_property_declaration` now rejects a contextual parent type whose symbol is the
+class's own declaration symbol, preserving the Go short-circuit order. Before the port, the new
+`classStaticPropertyNoSpuriousCircularityError1` fixture reports four spurious TS7022 diagnostics and infers `any`
+instead of `42`, `number`, `number[]` and `{}`. All its diagnostics, types, symbols and emit baselines now pass.
+A Go compiler built at this exact source revision produces byte-identical diagnostics and the same exit code;
+the seven genuine circular-reference diagnostics remain. The ignored reference checkout advances; the published
+TypeScript pin stays unchanged. The additional performance repair is described below.
+
+Both checker histories retain every preceding passing baseline: 13,462 diagnostics and 12,783 types/symbols in
+Go history; 13,462 diagnostics and 12,782 types/symbols in canonical history. Full emit passes 13,466 diagnostics,
+12,783 types/symbols, 13,396 JS/declaration outputs, 149 JS maps and 156 source maps. All twelve complete passing
+sets retain every preceding pass, with no crashes or timeouts. The four existing checker diagnostic artifacts and
+canonical `objectLiteralNormalization` type/symbol difference remain unchanged. No upstream cases were removed.
+
+The final candidate passes the full workspace gate (1,066 passed, four existing ignored), native/WASM checks,
+Clippy, source checks, formatting and all 36 regressions. Regeneration leaves all 1,168 crate files byte-identical.
+Full Go fourslash passes the same 4,074 exercised groups, with 472 skipped; its complete passing set is unchanged.
+The initial sandboxed bridge check could not bind its Unix socket; its failure log is retained, and the gate passes
+with authorized local-socket access. The isolated metadata wrapper selects this source without changing the pin.
+
+The first release confirms single-threaded RSS regressions under `paired-sign-test-v1`: VS Code rises by 16 KiB
+in both batches (pooled p = 0.0000381470); Compiler-Unions rises by 24 KiB initially and 16 KiB in confirmation
+(p = 0.0000076294); t3code-server rises by 16 KiB in both batches (p = 0.0020904541). webpack/default wall time
+and t3code-server/default RSS screen initially but do not confirm. Every failed raw sample and the original
+immutable release remain at their original paths.
+
+After reviewing the existing performance notes and source-4 diagnosis, temporary entry probes find that
+Compiler-Unions never calls this helper, t3code-server calls it seven times without reaching the new guard, and
+VS Code calls it 331 times and reaches the guard 12 times. The added guard cannot explain the Compiler-Unions
+increase through executed work. The release's text grows by 64 bytes, with unchanged segment and data-section
+sizes. Mach-O function boundaries identify two bodies growing by 48 and 16 bytes; their stack prologues remain
+112 and 80 bytes. Symbols are stripped, so their identities are not established. This does **not** demonstrate
+larger stack frames; code generation affecting page residency remains a hypothesis, not an established mechanism.
+
+The repair adds only `#[inline(never)]` to this existing static-property helper, preserving the Go function and
+control flow and the preceding cyclic-recovery helper's attribute. It adds no cache, thread or allocator change.
+This narrow experiment responds to the newly confirmed port regression; it does not repeat the broad contextual
+member outlining rejected in earlier notes. A focused ten-pair Compiler-Unions comparison changes peak RSS from
+62,488,576 to 62,472,192 bytes (-16 KiB), instructions by -0.003004%, and wall time by -0.709589%. That focused
+batch is diagnostic evidence, not acceptance. The temporary probes are removed, and all correctness gates above
+are rerun on the repaired candidate.
+
+The repaired release is compared against source 4's accepted `candidate-5/tsrs-release`, with one warmup and ten
+alternating pairs in all eight configurations. No builds or correctness workloads overlap measurement. Final
+initial-batch medians:
+
+| Project / mode | Instructions, billions before → after | Wall seconds before → after | Peak RSS MiB before → after |
+| --- | ---: | ---: | ---: |
+| vscode / single | 79.586344 → 79.590718 | 7.339378 → 7.313885 | 1607.578 → 1607.562 |
+| vscode / default | 91.496305 → 91.472670 | 0.992566 → 0.989575 | 2107.539 → 2108.641 |
+| webpack / single | 10.563613 → 10.561301 | 0.899224 → 0.904487 | 311.297 → 311.266 |
+| webpack / default | 14.541304 → 14.593499 | 0.203591 → 0.203820 | 494.219 → 495.250 |
+| Compiler-Unions / single | 3.211762 → 3.211699 | 0.264822 → 0.268189 | 59.594 → 59.578 |
+| Compiler-Unions / default | 3.884001 → 3.886338 | 0.149279 → 0.149961 | 83.281 → 83.062 |
+| t3code-server / single | 38.142110 → 38.142063 | 3.150723 → 3.115938 | 728.672 → 728.641 |
+| t3code-server / default | 121.745705 → 122.217984 | 1.357603 → 1.362288 | 2093.336 → 2097.469 |
+
+Only Compiler-Unions/single wall time screens (+1.271514%, eight positive pairs of ten). Its sole independent
+reversed-order confirmation increases by 1.666293%, with six positive and four negative pairs; pooled
+p = 0.0576591492 exceeds the 0.01 threshold. No RSS or instruction metric screens. The final verdict is **no
+detected regression**, not exact equality. Every measured run preserves the predecessor's output and exit
+status. No unchanged candidate was retried for a favorable result.
+
+Artifacts are under `target/port-623/0005-619d485a63/`: the upstream patch, before/after reproduction and Go oracle,
+initial complete conformance sets, rejected release and raw `perf-initial/` / `perf-confirmation/` datasets,
+`noise-policy-verdict.json`, and causal probes/disassembly under `diagnosis/`. `candidate-2/` contains the final
+full correctness evidence, complete pass-set comparisons, unchanged source-input snapshots, frozen release and
+113 byte-identical runtime library files. Final performance samples are in `perf-final/` and
+`perf-final-confirmation/`, referenced by SHA-256 in `noise-policy-final-verdict.json`. The accepted release is
+`candidate-2/tsrs-release`, SHA-256 `9c6bba2d437088e45963d774a9f6e2fa7d54614df33b3d49345ab3860634a46a`.

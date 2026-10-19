@@ -2646,6 +2646,8 @@ impl Checker {
     }
 
     // checker.go:30101
+    // Keep the static-property path out of its caller (notes/typescript-623-ports.md, entry 5).
+    #[inline(never)]
     pub(crate) fn get_contextual_type_for_static_property_declaration(
         &mut self,
         declaration: P<Node>,
@@ -2653,7 +2655,10 @@ impl Checker {
     ) -> Option<P<Type>> {
         let decl_parent = declaration.parent().unwrap();
         if is_expression(decl_parent) {
-            if let Some(parent_type) = self.get_contextual_type(decl_parent, context_flags) {
+            // Don't contextually type a static property by its own class, its type might still be in-progress and that would cause spurious circularities
+            if let Some(parent_type) = self.get_contextual_type(decl_parent, context_flags)
+                && parent_type.symbol() != self.get_symbol_of_declaration(decl_parent)
+            {
                 let name = self.get_symbol_of_declaration(declaration).unwrap().name();
                 return self.get_type_of_property_of_contextual_type(parent_type, name);
             }
