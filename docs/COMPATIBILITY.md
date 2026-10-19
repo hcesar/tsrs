@@ -6,10 +6,12 @@ The goal is 100% conformance with TypeScript 7. This page records the current ev
 
 tsrs is a function-by-function port of the Go implementation of TypeScript (`microsoft/TypeScript`, commit
 `b85298b6a81f`, TypeScript 7.1.0-dev). The Go code is the spec: any difference from it in diagnostics, their order,
-message text or exit code is a tsrs bug, even when tsrs's output looks better.
+message text or exit code is a tsrs bug, even when tsrs's output looks better. The in-progress source upgrade is
+validated through `697b847e11e9`; the [port log](../notes/typescript-623-ports.md) records each step. The published
+pin remains unchanged until that upgrade is complete.
 
-On TypeScript's conformance suite, tsrs matches the reference on 13,458 of 13,462 error baselines (the other four are
-test-harness artifacts) and on all 12,779 `.types` and `.symbols` baselines. It has also been run on a large private
+On that revision's conformance suite, tsrs matches the reference on 13,459 of 13,463 error baselines (the other four are
+test-harness artifacts) and on all 12,780 `.types` and `.symbols` baselines. It has also been run on a large private
 monorepo. See the [status log](STATUS.md) for conformance details.
 
 [Top repository conformance](../tools/repo-conformance/README.md) compares diagnostics against pinned tsgo on 1,000
@@ -29,18 +31,19 @@ Updating this table (../AGENTS.md says when; commands and paths below are relati
 - Keep the root and npm README summaries, docs/EMIT.md, docs/LSP.md and docs/STATUS.md consistent with the table.
 -->
 
-"Identical" below means identical to tsgo built from the same pinned commit. [Differences from pinned
-TypeScript](DEFAULTS.md) details changed defaults, unsupported features and known parity gaps.
+"Identical" below means identical to tsgo built from the same reference commit. Conformance counts include the
+in-progress source upgrade described above. [Differences from pinned TypeScript](DEFAULTS.md) details changed
+defaults, unsupported features and known parity gaps.
 
 | feature | status | evidence and notes |
 | --- | --- | --- |
-| Type checking (`--noEmit`) | yes | 13,458 of 13,462 error baselines and all 12,779 `.types` / `.symbols` baselines match; top-repository comparisons still report known parity gaps and tsrs failures |
+| Type checking (`--noEmit`) | yes | 13,459 of 13,463 error baselines and all 12,780 `.types` / `.symbols` baselines match |
 | Multithreaded checking, `--singleThreaded`, `--pretty`, `--listFiles`, `--listFilesOnly` | yes | every core up to 16, then at least 16 or half the cores, at most 32 checkers, capped for small programs; build mode uses four; 0.13.0 enables module affinity from 8 checkers on programs with at least 24,000 checked files ([experiment note](../notes/perf-icount-hillclimb.md)) |
 | Compiler statistics (`--diagnostics`, `--extendedDiagnostics`) | yes | Since 0.17.0, timings are collected only when requested; config-read timing requires the flag on the command line. Internal flow-memo, lazy-list, filesystem-call and reclaimed-page counters have been removed ([debugging](DEBUGGING.md)) |
 | Memory target (`--maxMemory <size>`) | `--noEmit` checks, opt-in | Replaces the largest checker after crossing the target, trading CPU for memory; testdata/regressions identical with a checker retired after nearly every file, also in poison mode ([experiment note](../notes/mem-recycle-checkers.md)) |
 | Same output regardless of thread count | yes, with known exceptions (tsgo: no) | a few projects still depend on file order through tsgo's own logic ([experiment note](../notes/open-history-dependence.md)); `--checkerAssignment go` reproduces tsgo exactly, together with `--noLazyMembers` where an instantiation depth limit is reached |
-| JavaScript emit | yes | all of tsgo's transforms; 13,392 `.js` baselines pass, 0 fail |
-| Declaration emit (`.d.ts`) | yes | part of the `.js` baselines |
+| JavaScript emit | yes | all of tsgo's transforms; 13,393 `.js` baselines pass, 0 fail |
+| Declaration emit (`.d.ts`) | yes | part of the `.js` baselines; late expando alias exports preserve earlier namespace exports (`declarationEmitLateExpandoAliasAddsExports`) |
 | Source maps, declaration maps | yes | 149 `.js.map` and 156 `.sourcemap.txt` baselines pass, 0 fail |
 | Incremental builds (`.tsbuildinfo`) | yes | Go-history and API formats unchanged; default CLI adds an optional canonical-slot signature for safe warm reuse; old caches upgrade once ([details](../notes/fix-history-dependent-diagnostics.md)) |
 | `--build` (project references) | yes | 189 of 192 `tsbuild` and 191 of 223 `tsc` scenario baselines pass; the failures are CLI commands tsrs doesn't port (`--help`, `--init`, …). 0.17.0 frees each project's program once it is built: a synthetic 7,500-project graph peaks at 4.8 GB at `--builders 64 --checkers 1`, where it aborted with the arena range exhausted before ([experiment note](../notes/mem-build-free-programs.md)) |

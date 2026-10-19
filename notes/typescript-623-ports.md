@@ -10,12 +10,32 @@ Each entry must retain every passing checker baseline in both histories and pass
 checks, Clippy, source checks, and generated-code verification. Run the affected subsystem's additional gates.
 Performance compares release binaries on `vscode`, `webpack`, `Compiler-Unions`, and `t3code-server`, single-threaded
 and default: one warmup and ten alternating before/after pairs per cell. Compare median instructions retired, wall
-time, and peak RSS. Fix any regression or other gate failure in the corresponding commit, document the cause and
-fix in its commit message, and revalidate before advancing. Keep failed and successful measurement artifacts.
+time, and peak RSS. Fix confirmed performance regressions or other gate failures in the corresponding commit,
+document the cause and fix in its commit message, and revalidate before advancing. Keep all measurement artifacts.
 Measurements use macOS `/usr/bin/time -l` for instructions and RSS, and a monotonic high-resolution clock around the
 command for wall time. For a no-op port, byte-identical compiler binaries and runtime assets establish no
 performance regression without timing the same executable twice. Reuse other completed checks only when their
 inputs are demonstrably unchanged; compare complete passing sets rather than totals alone.
+
+After the identical-binary control in entry 2 also failed the original zero-tolerance median rule, the user
+instructed removal of that blocking rule and continuation without human guidance. Routine migration work requires
+no further human approval. The replacement measurement policy is `paired-sign-test-v1`:
+
+- Retain all three raw before/after medians and every pair in the initial eight cells.
+- For each metric, compute paired relative changes and the exact one-sided sign-test probability
+  `P[Binomial(n_non_tied, 0.5) >= positive_pairs]`, excluding exactly equal pairs.
+- A positive raw median change screens for confirmation when that probability is at most 0.10.
+- Run exactly one independent ten-pair confirmation batch per screened cell against the same preceding binary,
+  reversing the initial pair order. Evaluate every screened metric in that cell.
+- A reproducible regression requires positive raw median changes in both batches and a pooled paired sign-test
+  probability at most 0.01. Diagnose and repair confirmed regressions faithfully, retaining the failed evidence.
+  Do not repeat unchanged candidates until a favorable batch appears.
+- Otherwise report **no detected regression**, not proof of exact equality. Keep old strict-rule records unchanged;
+  new verdicts identify their input files by SHA-256. Binary/runtime identity still suffices for a no-op port.
+
+The reusable local evaluator and confirmation collector are `target/port-623/noise_gate.py`; the local manifest
+records the current policy and superseded rule. Evaluator sanity checks cover identical samples, consistent
+increases, exact binomial tails, excluded ties and mixed samples.
 
 Prerequisite `55e77eaf` isolates the macOS watch fixtures and replaces the OS-dependent event-drop stress test with
 deterministic callback injection. No compiler behavior changes. Workspace: 1,064 passed, four existing ignored;
@@ -49,3 +69,72 @@ Candidate conformance, pass-set comparison, release build, and identity artifact
 `target/port-623/0001-9adc871ff4/`; the preceding release binary and bundled-library snapshot are under
 `target/port-623/baseline/`. Inherited workspace and generated-code evidence is under
 `target/port-623/watch-diagnosis/`. The published TypeScript pin remains unchanged.
+
+## 2. Late expando alias exports — passed
+
+Upstream: `697b847e11e91dfbff79f1d189b802b751999f03` — Add export modifiers to other expando exports of
+namespaces on all codepaths which add export declarations (#64545).
+
+The declaration transformer checks for an existing export declaration before the alias branch and calls
+`add_export_modifier_to_expando_members` before adding either an alias export or a renamed export. Earlier
+namespace members remain exported; the initial variable of a renamed export remains private. The new upstream
+`declarationEmitLateExpandoAliasAddsExports` case fails its declaration output before the port and passes after it.
+The ignored reference checkout advances to this source revision; the published TypeScript pin stays unchanged.
+
+Both checker histories retain every previous passing baseline and add the new case: 13,459 diagnostics and
+12,780 types/symbols in Go history; 13,459 diagnostics and 12,779 types/symbols in canonical history. The four
+existing checker diagnostic differences and canonical `objectLiteralNormalization` difference are unchanged.
+Full emit passes 13,463 diagnostics, 12,780 types/symbols, 13,393 JS/declaration outputs, 149 JS maps and 156 source
+maps. Complete pass-set comparisons find no losses, crashes or timeouts. All ten expando declaration oracle cases
+match a Go compiler built at this revision. Workspace checks pass (1,064 passed, four existing ignored), as do
+native/WASM checks, Clippy, source checks, formatting and all 36 regressions. Regeneration leaves every crate file
+byte-identical to its pre-generation snapshot. No additional source fixes were required.
+
+The original release comparison stopped at its first cell because the superseded strict gate rejected any median increase. VS Code,
+single-threaded, ten alternating pairs after warmup: instructions 79,564,397,188.5 → 79,568,375,304.5 (+0.0050%);
+wall 7.4676780835 → 7.447164208 seconds (-0.2747%); peak RSS 1,685,700,608 → 1,685,700,608 bytes. The VS Code
+configuration enables neither `declaration` nor `composite`, so the changed declaration transformer does not run
+in this `--noEmit --incremental false` workload.
+
+An identical-binary control using the same saved predecessor path and SHA-256 on both sides also failed that
+gate: instructions 79,517,198,584 → 79,515,883,546.5 (-0.0017%); wall 7.4730112505 → 7.478658208 seconds
+(+0.0756%); peak RSS remains 1,685,700,608 bytes. Both batches retain all ten pairs; no tolerance or unchanged
+candidate retries were introduced. The remaining seven cells were then collected once as evidence, retaining
+the original VS Code single-threaded cell and every strict failure flag. Those original records retain their
+`acceptance_passed=false`; the revised-policy verdict is separate.
+
+| Project / mode | Instructions, billions before → after | Wall seconds before → after | Peak RSS MiB before → after | Strict increases |
+| --- | ---: | ---: | ---: | --- |
+| vscode / single | 79.564397 → 79.568375 | 7.467678 → 7.447164 | 1607.609 → 1607.609 | instructions |
+| vscode / default | 91.443870 → 91.373049 | 1.006581 → 0.999924 | 2108.453 → 2109.805 | RSS |
+| webpack / single | 10.566873 → 10.566473 | 0.905326 → 0.889525 | 311.344 → 311.328 | none |
+| webpack / default | 14.680447 → 14.527130 | 0.200681 → 0.199886 | 498.531 → 493.344 | none |
+| Compiler-Unions / single | 3.211941 → 3.211971 | 0.259233 → 0.263429 | 59.625 → 59.625 | instructions, wall |
+| Compiler-Unions / default | 3.885955 → 3.885974 | 0.148487 → 0.145966 | 83.031 → 83.203 | instructions, RSS |
+| t3code-server / single | 38.137103 → 38.372979 | 3.164334 → 3.173378 | 728.703 → 728.703 | instructions, wall |
+| t3code-server / default | 122.113708 → 121.988545 | 1.351808 → 1.324767 | 2096.805 → 2091.438 | none |
+
+The t3code-server configuration also has neither declaration nor composite enabled. Compiler-Unions enables
+declaration, but its 41 semantic diagnostics prevent the declaration-diagnostics phase from running. These
+configuration facts do not exclude whole-binary layout effects from the release rebuild. In single-threaded
+t3code-server, eight of ten pairs increase instructions and wall time; their respective paired ranges are
+-0.0156% to +0.8920% and -1.0021% to +8.3221%. Compiler-Unions has five increasing instruction pairs in each
+mode. These initial batches establish no performance cause.
+
+Applying `paired-sign-test-v1` screens only t3code-server/single instructions and wall time: each has eight
+positive pairs out of ten, exact p = 0.0546875. The one independent confirmation batch reverses the initial pair
+order and yields instructions 38,160,143,868.5 → 38,159,962,929.5 (-0.000474%); wall 3.177846896 → 3.1720029795
+seconds (-0.183895%); peak RSS 764,100,608 → 764,100,608 bytes. It has five positive instruction pairs and four
+positive wall-time pairs. Pooled probabilities are 0.1315879822 for instructions and 0.2517223358 for wall time;
+neither raw median increase repeats. The verdict is **no detected regression** across all eight cells. No
+performance source changes were needed; this does not establish exact performance equality.
+
+Artifacts are under `target/port-623/0002-697b847e11/`: full conformance lists, `pass-set-comparison.json`, generator
+snapshots, gate logs, the Go reference binary, the frozen candidate `tsrs-release` and 113 bundled library files,
+and `identity.json`. `perf-attempt-1.log` records the initial Python 3.9 setup error; the runner needs Python 3.12.
+`perf-attempt-2/` contains the failed candidate comparison, and `perf-control-aa/` the failed identical-binary
+control. `perf-remaining/results.json` retains all eight original cells and strict flags; `perf-summary.json`
+records every paired delta. `perf-confirmation/` records the sole confirmation batch, and
+`noise-policy-verdict.json` records the accepted verdict with SHA-256 references to both input datasets. The
+accepted release binary SHA-256 is `83daa2fa410ca5fbb6bc02ff35ac70022d11841fbdf290bd737425ba19571134`; all 113
+bundled library files remain byte-identical to the preceding accepted snapshot.
