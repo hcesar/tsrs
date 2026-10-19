@@ -9,8 +9,7 @@ use std::sync::mpsc::{Receiver, channel};
 use std::sync::{RwLock, RwLockReadGuard};
 use std::time::Duration;
 
-// Tests share the temporary directory, and a watch's streams see the writes of the others: a test that needs quiet
-// takes this exclusively, the others shared.
+// The idle wakeup measurement runs alone so that other tests do not affect its process measurements.
 static EXCLUSIVE: RwLock<()> = RwLock::new(());
 
 fn shared() -> RwLockReadGuard<'static, ()> {
@@ -134,14 +133,23 @@ fn project(name: &str, files: &[(&str, &str)]) -> PathBuf {
 }
 
 fn project_in(root: &Path, name: &str, files: &[(&str, &str)]) -> PathBuf {
-    let dir = root.join(format!("tsrs-watch-{}-{name}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let root = root.join(format!("tsrs-watch-{}-{name}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let dir = root.join("project");
+    std::fs::create_dir_all(&dir).unwrap();
+    // Package discovery must stop here, and the project's parent watch must not cover the shared temporary
+    // directory: FSEvents receives subtree traffic even for non-recursive watches, so unrelated writes can overflow it.
+    std::fs::write(dir.join("package.json"), "{}\n").unwrap();
     for (path, content) in files {
         let path = dir.join(path);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, content).unwrap();
     }
     std::fs::canonicalize(&dir).unwrap()
+}
+
+fn remove_project(dir: &Path) {
+    let _ = std::fs::remove_dir_all(dir.parent().unwrap());
 }
 
 const TSCONFIG: &str = r#"{ "compilerOptions": { "strict": true, "noEmit": true, "types": [], "forceConsistentCasingInFileNames": true }, "include": ["src"] }"#;
@@ -170,7 +178,7 @@ fn a_case_only_rename_reports_what_a_fresh_build_does() {
     std::fs::rename(dir.join("src/A.ts"), dir.join("src/a.ts")).unwrap();
     assert_eq!(watch.next_cycle(), fresh(&dir));
     drop(watch);
-    let _ = std::fs::remove_dir_all(&dir);
+    remove_project(&dir);
 }
 
 const ERR: &str = "\nexport const err: number = 'x';\n";
@@ -198,7 +206,7 @@ fn a_project_under_tmp_sees_edits() {
     let errors = watch.next_cycle();
     assert_eq!(errors.len(), 2, "{errors:?}");
     drop(watch);
-    let _ = std::fs::remove_dir_all(&real);
+    remove_project(&real);
 }
 
 #[test]
@@ -236,8 +244,8 @@ fn edits_through_a_symlinked_directory(args: &[&str]) {
     std::fs::write(dir.join("src/shared/s.ts"), "export const s = 1;\n").unwrap();
     assert_eq!(watch.next_cycle(), Vec::<String>::new());
     drop(watch);
-    let _ = std::fs::remove_dir_all(&dir);
-    let _ = std::fs::remove_dir_all(&shared);
+    remove_project(&dir);
+    remove_project(&shared);
 }
 
 #[test]
@@ -264,7 +272,7 @@ fn outputs_inside_the_watched_tree_start_no_cycle() {
         watch.assert_idle(Duration::from_secs(2));
     }
     drop(watch);
-    let _ = std::fs::remove_dir_all(&dir);
+    remove_project(&dir);
 }
 
 // A project whose build is mostly checking: its files are read within the first few percent of the build.
@@ -301,7 +309,7 @@ fn an_edit_during_the_first_build_is_seen(args: &[&str]) {
         assert_eq!(errors, fresh(&dir));
         assert_eq!(errors.len(), 1, "{errors:?}");
         drop(watch);
-        let _ = std::fs::remove_dir_all(&dir);
+        remove_project(&dir);
         return;
     }
     panic!("every edit landed before the first build read the file");
@@ -337,7 +345,7 @@ fn a_metadata_change_starts_no_cycle() {
     std::fs::write(dir.join("src/a.ts"), format!("export const a = 1;{ERR}")).unwrap();
     assert_eq!(watch.next_cycle().len(), 1);
     drop(watch);
-    let _ = std::fs::remove_dir_all(&dir);
+    remove_project(&dir);
 }
 
 // The process's interrupt wakeups so far (what Activity Monitor's "Idle Wake Ups" counts).
@@ -354,7 +362,7 @@ fn wakeups(pid: u32) -> u64 {
 
 #[test]
 fn an_idle_watch_does_not_wake_up() {
-    // Alone: the other tests' writes under the same temporary directory reach this watch's streams too.
+    // Run the wakeup measurement without the other tests' compilation and filesystem activity.
     let _alone = EXCLUSIVE.write().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir =
         project("idle", &[("tsconfig.json", TSCONFIG), ("src/a.ts", "export const a = 1;\n")]);
@@ -365,7 +373,7 @@ fn an_idle_watch_does_not_wake_up() {
     let woke = wakeups(watch.child.id()) - before;
     assert!(woke <= 1, "{woke} wakeups in 3 s of idling");
     drop(watch);
-    let _ = std::fs::remove_dir_all(&dir);
+    remove_project(&dir);
 }
 
 #[test]
@@ -399,8 +407,7 @@ fn a_new_directory_beside_the_project_starts_no_cycle(args: &[&str]) {
     std::fs::write(dir.join("src/sub/b.ts"), "export const b: number = 'x';\n").unwrap();
     assert_eq!(watch.next_cycle().len(), 1);
     drop(watch);
-    let _ = std::fs::remove_dir_all(&dir);
-    let _ = std::fs::remove_dir_all(&beside);
+    remove_project(&dir);
 }
 
 #[test]
@@ -450,7 +457,7 @@ fn a_watch_that_cannot_watch_says_so() {
     let _ = child.wait();
     assert!(lines.iter().any(|l| l.contains("ulimit -n")), "{lines:?}");
     assert!(lines.iter().any(|l| l.contains("Found 0 errors")), "{lines:?}");
-    let _ = std::fs::remove_dir_all(&dir);
+    remove_project(&dir);
 }
 
 fn installing_a_package_resolves_its_import(args: &[&str]) {
@@ -479,7 +486,7 @@ fn installing_a_package_resolves_its_import(args: &[&str]) {
     }
     assert_eq!(errors, fresh(&dir));
     drop(watch);
-    let _ = std::fs::remove_dir_all(&dir);
+    remove_project(&dir);
 }
 
 #[test]
@@ -499,7 +506,8 @@ fn edits_after_the_first_build_are_seen(args: &[&str]) {
     // reported. (-b --watch once reused a file parsed before an edit: a stat from between cycles was still cached.)
     // The outputs go outside the watched tree (as vscode's ../out), so that no cycle for them runs between the edits.
     let name = format!("edits-{}", args[0].trim_start_matches('-'));
-    let out = std::env::temp_dir().join(format!("tsrs-watch-{}-{name}-out", std::process::id()));
+    let out =
+        std::env::temp_dir().join(format!("tsrs-watch-{}-{name}", std::process::id())).join("out");
     let config = format!(
         r#"{{ "compilerOptions": {{ "strict": true, "types": [], "incremental": true, "outDir": "{}", "rootDir": "src" }}, "include": ["src"] }}"#,
         out.display()
@@ -524,8 +532,7 @@ fn edits_after_the_first_build_are_seen(args: &[&str]) {
         assert_eq!(errors, fresh(&dir));
     }
     drop(watch);
-    let _ = std::fs::remove_dir_all(&dir);
-    let _ = std::fs::remove_dir_all(&out);
+    remove_project(&dir);
 }
 
 #[test]

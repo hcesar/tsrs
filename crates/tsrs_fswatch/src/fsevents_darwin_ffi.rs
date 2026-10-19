@@ -305,6 +305,21 @@ impl fsEventsCallbackPayload {
     }
 }
 
+// Keep the borrowed CF objects and arrays alive while a test exercises the real event classifier.
+#[cfg(test)]
+pub(crate) fn dispatch_test_event(cb: &streamCallback, path: &str, flags: u32) {
+    let path = cf_string_create(path).unwrap();
+    let paths = cf_array_create(std::slice::from_ref(&path)).unwrap();
+    let id = 1;
+    let payload = fsEventsCallbackPayload {
+        num_events: 1,
+        paths: paths.0,
+        flags: &raw const flags,
+        ids: &raw const id,
+    };
+    fs_events_callback(cb, &payload);
+}
+
 // streamCallback is the per-stream state the C callback receives as FSEventStreamContext.info.
 pub(crate) struct streamCallback {
     queue: dispatch_queue_t, // per-stream serial dispatch queue
