@@ -582,3 +582,28 @@ codegen/probe/cycle diagnosis and focused measurements. The accepted frozen bina
 `7d5ca9c24e62ce861072fce926c6d93fb33b6ee5e51a8c177a035ac26e2b17f5`; all 113 adjacent runtime
 assets match source 6. The original rejected binary remains `0007-c4d731aae1/tsrs-release`, SHA-256
 `7c52a06fe8c3fec705a3a73e0fbf31c3fcc5078f84452a8a851a6254a8c5e97d`.
+
+## 8. `79feed291a5c` — disable upstream VSIX template publishing
+
+Upstream `79feed291a5c6c1d42ec040c4b42e7c2e9a1e2c4` adds `mb.publish.enabled: false` to the
+Validate and Publish jobs in `tools/pipelines/vscode-typescript-publish.yml`. tsrs has no corresponding
+Azure/VSIX pipeline, so this is an evidence-only port. No capability or runtime behavior changes.
+The ignored reference checkout advances to this source and is clean; the published pin stays unchanged.
+
+All 66,843 other upstream entries are identical, including the complete `tsc` and `packages` trees,
+fixtures, baselines, generator schemas and bundled libraries. All 1,608 correctness inputs, 1,640 broader
+build inputs and 1,168 generated crate files match source 7's final snapshots. A complete local tracked-file
+comparison also covers npm/API tooling and configuration outside those snapshots; only these two evidence
+documents change. This permits inheritance of source 7's final compiler, workspace, native/WASM,
+regression, generator and fourslash gates. All twelve complete passing sets and 66 nonpassing artifacts
+are preserved byte-for-byte: Go checker 13,463 diagnostics / 12,784 types and symbols; canonical
+13,463 / 12,783; emit 13,467 diagnostics / 12,784 types and symbols / 13,397 outputs / 149 JS maps /
+156 source maps; workspace 1,066 passed and four ignored; 36 regressions; fourslash 4,074 passing groups,
+472 skipped and 4,130 passing events. Fresh Clippy, source lint, formatting and diff checks pass.
+
+Performance is unchanged by compiler/runtime identity, without another timing run. Both sides use
+`target/port-623/0007-cand000003/tsrs-release`, SHA-256
+`7d5ca9c24e62ce861072fce926c6d93fb33b6ee5e51a8c177a035ac26e2b17f5`, with all 113 adjacent
+runtime assets unchanged. Source 7's instruction, wall-time and RSS measurements remain the applicable
+record. The patch, input/tree identities, inherited result hashes and fresh lint logs are retained under
+`target/port-623/0008-79feed291a/`; inherited gate logs are in `0007-c4d731aae1/candidate-3/`.
