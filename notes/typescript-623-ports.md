@@ -607,3 +607,37 @@ Performance is unchanged by compiler/runtime identity, without another timing ru
 runtime assets unchanged. Source 7's instruction, wall-time and RSS measurements remain the applicable
 record. The patch, input/tree identities, inherited result hashes and fresh lint logs are retained under
 `target/port-623/0008-79feed291a/`; inherited gate logs are in `0007-c4d731aae1/candidate-3/`.
+
+## 9. `64c5fa0b92ad` — exercise both custom export conditions
+
+Upstream `64c5fa0b92ade9b5f14db616d351ffe1990ca7fd` removes the space in the fixture directive
+`@customConditions: webpack,browser`, updates its exports-enabled type baseline from `webpack` to `browser`,
+and updates two Go resolution-trace baselines. The existing Rust compiler already handles both conditions.
+Both variants pass diagnostics, types, symbols and emit before and after the fixture change. An exact-source
+Go build agrees on diagnostics and exit status; supplementary literal-assignment probes also agree byte-for-byte:
+exports enabled selects `webpack` before and `browser` after, while exports disabled selects `index` in both.
+Go traces independently confirm those module paths. Rust trace-output parity is not asserted by these gates.
+The ignored reference checkout advances and is clean; the published TypeScript pin remains unchanged.
+
+Fresh full compiler runs preserve all twelve complete passing sets exactly: Go checker 13,463 diagnostics /
+12,784 types and symbols; canonical checker 13,463 / 12,783; emit 13,467 diagnostics / 12,784 types and symbols /
+13,397 outputs / 149 JS maps / 156 source maps. All 66 known nonpassing lists/artifacts remain byte-identical,
+including the four checker diagnostic differences and canonical `objectLiteralNormalization` difference.
+There are no new failures, crashes or timeouts. Fresh Clippy, source lint, formatting and diff checks pass.
+
+Only the four upstream fixture/baseline files change; all 66,840 other entries, including Go code, fourslash
+fixtures/baselines, generator schemas and bundled libraries, are identical. All 1,608 local correctness inputs,
+1,640 broader build inputs and 1,168 generated crate files match source 7's final snapshots; a complete comparison
+of all 2,352 tracked paths changes only the compatibility page and this ledger. The changed conformance fixture
+is covered by the fresh compiler runs and is not an input to the inherited workspace, native/WASM, generator,
+regression or fourslash gates. Those retain source 7's 1,066 workspace passes with four ignored, all 36 regressions,
+and 4,074 passing fourslash groups / 472 skipped / 4,130 passing events. An initial evidence setup command named
+a nonexistent fourslash tree; the recorded failure was repaired to use the actual Go fixture and baseline trees.
+No compiler repair was needed.
+
+Performance is unchanged by compiler/runtime identity, without another timing run. Both sides use the same
+accepted `target/port-623/0007-cand000003/tsrs-release`, SHA-256
+`7d5ca9c24e62ce861072fce926c6d93fb33b6ee5e51a8c177a035ac26e2b17f5`, and all 113 adjacent
+runtime assets remain byte-identical. Source 7's instruction, wall-time and RSS measurements remain the applicable
+record. The source patch, before/after fixtures, exact-source oracle, fresh compiler results, all passing sets,
+input/tree identities and inherited-gate hashes are under `target/port-623/0009-64c5fa0b92/`.
