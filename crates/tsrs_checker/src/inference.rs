@@ -2329,7 +2329,12 @@ impl Checker {
                     self.instantiate_type(constraint, n.non_fixing_mapper());
                 let compare_types = n.compare_types.get().unwrap();
                 if let Some(inferred) = inferred_type {
-                    if !n.flags.get().intersects(InferenceFlags::NoConstraintChecks) {
+                    // A pure return type inference is still filtered in a recursive call resolution, whose result can become the type of the enclosing declaration.
+                    if !n.flags.get().intersects(InferenceFlags::NoConstraintChecks) || {
+                        // Keep ordinary constraint checks on the fallthrough path (notes/typescript-623-ports.md, source 7).
+                        std::hint::cold_path();
+                        inference.priority.get() == InferencePriority::ReturnType
+                    } {
                         let constraint_with_this = self.get_type_with_this_argument(
                             instantiated_constraint,
                             Some(inferred),

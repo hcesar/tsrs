@@ -7,11 +7,11 @@ The goal is 100% conformance with TypeScript 7. This page records the current ev
 tsrs is a function-by-function port of the Go implementation of TypeScript (`microsoft/TypeScript`, commit
 `b85298b6a81f`, TypeScript 7.1.0-dev). The Go code is the spec: any difference from it in diagnostics, their order,
 message text or exit code is a tsrs bug, even when tsrs's output looks better. The in-progress source upgrade is
-validated through `792ffccb90f5`; the [port log](../notes/typescript-623-ports.md) records each step. The published
+validated through `c4d731aae17e`; the [port log](../notes/typescript-623-ports.md) records each step. The published
 pin remains unchanged until that upgrade is complete.
 
-On that revision's conformance suite, tsrs matches the reference on 13,462 of 13,466 error baselines (the other four are
-test-harness artifacts) and on all 12,783 `.types` and `.symbols` baselines. It has also been run on a large private
+On that revision's conformance suite, tsrs matches the reference on 13,463 of 13,467 error baselines (the other four are
+test-harness artifacts) and on all 12,784 `.types` and `.symbols` baselines. It has also been run on a large private
 monorepo. See the [status log](STATUS.md) for conformance details.
 
 [Top repository conformance](../tools/repo-conformance/README.md) compares diagnostics against pinned tsgo on 1,000
@@ -37,12 +37,12 @@ defaults, unsupported features and known parity gaps.
 
 | feature | status | evidence and notes |
 | --- | --- | --- |
-| Type checking (`--noEmit`) | yes | 13,462 of 13,466 error baselines and all 12,783 `.types` / `.symbols` baselines match; static properties avoid contextual typing by their own class and spurious circularity errors (`classStaticPropertyNoSpuriousCircularityError1`); module import attribute types require string literals and reject template literals (`importAttributeType1`) |
+| Type checking (`--noEmit`) | yes | 13,463 of 13,467 error baselines and all 12,784 `.types` / `.symbols` baselines match; static properties avoid contextual typing by their own class and spurious circularity errors (`classStaticPropertyNoSpuriousCircularityError1`); module import attribute types require string literals and reject template literals (`importAttributeType1`); pure return-type inference remains filtered by its constraint during recursive calls (`recursiveTypeInferenceReturnTypeConstraint`) |
 | Multithreaded checking, `--singleThreaded`, `--pretty`, `--listFiles`, `--listFilesOnly` | yes | every core up to 16, then at least 16 or half the cores, at most 32 checkers, capped for small programs; build mode uses four; 0.13.0 enables module affinity from 8 checkers on programs with at least 24,000 checked files ([experiment note](../notes/perf-icount-hillclimb.md)) |
 | Compiler statistics (`--diagnostics`, `--extendedDiagnostics`) | yes | Since 0.17.0, timings are collected only when requested; config-read timing requires the flag on the command line. Internal flow-memo, lazy-list, filesystem-call and reclaimed-page counters have been removed ([debugging](DEBUGGING.md)) |
 | Memory target (`--maxMemory <size>`) | `--noEmit` checks, opt-in | Replaces the largest checker after crossing the target, trading CPU for memory; testdata/regressions identical with a checker retired after nearly every file, also in poison mode ([experiment note](../notes/mem-recycle-checkers.md)) |
 | Same output regardless of thread count | yes, with known exceptions (tsgo: no) | a few projects still depend on file order through tsgo's own logic ([experiment note](../notes/open-history-dependence.md)); `--checkerAssignment go` reproduces tsgo exactly, together with `--noLazyMembers` where an instantiation depth limit is reached |
-| JavaScript emit | yes | all of tsgo's transforms; 13,396 `.js` baselines pass, 0 fail; named function/class expressions avoid spurious emit diagnostics (`noFlakyDiagnosticsExpressionNameShadowedInBody1`) |
+| JavaScript emit | yes | all of tsgo's transforms; 13,397 `.js` baselines pass, 0 fail; named function/class expressions avoid spurious emit diagnostics (`noFlakyDiagnosticsExpressionNameShadowedInBody1`) |
 | Declaration emit (`.d.ts`) | yes | part of the `.js` baselines; late expando alias exports preserve earlier namespace exports (`declarationEmitLateExpandoAliasAddsExports`); cyclic inferred structures and serializer depth truncation report declaration errors (`declarationEmitUnserializableTypes`) |
 | Source maps, declaration maps | yes | 149 `.js.map` and 156 `.sourcemap.txt` baselines pass, 0 fail |
 | Incremental builds (`.tsbuildinfo`) | yes | Go-history and API formats unchanged; default CLI adds an optional canonical-slot signature for safe warm reuse; old caches upgrade once ([details](../notes/fix-history-dependent-diagnostics.md)) |

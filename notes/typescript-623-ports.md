@@ -489,3 +489,96 @@ formatting and diff checks pass. The frozen original release is `tsrs-release`, 
 preceding accepted snapshot. `target/port-623/0006-792ffccb90/` contains the upstream patch, reproduction,
 full correctness and pass-set evidence, unchanged-input proofs, original eight-cell performance rejection,
 all failed candidates, diagnostic controls, preregistration/review and final controlled verdict.
+
+## 7. `c4d731aae17e` — constrain recursive return inference
+
+Port the exact upstream condition in `get_inferred_type`: pure return-type inference is filtered by its
+constraint even during recursive call resolution. The exact priority equality, left-to-right evaluation and
+existing filtering/fallback stay intact. The new `recursiveTypeInferenceReturnTypeConstraint` fixture agrees
+byte-for-byte with a Go compiler built at this source: two TS2345 diagnostics. The preceding compiler instead
+produces four diagnostics, including spurious constraint errors, and misses the recursive-call error.
+The ignored reference checkout advances; the published TypeScript pin remains unchanged.
+
+All twelve complete passing sets retain every preceding pass. The new fixture is the sole addition in ten
+sets; maps are unchanged. Go checker passes 13,463 diagnostics and 12,784 types/symbols; canonical checker
+passes 13,463 diagnostics and 12,783 types/symbols. Full emit passes 13,467 diagnostics, 12,784 types/symbols,
+13,397 JS/declaration outputs, 149 JS maps and 156 source maps. All 66 nonpassing lists/artifacts are
+byte-identical, including the four existing checker diagnostic differences and canonical
+`objectLiteralNormalization` type/symbol difference. There are no crashes or timeouts.
+
+The final formatted candidate passes the isolated workspace (1,066 passed, four ignored), all 36 regressions,
+native/WASM checks, Clippy, source lint and formatting. All seven generators plus formatting preserve all
+1,168 crate files. Full Go fourslash retains all 4,074 exercised passing groups and 4,130 passing events,
+with 472 groups skipped; its gate and socket-bridge checks pass. Its isolated metadata wrapper selects the
+exact source without modifying the published pin. All 1,608 correctness and 1,640 broader build inputs remain
+byte-identical through the final gates. Root independently verified the complete passing sets, artifacts,
+input hashes and performance verdict.
+
+The first workspace run overlapped emit and Go compilation; the existing FSEvents burst-under-load fixture
+reported one dropped batch. Its failed log is retained. One isolated full-workspace run passed, as did the
+final candidate's isolated run. The workflow repair is to run the entire workspace without unrelated heavy
+work; no filesystem-watcher code changes. Initial evidence setup failures are also retained: the Go build
+command was corrected from nonexistent `./cmd/tsgo` to `./cmd/tsc`, and snapshot handling now hashes symlink
+target text instead of reading a directory symlink as a file.
+
+The initial mechanical port **confirms a t3code-server single-thread wall regression** under
+`paired-sign-test-v1`: 3.107099 → 3.159965 seconds (+1.701464%, ten positive pairs) initially, and
+3.132455 → 3.146151 seconds (+0.437227%, six positive/four negative pairs) in its sole reversed-order
+confirmation; pooled p = 0.0059089661. Instructions decrease slightly and median RSS ties in both batches.
+Other screened metrics do not confirm. The original binary, complete eight-cell run, confirmation and
+`noise-policy-verdict.json` retain their failed status.
+
+After reading prior rejected experiments, diagnostic probes find only two `NoConstraintChecks` candidates
+in t3code-server, neither pure `ReturnType`: the new condition enables zero extra constraint checks there.
+Existing raw counters show cycles increasing in all 20 pairs, with median increases of 1.42967% and
+0.59744%; CPU time increases while page-reclaim medians tie and involuntary switches decrease. Static codegen
+shows the ordinary constraint branch changing from fallthrough to taken, jumping over the new priority test.
+The helper grows by 12 bytes, with its 368-byte stack frame unchanged. This supports a branch/layout diagnosis;
+it does not establish every microarchitectural cause. All probes are removed.
+
+The targeted repair places `std::hint::cold_path()` on the rare right-hand side, before the exact priority
+comparison. This preserves upstream control flow and restores ordinary-path fallthrough at the preceding
+binary's addresses, with no stack-frame growth or new spills. The helper gains four rare-path instructions;
+no new outlining attribute is added. One focused ten-pair diagnostic on a fresh candidate yields wall
+3.115891 → 3.107622 seconds (-0.265367%), instructions 38.135097 → 38.130792 billion, RSS
+728.672 → 728.656 MiB and cycles 11.598189 → 11.570484 billion (-0.238872%). It is diagnostic evidence,
+not the final acceptance run.
+
+That candidate's prebuild formatting check failed but an incorrectly sequenced shell command continued the
+build; generation subsequently exposed the formatting change. Both failures and the superseded validation
+attempts remain. The orchestration repair applies formatting and all generators before snapshots/builds,
+checks every prerequisite exit, and runs final gates serially without source writes during Cargo reads.
+The formatted final release is frozen at a new immutable path of the same length as the baseline path.
+Its executable sections and all 17,781 functions match the preceding repair candidate exactly; only UUID,
+eight source-location constants and signature hashes differ (183 bytes total). All correctness and final
+performance evidence below belongs to these formatted inputs. No forced UUID or metadata override ships.
+
+Final performance uses the accepted source-6 release and final source-7 release on all four installed public
+projects, single-threaded and at the default checker count, with `noEmit`, incremental disabled and plain
+output. No heavy workload overlaps timing. One warmup and ten alternating pairs per cell produce:
+
+| Project / mode | Instructions, billions before → after | Wall seconds before → after | Peak RSS MiB before → after |
+| --- | ---: | ---: | ---: |
+| vscode / single | 79.550229 → 79.532649 | 7.369314 → 7.328296 | 1607.594 → 1607.578 |
+| vscode / default | 91.297143 → 91.326799 | 1.003273 → 0.997858 | 2116.938 → 2110.109 |
+| webpack / single | 10.569473 → 10.567291 | 0.907911 → 0.902916 | 311.312 → 311.297 |
+| webpack / default | 14.515828 → 14.511265 | 0.202901 → 0.202121 | 493.711 → 491.625 |
+| Compiler-Unions / single | 3.211806 → 3.211823 | 0.262375 → 0.265229 | 59.609 → 59.602 |
+| Compiler-Unions / default | 3.882497 → 3.884607 | 0.149139 → 0.150228 | 82.727 → 82.953 |
+| t3code-server / single | 38.138322 → 38.134795 | 3.134343 → 3.126166 | 728.672 → 728.656 |
+| t3code-server / default | 121.490636 → 122.249147 | 1.323314 → 1.310708 | 2087.469 → 2098.672 |
+
+The final verdict is **no detected regression**. No metric screens, so no confirmation is required or run.
+This is not proof of equality: some medians rise, but their paired signs do not satisfy the preregistered
+screen. The previously regressing t3code-server single-thread wall median decreases by 0.260882%.
+Every output and exit matches the baseline. All original failures and rejected/superseded candidates remain;
+there is no unchanged-candidate retry or build-identity adjudication for this source.
+
+Final correctness lives in `target/port-623/0007-c4d731aae1/candidate-3/`; raw performance is in
+`perf-final/`, with final decision `noise-policy-final-verdict.json` under the source artifact root.
+That root also holds the source patch, exact-source oracle, immutable snapshots, all original failures,
+codegen/probe/cycle diagnosis and focused measurements. The accepted frozen binary is
+`target/port-623/0007-cand000003/tsrs-release`, SHA-256
+`7d5ca9c24e62ce861072fce926c6d93fb33b6ee5e51a8c177a035ac26e2b17f5`; all 113 adjacent runtime
+assets match source 6. The original rejected binary remains `0007-c4d731aae1/tsrs-release`, SHA-256
+`7c52a06fe8c3fec705a3a73e0fbf31c3fcc5078f84452a8a851a6254a8c5e97d`.
