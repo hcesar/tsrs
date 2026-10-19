@@ -7,7 +7,7 @@ The goal is 100% conformance with TypeScript 7. This page records the current ev
 tsrs is a function-by-function port of the Go implementation of TypeScript (`microsoft/TypeScript`, commit
 `b85298b6a81f`, TypeScript 7.1.0-dev). The Go code is the spec: any difference from it in diagnostics, their order,
 message text or exit code is a tsrs bug, even when tsrs's output looks better. The in-progress source upgrade is
-validated through `64c5fa0b92ad`; the [port log](../notes/typescript-623-ports.md) records each step. The published
+validated through `5f5dee5b6105`; the [port log](../notes/typescript-623-ports.md) records each step. The published
 pin remains unchanged until that upgrade is complete.
 
 On that revision's conformance suite, tsrs matches the reference on 13,463 of 13,467 error baselines (the other four are

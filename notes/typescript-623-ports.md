@@ -641,3 +641,28 @@ accepted `target/port-623/0007-cand000003/tsrs-release`, SHA-256
 runtime assets remain byte-identical. Source 7's instruction, wall-time and RSS measurements remain the applicable
 record. The source patch, before/after fixtures, exact-source oracle, fresh compiler results, all passing sets,
 input/tree identities and inherited-gate hashes are under `target/port-623/0009-64c5fa0b92/`.
+
+## 10. `5f5dee5b6105` — switch upstream signing to MSBuild
+
+Upstream `5f5dee5b610526cf3c597457cca336fde65e5f11` replaces DDSignFiles with MSBuild/MicroBuild
+in `Herebyfile.mjs`, updates two Azure signing pipelines and adds a signing project and NuGet configuration.
+tsrs's Cargo/Node/pnpm release tooling has no corresponding Microsoft signing integration, so this is an
+evidence-only port. No capability or runtime behavior changes and no compiler repair is needed. The ignored
+reference checkout advances and is clean; the published TypeScript pin remains unchanged.
+
+All 66,841 other upstream entries are identical, including complete compiler, fixture, baseline, package,
+generator and library trees. All 1,608 correctness inputs, 1,640 broader build inputs and 1,168 generated
+crate files match the accepted snapshots. Comparing all 2,352 local tracked paths changes only this ledger
+and the compatibility page. Source 9's full compiler results and source 7's other gates are therefore inherited:
+all twelve complete passing sets and 66 known nonpassing artifacts remain byte-identical. Go checker retains
+13,463 diagnostics / 12,784 types and symbols; canonical 13,463 / 12,783; emit 13,467 diagnostics / 12,784
+types and symbols / 13,397 outputs / 149 JS maps / 156 source maps. Workspace retains 1,066 passes and four
+ignored; all 36 regressions and 4,074 fourslash groups / 472 skipped / 4,130 passing events remain applicable.
+Fresh Clippy, source lint, formatting and diff checks pass.
+
+Performance is unchanged by compiler/runtime identity, without another timing run. Both sides use
+`target/port-623/0007-cand000003/tsrs-release`, SHA-256
+`7d5ca9c24e62ce861072fce926c6d93fb33b6ee5e51a8c177a035ac26e2b17f5`, with all 113 adjacent
+runtime assets unchanged. Source 7's instruction, wall-time and RSS measurements remain the applicable
+record. The patch, scope review, input/tree identities, inherited result hashes and fresh checks are under
+`target/port-623/0010-5f5dee5b61/`.
