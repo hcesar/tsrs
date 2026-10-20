@@ -1700,3 +1700,43 @@ nonblocking migration policy. This port changes a test and documentation only;
 the source-22 production implementation is untouched. The measured source-11
 regressions remain disclosed above. Evidence is under
 `target/port-623/0036-bcd7c42255/`.
+
+## 37. `ca197b7b8586` — restart imports after a lower node_modules depth
+
+Upstream `ca197b7b8586900c3b75c0365fac31cfcaaacca7` changes
+`filesParser.start` to revisit a file's imports when a later path reaches that
+file at a lower `node_modules` depth, even when its subtask list was already
+started. The Rust parser now computes the same `lowered` condition and queues
+the existing subtasks again at the file's new lowest depth. A symlinked package
+first reached through a package import and then relatively no longer marks its
+transitive `util.ts` as an external-library file, allowing it to be emitted.
+The dedicated Rust virtual-filesystem regression puts the package-importing
+root before the relative-importing root; its external-library assertion failed
+before the change, while both classification and emit eligibility pass
+afterward. The new exact-source Go conformance fixture and its Rust diagnostic
+and JavaScript baselines also pass. The upstream fixture passed before the Rust
+change under Rust's usual root order,
+which is why the reversed-order regression is retained. The ignored reference
+checkout advances to source 37; the published TypeScript pin and base SDK
+manifest remain unchanged until the full upgrade.
+
+All twelve complete checker and emit pass/nonpass sets retain their source-36
+outcomes. The new fixture adds one diagnostics and one JavaScript pass, with no
+lost passing case or new failure, crash or timeout. Go-history checker passes
+13,523 diagnostics and 12,837 type/symbol baselines; canonical checker passes
+13,523 diagnostics and 12,836 type/symbol baselines. Emit passes 13,527
+diagnostics, 12,837 type/symbol, 13,453 JavaScript/declaration, 149
+JavaScript-map and 156 source-map baselines. Exact-source Fourslash passes
+4,086 groups, skips 470, fails none, and all 4,620 named outcomes match source
+36. The source-37 Go fixture, focused Rust regression, full Rust workspace
+(1,115 passed, four existing ignored), CLI regression projects, WebAssembly
+check, dev builds, warnings-denied Clippy, source lint and formatting pass.
+All seven generators leave the preexisting crate diff byte-identical; the
+generator script's clean-tree check is run after the corresponding commit.
+Fourslash and the workspace socket test used the previously required Unix
+socket sandbox escalation. The capability table's cited diagnostic and
+JavaScript pass counts are updated.
+
+No source-37 release performance measurement was collected under the user's
+nonblocking migration policy. The measured source-11 regressions remain
+disclosed above. Evidence is under `target/port-623/0037-ca197b7b85/`.

@@ -32,6 +32,47 @@ fn host_for(files: &[(&str, &str)]) -> Arc<dyn CompilerHost> {
     new_compiler_host("/", fs, "", None, None, None)
 }
 
+#[test]
+fn later_relative_import_restarts_package_imports_at_lower_depth() {
+    let files = [
+        (
+            "/src/tsconfig.json",
+            vfstest::MapFile::from(
+                r#"{"compilerOptions":{"noLib":true,"module":"commonjs"},"files":["b.ts","a.ts"]}"#,
+            ),
+        ),
+        (
+            "/src/a.ts",
+            vfstest::MapFile::from("import { util } from './lib/index'; export const a = util;"),
+        ),
+        ("/src/b.ts", vfstest::MapFile::from("import { util } from 'lib'; export const b = util;")),
+        ("/src/lib/package.json", vfstest::MapFile::from(r#"{"name":"lib","types":"index.ts"}"#)),
+        ("/src/lib/index.ts", vfstest::MapFile::from("export { util } from './util';")),
+        ("/src/lib/util.ts", vfstest::MapFile::from("export const util = 1;")),
+        ("/src/node_modules/lib/package.json", vfstest::symlink("/src/lib/package.json")),
+        ("/src/node_modules/lib/index.ts", vfstest::symlink("/src/lib/index.ts")),
+        ("/src/node_modules/lib/util.ts", vfstest::symlink("/src/lib/util.ts")),
+    ];
+    let fs: Arc<dyn FS> = Arc::new(vfstest::from_map(files, true));
+    let config_host: &'static parseConfigHost =
+        Box::leak(Box::new(parseConfigHost { fs: Arc::clone(&fs) }));
+    let (config, diagnostics) = tsoptions::get_parsed_command_line_of_config_file(
+        "/src/tsconfig.json",
+        None,
+        None,
+        config_host,
+        None,
+    );
+    assert_eq!(diagnostics, [] as [tsrs_core::P<tsrs_ast::Diagnostic>; 0]);
+    let program = new_program(ProgramOptions::new(
+        P::new(config.unwrap()),
+        new_compiler_host("/", fs, "", None, None, None),
+    ));
+    let util = program.get_source_file("/src/lib/util.ts").expect("transitive util import");
+    assert!(!program.is_source_file_from_external_library(util));
+    assert!(program.source_file_may_be_emitted(util, false));
+}
+
 // program_test.go: TestImportSourceProgram
 #[test]
 fn source_phase_imports_do_not_resolve_or_keep_stale_programs() {
