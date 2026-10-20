@@ -2411,3 +2411,45 @@ the full upgrade. No source-54 release instruction-count or peak-RSS
 measurement was collected under the user's nonblocking migration policy.
 The measured source-11 regressions remain disclosed above. Evidence is under
 `target/port-623/0054-9055b58852/`.
+
+## 55. `a501b11f64` — index re-exporting modules for declaration emit
+
+Upstream `a501b11f64592a18287664ecc478a09659ad3134` adds a checker-local
+index of external modules by the resolved targets of their exports, preserving
+program order and including a symbol's parent module even when it is not
+exported. The Rust checker already has the equivalent reverse lookup in
+`modules_exporting`, backed by `ModuleExportIndex` and
+`get_symbol_target_for_alias_lookup`. It considers named, aliased, star, and
+`export =` entries and inserts the parent module in program order. Its
+per-checker index summarizes only final export tables, checks table sizes,
+and falls back to the original scan during alias resolution and for modules
+not yet summarized; fresh checkers begin with empty indexes. These guards
+also cover reentrancy and invalidation where the Go change uses an incomplete
+index fallback. The upstream `declarationEmitAlternativeContainingModules`
+fixture passed diagnostics, types, symbols, and declaration output against
+the unmodified Rust implementation, matching the exact-source Go baselines.
+No redundant runtime cache or refactor was added. This is an evidence-only
+port with the compatibility counts updated for the new fixture.
+
+All three full compiler modes pass. Compared with source 54, the new fixture
+is the sole pass-set addition (diagnostics, types, symbols, and JavaScript/
+declaration output); all prior pass and nonpass sets remain unchanged, with
+no new failures, crashes, or timeouts. Go-history checker passes 13,542
+diagnostic and 12,852 type/symbol baselines; canonical checker passes 13,542
+diagnostic and 12,851 type/symbol baselines. Emit passes 13,546 diagnostic,
+12,852 type/symbol, 13,472 JavaScript/declaration, 149 JavaScript-map, and
+156 source-map baselines. Exact-source Fourslash passes 4,088 of 4,558 groups,
+skips 470, fails none, and all 4,622 named outcomes match source 54. The full
+Rust workspace, all 39 CLI regressions, WebAssembly check, dev builds,
+warnings-denied Clippy, source lint, formatting, and generator check pass.
+The Fourslash and workspace socket checks required the previously observed
+sandbox escalation.
+
+The ignored reference checkout advances to source 55; the published
+TypeScript pin remains unchanged until the full upgrade. Runtime source,
+Cargo inputs, and bundled assets are unchanged from source 54, so this port
+does not change the Rust compiler binary's behavior or performance. No
+separate source-55 release performance batch was collected under the user's
+nonblocking migration policy; retired-instruction collection is unavailable
+on this macOS host. The measured source-11 regressions remain disclosed
+above. Evidence is under `target/port-623/0055-a501b11f64/`.
