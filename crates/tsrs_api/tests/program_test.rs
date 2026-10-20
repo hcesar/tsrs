@@ -52,6 +52,43 @@ fn api_raw_compiler_options_resolve_against_server_directory() {
 }
 
 #[test]
+fn create_program_reports_non_composite_project_reference_without_config_file() {
+    let dir = TempDir::new("synthetic_project_reference");
+    let root = dir.write("src/index.ts", "export const x = 1;");
+    let referenced = dir.write("lib/tsconfig.json", r#"{ "compilerOptions": { "strict": true } }"#);
+    dir.write("lib/a.ts", "export const a = 1;");
+    let s = session(&dir.dir(), false);
+
+    let response = call(
+        &s,
+        "createSnapshot",
+        &format!(
+            r#"{{"createPrograms":[{{"rootFiles":[{}],"compilerOptions":{{"noLib":true}},"options":{{"projectReferences":[{{"path":{},"originalPath":"../lib"}}]}}}}]}}"#,
+            quote(&root),
+            quote(&referenced)
+        ),
+    );
+    let snapshot = match get(&response, "snapshot") {
+        Value::Number(n) => *n as u64,
+        value => panic!("{value:?}"),
+    };
+    let project = str_of(get(&response, "operation.createdPrograms.0"));
+    let diagnostics = call(
+        &s,
+        "getProgramDiagnostics",
+        &format!(r#"{{"snapshot":{snapshot},"project":{}}}"#, quote(project)),
+    );
+    let codes: Vec<&Value> = arr(&diagnostics).iter().map(|d| get(d, "code")).collect();
+    assert_eq!(codes, [&Value::Number(6306.0)]);
+    let diagnostic = &arr(&diagnostics)[0];
+    assert_eq!(get(diagnostic, "pos"), &Value::Number(-1.0));
+    assert_eq!(get(diagnostic, "end"), &Value::Number(-1.0));
+    assert!(
+        matches!(diagnostic, Value::Object(o) if !o.contains_key("fileName") && !o.contains_key("startPosition") && !o.contains_key("endPosition"))
+    );
+}
+
+#[test]
 fn create_program_diagnostics_emit_release() {
     let dir = TempDir::new("prog");
     let a = dir.write(

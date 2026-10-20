@@ -2057,3 +2057,43 @@ the root and npm README summaries contain no corresponding revision or counts.
 No source-45 release performance measurement was collected under the user's
 nonblocking migration policy. The measured source-11 regressions remain
 disclosed above. Evidence is under `target/port-623/0045-c3f14c2fe8/`.
+
+## 46. `09d4966578ae` — report reference diagnostics for configless API programs
+
+Upstream `09d4966578aec90fdec11784559218392602a029` makes
+`CreateDiagnosticAtReferenceSyntax` return no located diagnostic when an
+API-created program has project references but no config file. Its caller then
+reports an ordinary program diagnostic instead of dereferencing a missing
+config file. Rust already had the equivalent `config.config_file?` guard and
+caller fallback before this source commit; the new Rust API regression passed
+against source 45 before the comment update. It now locks the upstream 6306
+diagnostic and its absent file location (`pos` and `end` are `-1`). The exact
+upstream Go API test also passes at source 46. The previous Rust comment
+incorrectly described Go's pre-fix behavior and is now aligned with this
+revision. The Rust API's pre-existing validation of relative reference paths
+remains an intentional surface difference: it returns a structured client
+error where Go can panic; absolute reference paths follow the new upstream
+behavior. The ignored reference checkout advances to source 46; the published
+TypeScript pin and base SDK manifest remain unchanged until the full upgrade.
+
+All twelve complete checker and emit pass/nonpass sets are identical to
+source 45: no removed passes, new failures, crashes, or timeouts. Go-history
+checker passes 13,532 diagnostics and 12,846 type/symbol baselines; canonical
+checker passes 13,532 diagnostics and 12,845 type/symbol baselines. Emit passes
+13,536 diagnostics, 12,846 type/symbol, 13,462 JavaScript/declaration, 149
+JavaScript-map, and 156 source-map baselines. Exact-source Fourslash passes
+4,087 of 4,557 groups, skips 470, fails none; all 4,621 named outcomes are
+unchanged from source 45. The source-46 focused Rust and Go API tests, full
+Rust workspace all-targets (1,123 passed, four existing ignored), dev builds,
+all 38 CLI regression projects, WebAssembly check, warnings-denied Clippy,
+source lint, formatting, and all seven generators pass. The generator rerun
+leaves the staged crate diff and untracked crate files unchanged. Workspace
+and Fourslash Unix-socket tests required the previously observed sandbox
+escalation. The capability table records the source-46 API behavior; the root
+and npm README summaries contain no corresponding revision or count.
+
+No source-46 release performance measurement was collected under the user's
+nonblocking migration policy. There is no production logic change in Rust;
+the source edit corrects a comment and the new test guards existing behavior.
+The measured source-11 regressions remain disclosed above. Evidence is under
+`target/port-623/0046-09d4966578/`.
