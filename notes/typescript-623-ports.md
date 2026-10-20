@@ -2132,3 +2132,43 @@ npm README summaries contain no corresponding revision or count.
 No source-47 release performance measurement was collected under the user's
 nonblocking migration policy. The measured source-11 regressions remain
 disclosed above. Evidence is under `target/port-623/0047-d61a7d2359/`.
+
+## 48. `54f05ae22a` — keep malformed destructuring assignments from crashing emit
+
+Upstream `54f05ae22afd5f0ec5ec3ae0333b03efa1156fe6` broadens three
+transformer assertions: decorator array assignment elements accept any
+expression, and class-field/decorator object assignment elements accept any
+object-literal element. Rust mirrors those predicates. Parser recovery can
+produce array expressions and object methods or accessors that are invalid
+assignment targets; the normal visitor still needs to traverse them for
+private-field, `super`, and decorator transforms. Against the source-48
+fixtures before the Rust edit, all seven new variants crashed in emit. After
+the edit, all seven match exact-source Go diagnostic and JavaScript baselines,
+and the three variants with type/symbol baselines match those too. The four
+variant cases explicitly disable type/symbol baselines upstream. The focused
+Go compiler harness passes all seven variants. There is no Rust-specific
+behavioral deviation. The ignored reference checkout advances to source 48;
+the published TypeScript pin and base SDK manifest remain unchanged until
+the full upgrade.
+
+All twelve complete checker and emit pass/nonpass sets preserve every
+source-47 pass with no new failure, crash, or timeout. The seven upstream
+variants add seven diagnostic and JavaScript passes in each applicable mode,
+and three type/symbol passes. Go-history checker passes 13,539 diagnostics
+and 12,849 type/symbol baselines; canonical checker passes 13,539 diagnostics
+and 12,848 type/symbol baselines. Emit passes 13,543 diagnostics, 12,849
+type/symbol, 13,469 JavaScript/declaration, 149 JavaScript-map, and 156
+source-map baselines. Exact-source Fourslash passes 4,087 of 4,557 groups,
+skips 470, fails none; all 4,621 named outcomes are unchanged from source 47.
+The full Rust workspace all-targets passes 1,124 tests with four existing
+ignored; all 38 CLI regression projects, WebAssembly check, dev builds,
+warnings-denied Clippy, source lint, and formatting pass. Workspace and
+Fourslash Unix-socket checks required the previously observed sandbox
+escalation. All seven generators pass and leave the staged crate diff
+unchanged. The compatibility table records the new pass counts and
+malformed-input emit behavior; the root and npm README summaries contain no
+corresponding source revision or count.
+
+No source-48 release performance measurement was collected under the user's
+nonblocking migration policy. The measured source-11 regressions remain
+disclosed above. Evidence is under `target/port-623/0048-54f05ae22a/`.
