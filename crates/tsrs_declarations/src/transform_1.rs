@@ -36,12 +36,12 @@ pub(crate) fn get_this_property_assignment_key(
 // TODO: Convert to transformers.TransformerFactory signature to allow more automatic composition with other transforms
 pub fn new_declaration_transformer(
     host: &'static dyn DeclarationEmitHost,
-    context: Option<P<EmitContext>>,
+    resolver: Resolver,
     compiler_options: P<CompilerOptions>,
     declaration_file_path: &str,
     declaration_map_path: &str,
 ) -> P<DeclarationTransformer> {
-    let resolver = host.get_emit_resolver();
+    let context = Some(resolver.r.emit_context());
     let state = P::new(SymbolTrackerSharedState {
         late_marked_statements: RefCell::new(Vec::new()),
         diagnostics: RefCell::new(Vec::new()),
@@ -961,7 +961,7 @@ impl DeclarationTransformer {
     // transform.go:827
     pub(crate) fn transform_type_parameter_declaration(&self, input: P<Node>) -> Option<P<Node>> {
         let type_parameter = input.as_type_parameter_declaration();
-        if is_private_method_type_parameter(self.host, input)
+        if is_private_method_type_parameter(self.resolver, input)
             && (type_parameter.default_type.is_some() || type_parameter.constraint.is_some())
         {
             return Some(self.factory().update_type_parameter_declaration(
@@ -1201,7 +1201,7 @@ impl DeclarationTransformer {
             None, // accessors shouldn't have type params
             Some(self.update_accessor_param_list(
                 input,
-                self.host.get_effective_declaration_flags(
+                self.resolver.get_effective_declaration_flags(
                     self.emit_context().parse_node(Some(input)).unwrap(),
                     ModifierFlags::Private,
                 ) != ModifierFlags::None,
@@ -1224,7 +1224,7 @@ impl DeclarationTransformer {
             None, // accessors shouldn't have type params
             Some(self.update_accessor_param_list(
                 input,
-                self.host.get_effective_declaration_flags(
+                self.resolver.get_effective_declaration_flags(
                     self.emit_context().parse_node(Some(input)).unwrap(),
                     ModifierFlags::Private,
                 ) != ModifierFlags::None,
@@ -1334,7 +1334,7 @@ impl DeclarationTransformer {
 
     // transform.go:1122
     pub(crate) fn transform_method_signature_declaration(&self, input: P<Node>) -> Option<P<Node>> {
-        if self.host.get_effective_declaration_flags(
+        if self.resolver.get_effective_declaration_flags(
             self.emit_context().parse_node(Some(input)).unwrap(),
             ModifierFlags::Private,
         ) != ModifierFlags::None
@@ -1357,7 +1357,7 @@ impl DeclarationTransformer {
 
     // transform.go:1140
     pub(crate) fn transform_method_declaration(&self, input: P<Node>) -> Option<P<Node>> {
-        if self.host.get_effective_declaration_flags(
+        if self.resolver.get_effective_declaration_flags(
             self.emit_context().parse_node(Some(input)).unwrap(),
             ModifierFlags::Private,
         ) != ModifierFlags::None
@@ -1583,7 +1583,6 @@ impl DeclarationTransformer {
         let mut initializer: Option<P<Node>> = None;
         if ast::is_primitive_literal_value(unwrap_parenthesized_expression(expression), true) {
             initializer = self.resolver.create_literal_const_value(
-                self.emit_context(),
                 self.emit_context().parse_node(Some(assignment)).unwrap(),
                 self.tracker.get(),
             );

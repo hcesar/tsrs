@@ -13,6 +13,7 @@ use tsrs_core::collections::{Set, new_set_with_size_hint};
 use tsrs_core::context::Context;
 use tsrs_core::{P, TextPos, TextRange, tspath};
 use tsrs_lsproto as lsproto;
+use tsrs_printer as printer;
 use tsrs_scanner as scanner;
 
 use crate::astnav;
@@ -739,7 +740,7 @@ impl LanguageService {
         let program = self.get_program();
         let mut checker = program.get_type_checker(ctx);
         let checker: &mut Checker = &mut checker;
-        let emit_resolver = checker.get_emit_resolver();
+        let emit_resolver = checker.new_emit_resolver(printer::new_emit_context());
         if let Some(result) =
             entry.definition.as_ref().unwrap().symbol.unwrap().declarations().iter().find_map(
                 |&d| {

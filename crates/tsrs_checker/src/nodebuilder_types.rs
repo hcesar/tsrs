@@ -403,6 +403,14 @@ pub struct DeclarationFileLinks {
     pub aliases_marked: Cell<bool>, // if file has had alias visibility marked
 }
 
+/// Go `EmitResolverLinks`: visibility and JSX links outlive a single file's emit resolver.
+#[derive(Default)]
+pub struct EmitResolverLinks {
+    pub jsx_links: tsrs_core::LinkStore<Node, JSXLinks>,
+    pub declaration_links: tsrs_core::LinkStore<Node, DeclarationLinks>,
+    pub declaration_file_links: tsrs_core::LinkStore<Node, DeclarationFileLinks>,
+}
+
 /// Go `EmitResolver`, handled as `P<EmitResolver>`, a checker holder (`&self, c: &mut Checker`).
 ///
 /// Go's `checker` field is dropped and so is `checkerMu`: the exported methods that lock it in Go
@@ -410,10 +418,9 @@ pub struct DeclarationFileLinks {
 /// transformer serializes access to the checker itself (`tsrs_declarations` `Resolver::lock`).
 /// `isValueAliasDeclaration` / `aliasMarkingVisitor` are Go method values of `isValueAliasDeclarationWorker`
 /// / `aliasMarkingVisitorWorker`; Rust calls those methods directly.
-#[derive(Default)]
 pub struct EmitResolver {
     pub reference_resolver: std::cell::OnceCell<P<tsrs_binder::ReferenceResolver<Checker>>>,
-    pub jsx_links: tsrs_core::LinkStore<Node, JSXLinks>,
-    pub declaration_links: tsrs_core::LinkStore<Node, DeclarationLinks>,
-    pub declaration_file_links: tsrs_core::LinkStore<Node, DeclarationFileLinks>,
+    pub emit_context: P<EmitContext>,
+    pub request_node_builder: std::cell::OnceCell<P<NodeBuilder>>,
+    pub links: P<EmitResolverLinks>,
 }

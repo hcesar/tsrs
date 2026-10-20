@@ -5,7 +5,7 @@
 // holds the checker (`CheckerHandle`/`&mut Checker`) and lends it to `checker_slot` for the duration of the
 // transform, and the host's `Resolver` borrows it from there (see tsrs_declarations::Resolver).
 
-use tsrs_ast::{FileReference, ModifierFlags, Node, SourceFile};
+use tsrs_ast::{FileReference, Node, SourceFile};
 use tsrs_checker::CheckerSlot;
 use tsrs_core::tspath::Path;
 use tsrs_core::{P, ResolutionMode};
@@ -180,21 +180,6 @@ impl DeclarationEmitHost for EmitHost {
     fn source_file_may_be_emitted(&self, file: P<SourceFile>, force_dts_emit: bool) -> bool {
         let _outer = tsrs_core::arena::escape_scratch();
         emitter::source_file_may_be_emitted(file, self.program, force_dts_emit, false)
-    }
-
-    // emitHost.go:90
-    fn get_effective_declaration_flags(
-        &self,
-        node: P<Node>,
-        flags: ModifierFlags,
-    ) -> ModifierFlags {
-        let _outer = tsrs_core::arena::escape_scratch();
-        self.get_emit_resolver().get_effective_declaration_flags(node, flags)
-    }
-
-    // emitHost.go:120 (GetEmitResolver)
-    fn get_emit_resolver(&self) -> Resolver {
-        self.emit_resolver
     }
 }
 

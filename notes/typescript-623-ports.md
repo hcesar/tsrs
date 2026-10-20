@@ -1855,3 +1855,63 @@ summary cites these counts.
 No source-40 release performance measurement was collected under the user's
 nonblocking migration policy. The measured source-11 regressions remain
 disclosed above. Evidence is under `target/port-623/0040-de61e69621/`.
+
+## 41. `253bcd8623` — scope emit resolvers to one emit context and cache their node builders
+
+Upstream `253bcd86231f2ceda21029eedf4c92c8b0d583f4` creates one emit
+resolver and context per file, caches one node builder in that resolver, and
+shares its declaration-visibility and JSX links through the checker. The Rust
+checker now does the same for file emit and declaration diagnostics. Script
+transforms, declaration transforms, and their deferred printers use the same
+context and resolver for each file, resetting the context after both prints.
+Declaration serialization no longer accepts a separate context, so its lazy
+node builder cannot silently use a different factory. Language-service
+completion, quick-info, reference, and signature-help paths also reuse a
+context or builder at the scope introduced upstream. A focused compiler test
+checks JS, declaration, and both map outputs across repeated emits with one
+program. The ignored reference checkout advances to source 41. The published
+TypeScript pin and base SDK manifest remain unchanged until the full upgrade.
+
+The Go commit moves checker helper methods to `emitsupport.go` and removes its
+checker-wide cached resolver. Rust keeps the existing helper methods and a
+context-independent checker resolver for internal call sites; this avoids a
+large mechanical module split while file emit always constructs a fresh
+context-bound resolver. Rust's `EmitHost` still stores that per-file resolver,
+because its scratch-region and deferred-printer architecture differs from Go's
+host factory. The visibility/JSX caches remain checker-owned across those
+per-file resolvers and scratch-keyed JSX links are cleared before the file's
+scratch region is freed. These are Rust architectural deviations from the Go
+patch, not intended output differences.
+
+All twelve complete compiler checker and emit pass/nonpass sets retain their
+source-40 outcomes, with no added or removed passes, failures, crashes, or
+timeouts. Go-history checker passes 13,528 diagnostics and 12,842 type/symbol
+baselines; canonical checker passes 13,528 diagnostics and 12,841 type/symbol
+baselines. Emit passes 13,532 diagnostics, 12,842 type/symbol, 13,458
+JavaScript/declaration, 149 JavaScript-map, and 156 source-map baselines.
+Exact-source Fourslash passes 4,086 groups, skips 470, fails none, and all
+4,620 named outcomes match source 40. The exact-source Go
+`TestImportElision` changed by this commit passes. Full Rust workspace all-targets passes
+1,121 tests with four existing ignored; all 38 CLI regression projects,
+WebAssembly check, dev builds, warnings-denied Clippy, source lint,
+formatting, and all seven generators pass. The generator rerun leaves tracked
+crate changes and untracked crate files byte-identical. Workspace and
+Fourslash Unix-socket tests used the previously required sandbox escalation.
+The compatibility table records the source revision; the root and npm README
+summaries contain no corresponding revision or counts.
+
+Release performance was measured on public projects with one checker and
+alternating source-40/source-41 release binaries. After one warm-up pair, VS
+Code declaration-only emit (9,399 byte-identical output files, five measured
+pairs) had median wall time 7.421 versus 7.418 seconds and median peak RSS
+2,065,219,584 versus 2,068,709,376 bytes (+0.17%). Compiler emit (120
+identical output files, 21 measured pairs) had 0.2655 versus 0.2672 seconds
+and 109,936,640 versus 109,740,032 bytes (-0.18% RSS); Compiler-Unions emit
+(105 identical output files, 21 measured pairs) had 0.3439 versus 0.3413
+seconds and 111,230,976 versus 111,345,664 bytes (+0.10% RSS). All ordered
+diagnostics and emitted bytes matched between revisions. The largest wall
+difference was +0.63% on the short Compiler run, below the project's 2%
+wall-time regression threshold and within timing noise. `bench/count.py`
+reported retired instructions unavailable on macOS/arm64 (`no
+perf_event_open`), so there is no instruction-count comparison. Evidence is under
+`target/port-623/0041-253bcd8623/`.

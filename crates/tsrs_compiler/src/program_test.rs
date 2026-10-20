@@ -487,3 +487,40 @@ fn emit_of_a_synthesized_return_expression() {
         )]
     );
 }
+
+// A file's JS transform, declaration transform, and printers share one emit context and resolver.
+// Re-emitting through the same checker must not keep the prior file's scratch node builder or emit state.
+#[test]
+fn repeated_js_and_declaration_emit_with_shared_context() {
+    let files = [
+        (
+            "/src/tsconfig.json",
+            r#"{"compilerOptions":{"noLib":true,"types":[],"target":"es2015","module":"commonjs","declaration":true,"sourceMap":true,"declarationMap":true},"files":["a.ts"]}"#,
+        ),
+        (
+            "/src/a.ts",
+            "export const value = { answer: 42 };\nexport function identity<T>(arg: T) { return arg; }\n",
+        ),
+    ];
+    let program = new_program(ProgramOptions::new(config_for(&files), host_for(&files)));
+    let written = Mutex::new(Vec::<(String, String)>::new());
+    let write_file = |name: &str, text: &str, _: &mut crate::WriteFileData| -> Result<(), String> {
+        written.lock().unwrap().push((name.to_string(), text.to_string()));
+        Ok(())
+    };
+    let options = crate::EmitOptions { write_file: Some(&write_file), ..Default::default() };
+    program.emit(&Context::default(), &options);
+    let first = written.lock().unwrap().clone();
+    assert!(
+        first.iter().any(|(name, body)| name.ends_with("a.js") && body.contains("exports.value"))
+    );
+    assert!(
+        first.iter().any(|(name, body)| name.ends_with("a.d.ts") && body.contains("identity<T>"))
+    );
+    assert!(first.iter().any(|(name, _)| name.ends_with("a.js.map")));
+    assert!(first.iter().any(|(name, _)| name.ends_with("a.d.ts.map")));
+
+    written.lock().unwrap().clear();
+    program.emit(&Context::default(), &options);
+    assert_eq!(*written.lock().unwrap(), first);
+}

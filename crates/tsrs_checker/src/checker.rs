@@ -1630,7 +1630,10 @@ pub struct Checker {
     /// tsrs-only: accessible-chain cache entries keyed by a node in the current emit scratch region
     /// (`forget_scratch_keyed_caches`, notes/mem-emit-regions.md).
     pub scratch_keyed_chain_cache: Vec<(P<Symbol>, accessibleChainCacheKey)>,
-    pub emit_resolver: Option<P<EmitResolver>>, // Go `emitResolver` + `emitResolverOnce`: None until `get_emit_resolver`
+    pub emit_resolver_links: P<EmitResolverLinks>,
+    /// Rust-only context-independent helper for checker paths that still call resolver methods.
+    /// File emit uses a fresh `EmitResolver` bound to its own scratch `EmitContext`.
+    pub emit_resolver: Option<P<EmitResolver>>,
     /// Shared graph (`tsrs_core::sharedgraph`): this checker's values for lazy fields of frozen objects.
     pub overlay: Box<tsrs_core::sharedgraph::Overlay>,
     /// Shared graph: this checker is the seed whose graph will be frozen (symbol ids are assigned eagerly).
@@ -2039,6 +2042,7 @@ pub fn new_checker(program: &'static dyn Program) -> Box<Checker> {
         unassigned_type: dummy_type,
         type_to_string_nodebuilder: None,
         scratch_keyed_chain_cache: Vec::new(),
+        emit_resolver_links: P::new(EmitResolverLinks::default()),
         emit_resolver: None,
         overlay: Box::default(),
         seed_mode: false,
@@ -2611,6 +2615,7 @@ impl Checker {
             unassigned_type: base.unassigned_type,
             type_to_string_nodebuilder: None,
             scratch_keyed_chain_cache: Vec::new(),
+            emit_resolver_links: P::new(EmitResolverLinks::default()),
             emit_resolver: None,
             overlay: Box::default(),
             seed_mode: false,

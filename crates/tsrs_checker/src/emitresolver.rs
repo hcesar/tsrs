@@ -10,13 +10,32 @@ use tsrs_ast::*;
 //   type EmitResolver (emitresolver.go:34)
 
 // emitresolver.go:45
-pub(crate) fn new_emit_resolver(_checker: &mut Checker) -> P<EmitResolver> {
+pub(crate) fn new_emit_resolver(
+    checker: &Checker,
+    emit_context: P<EmitContext>,
+) -> P<EmitResolver> {
     // Go also wires `isValueAliasDeclaration` / `aliasMarkingVisitor` (method values of the `...Worker` methods, which
     // Rust calls directly) and `checkerMu` (dropped: the caller serializes checker access, see nodebuilder_types.rs).
-    P::new(EmitResolver::default())
+    P::new_in(
+        emit_context.factory.is_scratch(),
+        EmitResolver {
+            reference_resolver: std::cell::OnceCell::new(),
+            emit_context,
+            request_node_builder: std::cell::OnceCell::new(),
+            links: checker.emit_resolver_links,
+        },
+    )
 }
 
 impl EmitResolver {
+    pub fn emit_context(&self) -> P<EmitContext> {
+        self.emit_context
+    }
+
+    fn node_builder(&self, c: &Checker) -> P<NodeBuilder> {
+        *self.request_node_builder.get_or_init(|| new_node_builder(c, self.emit_context))
+    }
+
     // emitresolver.go:53
     #[expect(
         clippy::unused_self,
@@ -98,7 +117,7 @@ impl EmitResolver {
             return false;
         }
 
-        let links = self.declaration_links.get(node);
+        let links = self.links.declaration_links.get(node);
         if links.is_visible.get() == Tristate::Unknown {
             if self.determine_if_declaration_is_visible(c, node) {
                 links.is_visible.set(Tristate::True);
@@ -218,10 +237,10 @@ impl EmitResolver {
 
     // emitresolver.go:236
     pub fn precalculate_declaration_emit_visibility(&self, c: &mut Checker, file: P<SourceFile>) {
-        if self.declaration_file_links.get(file.as_node()).aliases_marked.get() {
+        if self.links.declaration_file_links.get(file.as_node()).aliases_marked.get() {
             return;
         }
-        self.declaration_file_links.get(file.as_node()).aliases_marked.set(true);
+        self.links.declaration_file_links.get(file.as_node()).aliases_marked.set(true);
         // TODO: Does this even *have* to be an upfront walk? If it's not possible for a
         // import a = a.b.c statement to chain into exposing a statement in a sibling scope,
         // it could at least be pushed into scope entry -  then it wouldn't need to be recursive.
@@ -315,7 +334,7 @@ impl EmitResolver {
 
             let mut next_symbol: Option<P<Symbol>> = None;
             for &declaration in symbol.declarations() {
-                self.declaration_links.get(declaration).is_visible.set(Tristate::True);
+                self.links.declaration_links.get(declaration).is_visible.set(Tristate::True);
 
                 if ast::is_internal_module_import_equals_declaration(declaration) {
                     // Add the referenced top container visible
@@ -485,7 +504,11 @@ impl EmitResolver {
                 if should_compute_alias_to_make_visible {
                     let aliases_to_make_visible_set = &mut aliases_to_make_visible_set;
                     Box::new(move |declaration: P<Node>, aliasing_statement: P<Node>| {
-                        self.declaration_links.get(declaration).is_visible.set(Tristate::True);
+                        self.links
+                            .declaration_links
+                            .get(declaration)
+                            .is_visible
+                            .set(Tristate::True);
                         let set = aliases_to_make_visible_set.get_or_insert_with(Vec::new);
                         let id = ast::get_node_id(declaration);
                         match set.iter_mut().find(|(k, _)| *k == id) {
@@ -1207,7 +1230,7 @@ impl EmitResolver {
         node: P<Node>,
         ref_: P<Node>,
     ) {
-        self.jsx_links.get(node).import_ref.set(Some(ref_));
+        self.links.jsx_links.get(node).import_ref.set(Some(ref_));
     }
 
     // emitresolver.go:875
@@ -1217,7 +1240,7 @@ impl EmitResolver {
         node: P<Node>,
     ) -> Option<P<Node>> {
         if !ast::is_parse_tree_node(node) {
-            return self.jsx_links.get(node).import_ref.get();
+            return self.links.jsx_links.get(node).import_ref.get();
         }
 
         let symbol = c.get_referenced_value_or_alias_symbol(node);
@@ -1318,25 +1341,21 @@ impl EmitResolver {
     // and likely reduces performance. There's probably some refactoring that could be done here to simplify this.
 
     // emitresolver.go:950
-    #[expect(
-        clippy::unused_self,
-        reason = "EmitResolver methods implement the instance resolver API used by declaration and JavaScript transforms."
-    )]
     pub fn create_return_type_of_signature_declaration(
         &self,
         c: &mut Checker,
-        emit_context: P<EmitContext>,
         signature_declaration: P<Node>,
         enclosing_declaration: Option<P<Node>>,
         flags: Flags,
         internal_flags: InternalFlags,
         tracker: &'static dyn SymbolTracker,
     ) -> Option<P<Node>> {
+        let emit_context = self.emit_context;
         let Some(original) = emit_context.parse_node(Some(signature_declaration)) else {
             return Some(emit_context.factory.new_keyword_type_node(Kind::AnyKeyword));
         };
 
-        let request_node_builder = new_node_builder(c, emit_context); // TODO: cache per-context
+        let request_node_builder = self.node_builder(c);
         request_node_builder.serialize_return_type_for_signature(
             c,
             original,
@@ -1348,23 +1367,19 @@ impl EmitResolver {
     }
 
     // emitresolver.go:962
-    #[expect(
-        clippy::unused_self,
-        reason = "EmitResolver methods implement the instance resolver API used by declaration and JavaScript transforms."
-    )]
     pub fn create_type_parameters_of_signature_declaration(
         &self,
         c: &mut Checker,
-        emit_context: P<EmitContext>,
         signature_declaration: P<Node>,
         enclosing_declaration: Option<P<Node>>,
         flags: Flags,
         internal_flags: InternalFlags,
         tracker: &'static dyn SymbolTracker,
     ) -> Option<Vec<P<Node>>> {
+        let emit_context = self.emit_context;
         let original = emit_context.parse_node(Some(signature_declaration))?;
 
-        let request_node_builder = new_node_builder(c, emit_context); // TODO: cache per-context
+        let request_node_builder = self.node_builder(c);
         let result = request_node_builder.serialize_type_parameters_for_signature(
             c,
             original,
@@ -1382,25 +1397,21 @@ impl EmitResolver {
     }
 
     // emitresolver.go:974
-    #[expect(
-        clippy::unused_self,
-        reason = "EmitResolver methods implement the instance resolver API used by declaration and JavaScript transforms."
-    )]
     pub fn create_type_of_declaration(
         &self,
         c: &mut Checker,
-        emit_context: P<EmitContext>,
         declaration: P<Node>,
         enclosing_declaration: Option<P<Node>>,
         flags: Flags,
         internal_flags: InternalFlags,
         tracker: &'static dyn SymbolTracker,
     ) -> Option<P<Node>> {
+        let emit_context = self.emit_context;
         if emit_context.parse_node(Some(declaration)).is_none() {
             return Some(emit_context.factory.new_keyword_type_node(Kind::AnyKeyword));
         }
 
-        let request_node_builder = new_node_builder(c, emit_context); // TODO: cache per-context
+        let request_node_builder = self.node_builder(c);
         // // Get type of the symbol if this is the valid symbol otherwise get type at location
         let symbol = c.get_symbol_of_declaration(declaration);
         request_node_builder.serialize_type_for_declaration(
@@ -1415,17 +1426,13 @@ impl EmitResolver {
     }
 
     // emitresolver.go:988
-    #[expect(
-        clippy::unused_self,
-        reason = "EmitResolver methods implement the instance resolver API used by declaration and JavaScript transforms."
-    )]
     pub fn create_literal_const_value(
         &self,
         c: &mut Checker,
-        emit_context: P<EmitContext>,
         node: P<Node>,
         tracker: &'static dyn SymbolTracker,
     ) -> Option<P<Node>> {
+        let emit_context = self.emit_context;
         let node = emit_context.parse_node(Some(node)).unwrap();
         let symbol = c.get_symbol_of_declaration(node).unwrap();
         // Go checks `t == nil` here ("TODO: How!? Maybe this should be a panic. All symbols should have a type."); the
@@ -1435,7 +1442,7 @@ impl EmitResolver {
         let f = &emit_context.factory;
         let mut enum_result: Option<P<Node>> = None;
         if t.flags().intersects(TypeFlags::EnumLike) {
-            let request_node_builder = new_node_builder(c, emit_context); // TODO: cache per-context
+            let request_node_builder = self.node_builder(c);
             enum_result = request_node_builder.symbol_to_expression(
                 c,
                 t.symbol().unwrap(),
@@ -1497,25 +1504,21 @@ impl EmitResolver {
     }
 
     // emitresolver.go:1049
-    #[expect(
-        clippy::unused_self,
-        reason = "EmitResolver methods implement the instance resolver API used by declaration and JavaScript transforms."
-    )]
     pub fn create_type_of_expression(
         &self,
         c: &mut Checker,
-        emit_context: P<EmitContext>,
         expression: P<Node>,
         enclosing_declaration: Option<P<Node>>,
         flags: Flags,
         internal_flags: InternalFlags,
         tracker: &'static dyn SymbolTracker,
     ) -> Option<P<Node>> {
+        let emit_context = self.emit_context;
         let Some(expression) = emit_context.parse_node(Some(expression)) else {
             return Some(emit_context.factory.new_keyword_type_node(Kind::AnyKeyword));
         };
 
-        let request_node_builder = new_node_builder(c, emit_context); // TODO: cache per-context
+        let request_node_builder = self.node_builder(c);
         request_node_builder.serialize_type_for_expression(
             c,
             expression,
@@ -1530,13 +1533,13 @@ impl EmitResolver {
     pub fn create_late_bound_index_signatures(
         &self,
         c: &mut Checker,
-        emit_context: P<EmitContext>,
         container: P<Node>,
         enclosing_declaration: Option<P<Node>>,
         flags: Flags,
         internal_flags: InternalFlags,
         tracker: &'static dyn SymbolTracker,
     ) -> Vec<P<Node>> {
+        let emit_context = self.emit_context;
         let container = emit_context.parse_node(Some(container)).unwrap();
 
         let sym = container.symbol().unwrap();
@@ -1551,7 +1554,7 @@ impl EmitResolver {
                 c.get_index_infos_of_index_symbol(instance_index_symbol, &sibling_symbols);
         }
 
-        let request_node_builder = new_node_builder(c, emit_context); // TODO: cache per-context
+        let request_node_builder = self.node_builder(c);
         let f = &emit_context.factory;
 
         let mut result: Vec<P<Node>> = Vec::new();
@@ -1850,23 +1853,19 @@ impl EmitResolver {
     }
 
     // emitresolver.go:1272
-    #[expect(
-        clippy::unused_self,
-        reason = "EmitResolver methods implement the instance resolver API used by declaration and JavaScript transforms."
-    )]
     pub fn try_js_type_node_to_type_node(
         &self,
         c: &mut Checker,
-        emit_context: P<EmitContext>,
         type_node: P<Node>,
         enclosing_declaration: Option<P<Node>>,
         flags: Flags,
         internal_flags: InternalFlags,
         tracker: &'static dyn SymbolTracker,
     ) -> Option<P<Node>> {
+        let emit_context = self.emit_context;
         let type_node = emit_context.parse_node(Some(type_node)).unwrap();
 
-        let request_node_builder = new_node_builder(c, emit_context); // TODO: cache per-context
+        let request_node_builder = self.node_builder(c);
         request_node_builder.try_js_type_node_to_type_node(
             c,
             type_node,

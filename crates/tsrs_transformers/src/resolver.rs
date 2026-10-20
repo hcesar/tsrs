@@ -125,7 +125,6 @@ impl Resolver {
 
     pub fn create_return_type_of_signature_declaration(
         self,
-        emit_context: P<EmitContext>,
         signature_declaration: P<Node>,
         enclosing_declaration: Option<P<Node>>,
         flags: nodebuilder::Flags,
@@ -135,7 +134,6 @@ impl Resolver {
         self.lock(|c| {
             self.r.create_return_type_of_signature_declaration(
                 c,
-                emit_context,
                 signature_declaration,
                 enclosing_declaration,
                 flags,
@@ -147,7 +145,6 @@ impl Resolver {
 
     pub fn create_type_parameters_of_signature_declaration(
         self,
-        emit_context: P<EmitContext>,
         signature_declaration: P<Node>,
         enclosing_declaration: Option<P<Node>>,
         flags: nodebuilder::Flags,
@@ -157,7 +154,6 @@ impl Resolver {
         self.lock(|c| {
             self.r.create_type_parameters_of_signature_declaration(
                 c,
-                emit_context,
                 signature_declaration,
                 enclosing_declaration,
                 flags,
@@ -169,7 +165,6 @@ impl Resolver {
 
     pub fn create_type_of_declaration(
         self,
-        emit_context: P<EmitContext>,
         declaration: P<Node>,
         enclosing_declaration: Option<P<Node>>,
         flags: nodebuilder::Flags,
@@ -179,7 +174,6 @@ impl Resolver {
         self.lock(|c| {
             self.r.create_type_of_declaration(
                 c,
-                emit_context,
                 declaration,
                 enclosing_declaration,
                 flags,
@@ -191,16 +185,14 @@ impl Resolver {
 
     pub fn create_literal_const_value(
         self,
-        emit_context: P<EmitContext>,
         node: P<Node>,
         tracker: &'static dyn SymbolTracker,
     ) -> Option<P<Node>> {
-        self.lock(|c| self.r.create_literal_const_value(c, emit_context, node, tracker))
+        self.lock(|c| self.r.create_literal_const_value(c, node, tracker))
     }
 
     pub fn create_type_of_expression(
         self,
-        emit_context: P<EmitContext>,
         expression: P<Node>,
         enclosing_declaration: Option<P<Node>>,
         flags: nodebuilder::Flags,
@@ -210,7 +202,6 @@ impl Resolver {
         self.lock(|c| {
             self.r.create_type_of_expression(
                 c,
-                emit_context,
                 expression,
                 enclosing_declaration,
                 flags,
@@ -222,7 +213,6 @@ impl Resolver {
 
     pub fn create_late_bound_index_signatures(
         self,
-        emit_context: P<EmitContext>,
         container: P<Node>,
         enclosing_declaration: Option<P<Node>>,
         flags: nodebuilder::Flags,
@@ -232,7 +222,6 @@ impl Resolver {
         self.lock(|c| {
             self.r.create_late_bound_index_signatures(
                 c,
-                emit_context,
                 container,
                 enclosing_declaration,
                 flags,
@@ -244,7 +233,6 @@ impl Resolver {
 
     pub fn try_js_type_node_to_type_node(
         self,
-        emit_context: P<EmitContext>,
         type_node: P<Node>,
         enclosing_declaration: Option<P<Node>>,
         flags: nodebuilder::Flags,
@@ -254,7 +242,6 @@ impl Resolver {
         self.lock(|c| {
             self.r.try_js_type_node_to_type_node(
                 c,
-                emit_context,
                 type_node,
                 enclosing_declaration,
                 flags,

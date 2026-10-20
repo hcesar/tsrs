@@ -287,10 +287,12 @@ fn get_type_help_item(
     source_file: P<SourceFile>,
     c: &mut Checker,
 ) -> signatureInformation {
+    let emit_context = printer::new_emit_context();
+    let builder = checker::new_node_builder(c, emit_context);
     let mut printer = printer::new_printer(
         PrinterOptions { new_line: NewLineKind::LF, ..Default::default() },
         printer::PrintHandlers::default(),
-        None,
+        Some(emit_context),
     );
 
     let mut parameters: Vec<signatureHelpParameter> = Vec::with_capacity(type_parameter.len());
@@ -299,6 +301,7 @@ fn get_type_help_item(
             type_param,
             source_file,
             enclosing_declaration,
+            builder,
             c,
             &mut printer,
         )
@@ -629,6 +632,7 @@ impl LanguageService {
         doc_format: lsproto::MarkupKind,
         vs_capability: bool,
     ) -> Vec<signatureInformation> {
+        let emit_context = printer::new_emit_context();
         let infos = if is_type_parameter_list {
             Self::item_info_for_type_parameters(
                 candidate,
@@ -637,6 +641,7 @@ impl LanguageService {
                 source_file,
                 doc_format,
                 vs_capability,
+                emit_context,
             )
         } else {
             self.item_info_for_parameters(
@@ -646,6 +651,7 @@ impl LanguageService {
                 source_file,
                 doc_format,
                 vs_capability,
+                emit_context,
             )
         };
 
@@ -655,6 +661,7 @@ impl LanguageService {
             enclosing_declaration,
             source_file,
             vs_capability,
+            emit_context,
         );
 
         // Generate documentation from the signature's declaration
@@ -703,6 +710,7 @@ fn return_type_to_display_parts(
     enclosing_declaration: P<Node>,
     source_file: P<SourceFile>,
     vs_capability: bool,
+    emit_context: P<printer::EmitContext>,
 ) -> DisplayPartsWriter {
     let mut dpw = new_display_parts_writer(vs_capability);
 
@@ -724,7 +732,7 @@ fn return_type_to_display_parts(
             let mut p = printer::new_printer(
                 PrinterOptions { new_line: NewLineKind::LF, ..Default::default() },
                 printer::PrintHandlers::default(),
-                Some(printer::new_emit_context()),
+                Some(emit_context),
             );
             // Use a temporary writer for p.Write since the printer calls Clear() on its writer
             let mut temp_dpw = new_display_parts_writer(vs_capability);
@@ -746,8 +754,9 @@ impl LanguageService {
         source_file: P<SourceFile>,
         _doc_format: lsproto::MarkupKind,
         vs_capability: bool,
+        emit_context: P<printer::EmitContext>,
     ) -> Vec<signatureHelpItemInfo> {
-        let emit_context = printer::new_emit_context();
+        let builder = checker::new_node_builder(c, emit_context);
         let mut p = printer::new_printer(
             PrinterOptions { new_line: NewLineKind::LF, ..Default::default() },
             printer::PrintHandlers::default(),
@@ -766,6 +775,7 @@ impl LanguageService {
                 type_parameter,
                 source_file,
                 enclosing_declaration,
+                builder,
                 c,
                 &mut p,
             )
@@ -799,7 +809,7 @@ impl LanguageService {
             param_dpw.write_from(&dpw);
 
             for (j, &param) in parameter_list.iter().enumerate() {
-                let param_node = checker::new_node_builder(c, emit_context)
+                let param_node = builder
                     .symbol_to_parameter_declaration(
                         c,
                         param,
@@ -839,8 +849,9 @@ impl LanguageService {
         source_file: P<SourceFile>,
         doc_format: lsproto::MarkupKind,
         vs_capability: bool,
+        emit_context: P<printer::EmitContext>,
     ) -> Vec<signatureHelpItemInfo> {
-        let emit_context = printer::new_emit_context();
+        let builder = checker::new_node_builder(c, emit_context);
         let mut p = printer::new_printer(
             PrinterOptions { new_line: NewLineKind::LF, ..Default::default() },
             printer::PrintHandlers::default(),
@@ -856,6 +867,7 @@ impl LanguageService {
                         type_parameter,
                         source_file,
                         enclosing_declaratipn,
+                        builder,
                         c,
                         &mut p,
                     )
@@ -909,7 +921,7 @@ impl LanguageService {
             param_dpw.write_from(&dpw);
 
             for (j, &param) in parameter_list.iter().enumerate() {
-                let param_node = checker::new_node_builder(c, emit_context)
+                let param_node = builder
                     .symbol_to_parameter_declaration(
                         c,
                         param,
@@ -1003,10 +1015,11 @@ fn create_signature_help_parameter_for_type_parameter(
     t: P<Type>,
     source_file: P<SourceFile>,
     enclosing_declaration: P<Node>,
+    builder: P<checker::NodeBuilder>,
     c: &mut Checker,
     p: &mut Printer,
 ) -> signatureHelpParameter {
-    let node = checker::new_node_builder(c, printer::new_emit_context())
+    let node = builder
         .type_parameter_to_declaration(
             c,
             t,

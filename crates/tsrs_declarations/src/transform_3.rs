@@ -56,7 +56,7 @@ impl DeclarationTransformer {
         params: Option<P<NodeList>>,
     ) -> Option<P<NodeList>> {
         if !self
-            .host
+            .resolver
             .get_effective_declaration_flags(
                 self.emit_context().parse_node(Some(node)).unwrap(),
                 ModifierFlags::Private,
@@ -83,7 +83,6 @@ impl DeclarationTransformer {
         if let Some(data) = node.function_like_data() {
             if data.full_signature.get().is_some() {
                 if let Some(nodes) = self.resolver.create_type_parameters_of_signature_declaration(
-                    self.emit_context(),
                     node,
                     self.enclosing_declaration.get(),
                     declarationEmitNodeBuilderFlags,
@@ -105,7 +104,7 @@ impl DeclarationTransformer {
     // transform.go:2399
     pub(crate) fn update_param_list(&self, node: P<Node>, params: P<NodeList>) -> P<NodeList> {
         if !self
-            .host
+            .resolver
             .get_effective_declaration_flags(
                 self.emit_context().parse_node(Some(node)).unwrap(),
                 ModifierFlags::Private,
@@ -158,7 +157,6 @@ impl DeclarationTransformer {
                 self.resolver.lock(|c| self.tracker.report_inference_fallback(c, node));
             }
             return self.resolver.create_literal_const_value(
-                self.emit_context(),
                 self.emit_context().parse_node(Some(node)).unwrap(),
                 self.tracker.get(),
             );

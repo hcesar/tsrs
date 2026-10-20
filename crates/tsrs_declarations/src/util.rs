@@ -9,13 +9,10 @@ pub(crate) fn needs_scope_marker(result: P<Node>) -> bool {
 }
 
 // util.go:13
-pub(crate) fn can_have_literal_initializer(
-    host: &'static dyn DeclarationEmitHost,
-    node: P<Node>,
-) -> bool {
+pub(crate) fn can_have_literal_initializer(resolver: Resolver, node: P<Node>) -> bool {
     match node.kind() {
         Kind::PropertyDeclaration | Kind::PropertySignature => {
-            host.get_effective_declaration_flags(node, ModifierFlags::Private).is_empty()
+            resolver.get_effective_declaration_flags(node, ModifierFlags::Private).is_empty()
         }
         Kind::Parameter | Kind::VariableDeclaration => true,
         _ => false,
@@ -152,13 +149,10 @@ pub(crate) fn unwrap_parenthesized_expression(o: P<Node>) -> P<Node> {
 }
 
 // util.go:149
-pub(crate) fn is_private_method_type_parameter(
-    host: &'static dyn DeclarationEmitHost,
-    node: P<Node>,
-) -> bool {
+pub(crate) fn is_private_method_type_parameter(resolver: Resolver, node: P<Node>) -> bool {
     let parent = node.parent().unwrap();
     parent.kind() == Kind::MethodDeclaration
-        && !host.get_effective_declaration_flags(parent, ModifierFlags::Private).is_empty()
+        && !resolver.get_effective_declaration_flags(parent, ModifierFlags::Private).is_empty()
 }
 
 // util.go:153

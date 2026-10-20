@@ -135,12 +135,10 @@ pub(crate) fn get_declaration_diagnostics(
         return Vec::new();
     }
     let options = program.options();
-    // The caller runs this in a scratch region (`Program::get_declaration_diagnostics_for_file`): a scratch emit
-    // context, so the nodes the node builder makes for the transform die with it. Go passes nil and the transformer
-    // makes a fresh context, which is what this is.
+    // The caller creates the resolver and context together in the file's scratch region.
     let transform = tsrs_declarations::new_declaration_transformer(
         host,
-        Some(tsrs_printer::new_scratch_emit_context()),
+        tsrs_transformers::EmitHost::get_emit_resolver(host),
         options,
         "",
         "",
@@ -208,6 +206,7 @@ mod emit {
         pub(crate) pending_js: Option<pendingPrint>,
         pub(crate) declaration_diagnostics: Vec<P<Diagnostic>>,
         pub(crate) pending_declaration: Option<pendingPrint>,
+        pub(crate) emit_context: P<EmitContext>,
     }
 
     /// `TSRS_EMIT_MEM=1`: per file, the arena bytes its emit used in its region and outside it (stderr, `emitmem`).
@@ -270,6 +269,7 @@ mod emit {
             if let Some(pending) = self.pending_declaration.take() {
                 self.print_pending(pending, writer);
             }
+            self.emit_context.reset();
             self.emit_result.diagnostics = self.emitter_diagnostics.get_diagnostics();
         }
 
@@ -304,14 +304,12 @@ mod emit {
                 pending.should_emit_source_maps,
                 writer,
             );
-            pending.emit_context.reset(); // put_emit_context
         }
 
         // emitter.go:62. Go returns a slice of the `declarationTransformer` interface; the two transformers run in
         // `run_declaration_transformers` in the same order.
         fn run_declaration_transformers(
             &self,
-            emit_context: P<EmitContext>,
             source_file: P<SourceFile>,
             declaration_file_path: &str,
             declaration_map_path: &str,
@@ -322,7 +320,7 @@ mod emit {
             // getDeclarationTransformers (emitter.go:62)
             let declaration = tsrs_declarations::new_declaration_transformer(
                 self.host,
-                Some(emit_context),
+                self.host.get_emit_resolver(),
                 self.host.options(),
                 declaration_file_path,
                 declaration_map_path,
@@ -388,7 +386,7 @@ mod emit {
                 return;
             }
 
-            let (emit_context, _) = printer::get_scratch_emit_context();
+            let emit_context = self.emit_context;
 
             let source_file = self.run_script_transformers(emit_context, source_file);
 
@@ -436,9 +434,8 @@ mod emit {
                 && options.declaration_map.is_true();
             let content_mapped_source = source_file;
 
-            let (emit_context, _) = printer::get_scratch_emit_context();
+            let emit_context = self.emit_context;
             let (source_file, diags) = self.run_declaration_transformers(
-                emit_context,
                 source_file,
                 declaration_file_path,
                 declaration_map_path,
@@ -456,13 +453,11 @@ mod emit {
                     || self.host.is_emit_blocked(declaration_file_path))
             {
                 self.emit_result.emit_skipped = true;
-                emit_context.reset(); // put_emit_context
                 return;
             }
 
             if decl_blocked {
                 self.emit_result.emit_skipped = true;
-                emit_context.reset(); // put_emit_context
                 return;
             }
 

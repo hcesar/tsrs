@@ -224,11 +224,12 @@ impl Program {
         // and the program's caches (`EmitHost`).
         let transform =
             |c: &mut tsrs_checker::Checker, source_file: P<SourceFile>| -> (emitter, Region) {
-                let emit_resolver = c.get_emit_resolver();
                 let outer_before = if mem_log { tsrs_core::ptr::arena_used_bytes() } else { 0 };
                 let region = Region::new_scratch(EMIT_REGION_FIRST_CHUNK);
                 let e = {
                     let _scratch = region.enter_scratch();
+                    let emit_context = tsrs_printer::new_scratch_emit_context();
+                    let emit_resolver = c.new_emit_resolver(emit_context);
                     let checker_slot = P::new(tsrs_checker::CheckerSlot::default());
                     let host = crate::emithost::new_emit_host(self, emit_resolver, checker_slot);
                     let paths = outputpaths::get_output_paths_for(
@@ -255,6 +256,7 @@ impl Program {
                         pending_js: None,
                         declaration_diagnostics: Vec::new(),
                         pending_declaration: None,
+                        emit_context,
                     };
                     checker_slot.lend(c, || e.transform());
                     e

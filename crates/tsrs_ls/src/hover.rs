@@ -687,6 +687,7 @@ const CLASSIFIED_NODE_BUILDER_FLAGS: Flags = Flags::IgnoreErrors
 // receives the checker first (PORTING.md callback rule).
 struct QuickInfoWriter {
     dpw: DisplayPartsWriter,
+    display_emit_context: Cell<Option<P<printer::EmitContext>>>,
     vs_capability: bool,
     vc: P<VerbosityContext>,
     source_file: Option<P<SourceFile>>,
@@ -705,6 +706,15 @@ fn node_builder_flags(flags: TypeFormatFlags) -> Flags {
 }
 
 impl QuickInfoWriter {
+    fn emit_context(&self) -> P<printer::EmitContext> {
+        if let Some(context) = self.display_emit_context.get() {
+            return context;
+        }
+        let context = printer::new_emit_context();
+        self.display_emit_context.set(Some(context));
+        context
+    }
+
     // writeTypeClassified writes a type to dpw with proper classification (punctuation, symbols, keywords).
     // Falls back to flat text when vsCapability is false or when TypeToTypeNode fails.
     // hover.go:444
@@ -721,7 +731,7 @@ impl QuickInfoWriter {
             self.dpw.write(&s);
             return;
         }
-        let emit_context = printer::new_emit_context();
+        let emit_context = self.emit_context();
         let id_to_symbol: P<RefCell<FxHashMap<P<Node>, P<Symbol>>>> =
             P::new(RefCell::new(FxHashMap::default()));
         let nb = checker::new_node_builder_ex(c, emit_context, Some(id_to_symbol));
@@ -768,7 +778,7 @@ impl QuickInfoWriter {
         } else {
             Kind::CallSignature
         };
-        let emit_context = printer::new_emit_context();
+        let emit_context = self.emit_context();
         let id_to_symbol: P<RefCell<FxHashMap<P<Node>, P<Symbol>>>> =
             P::new(RefCell::new(FxHashMap::default()));
         let nb = checker::new_node_builder_ex(c, emit_context, Some(id_to_symbol));
@@ -827,7 +837,7 @@ impl QuickInfoWriter {
             return;
         };
         let attributes = declaration.as_module_declaration().attributes.unwrap();
-        let emit_context = printer::new_emit_context();
+        let emit_context = self.emit_context();
         emit_context.set_emit_flags(attributes, printer::EmitFlags::SingleLine);
         let mut p = printer::new_printer(
             printer::PrinterOptions { new_line: NewLineKind::LF, ..Default::default() },
@@ -1448,6 +1458,7 @@ pub(crate) fn get_quick_info_and_declaration_at_location(
     let source_file = ast::get_source_file_of_node(node);
 
     let mut w = QuickInfoWriter {
+        display_emit_context: Cell::new(None),
         dpw,
         vs_capability,
         vc,

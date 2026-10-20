@@ -226,9 +226,8 @@ impl DeclarationTransformer {
                 self.preserve_js_doc(statement, input);
                 self.remove_all_comments(assignment);
                 return Some(f.new_syntax_list(alloc_vec(vec![statement, assignment])));
-            } else if self.host.get_emit_resolver().get_referenced_value_declaration(name)
-                == Some(input)
-                || self.host.get_emit_resolver().get_referenced_value_declaration(name).is_none()
+            } else if self.resolver.get_referenced_value_declaration(name) == Some(input)
+                || self.resolver.get_referenced_value_declaration(name).is_none()
             {
                 // only inline to a export var if the `name` lookup points at this assignment or nothing - if it points at something else, we must use a temp name
                 // export var name: Type
@@ -429,7 +428,7 @@ impl DeclarationTransformer {
     // transform.go:1644
     pub(crate) fn ensure_type(&self, node: P<Node>, ignore_private: bool) -> Option<P<Node>> {
         if !ignore_private
-            && self.host.get_effective_declaration_flags(
+            && self.resolver.get_effective_declaration_flags(
                 self.emit_context().parse_node(Some(node)).unwrap(),
                 ModifierFlags::Private,
             ) != ModifierFlags::None
@@ -463,7 +462,6 @@ impl DeclarationTransformer {
                     js_flags &= !nodebuilder::Flags::WriteClassExpressionAsTypeLiteral;
                 }
                 let res = self.resolver.try_js_type_node_to_type_node(
-                    self.emit_context(),
                     node.type_node().unwrap(),
                     self.enclosing_declaration.get(),
                     js_flags,
@@ -496,7 +494,6 @@ impl DeclarationTransformer {
         }
         let type_node = if ast::has_inferred_type(node) {
             self.resolver.create_type_of_declaration(
-                self.emit_context(),
                 node,
                 self.enclosing_declaration.get(),
                 flags,
@@ -505,7 +502,6 @@ impl DeclarationTransformer {
             )
         } else if ast::is_function_like(node) {
             self.resolver.create_return_type_of_signature_declaration(
-                self.emit_context(),
                 node,
                 self.enclosing_declaration.get(),
                 flags,
@@ -528,7 +524,7 @@ impl DeclarationTransformer {
 
     // transform.go:1708
     pub(crate) fn should_print_with_initializer(&self, node: P<Node>) -> bool {
-        can_have_literal_initializer(self.host, node)
+        can_have_literal_initializer(self.resolver, node)
             && node.initializer().is_some()
             && self.resolver.is_literal_const_declaration(
                 self.emit_context().most_original(Some(node)).unwrap(),
@@ -760,7 +756,7 @@ impl DeclarationTransformer {
         let parse_node = self.emit_context().parse_node(Some(statement));
         if ast::is_import_equals_declaration(statement)
             || parse_node.is_some_and(|parse_node| {
-                self.host.get_effective_declaration_flags(parse_node, ModifierFlags::Default)
+                self.resolver.get_effective_declaration_flags(parse_node, ModifierFlags::Default)
                     != ModifierFlags::None
             })
             || !ast::can_have_modifiers(statement)
@@ -845,7 +841,6 @@ impl DeclarationTransformer {
         }
 
         let late_indexes = self.resolver.create_late_bound_index_signatures(
-            self.emit_context(),
             class_node,
             self.enclosing_declaration.get(),
             declarationEmitNodeBuilderFlags,
@@ -923,7 +918,6 @@ impl DeclarationTransformer {
                         new_id,
                         None,
                         self.resolver.create_type_of_expression(
-                            self.emit_context(),
                             extends_clause.expression().unwrap(),
                             Some(input),
                             declarationEmitNodeBuilderFlags,

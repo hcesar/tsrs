@@ -3181,9 +3181,14 @@ impl Checker {
     // checker.go:32656
     pub fn get_emit_resolver(&mut self) -> P<EmitResolver> {
         if self.emit_resolver.is_none() {
-            self.emit_resolver = Some(new_emit_resolver(self));
+            self.emit_resolver = Some(new_emit_resolver(self, tsrs_printer::new_emit_context()));
         }
         self.emit_resolver.unwrap()
+    }
+
+    // checker.go:32710 (source 41). The caller owns the emit context and this resolver's lifetime.
+    pub fn new_emit_resolver(&self, emit_context: P<EmitContext>) -> P<EmitResolver> {
+        new_emit_resolver(self, emit_context)
     }
 
     /// tsrs-only: called when a file's emit transform ends in a scratch region (notes/mem-emit-regions.md). Forgets
@@ -3192,9 +3197,7 @@ impl Checker {
     /// never hit again there either: the referenced-import links of synthesized JSX factory names (every key of
     /// `EmitResolver::jsx_links` is one), and accessible-chain cache entries whose scope is a synthesized node.
     pub fn forget_scratch_keyed_caches(&mut self) {
-        if let Some(resolver) = self.emit_resolver {
-            resolver.jsx_links.clear();
-        }
+        self.emit_resolver_links.jsx_links.clear();
         for (symbol, key) in std::mem::take(&mut self.scratch_keyed_chain_cache) {
             let links = self.symbol_container_links.get(symbol);
             let mut cache = links.accessible_chain_cache.borrow_mut();
