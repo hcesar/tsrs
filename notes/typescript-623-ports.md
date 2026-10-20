@@ -1210,3 +1210,40 @@ disclosed above; no performance-equivalence claim is made for this port.
 Evidence is under `target/port-623/0024-2f9fd09a10/`, including pass-set and
 Fourslash outcome comparisons, exact-source Go and codec goldens, workspace,
 regression, npm, lint and generator logs.
+
+## 25. `a4b1410230c7` — correct `Array.at` parameter documentation
+
+Upstream `a4b1410230c7299957ec3f8f8dee4cccc55a4798` replaces “code unit” with
+“item” in the `index` parameter documentation for `Array.at`, `ReadonlyArray.at`,
+and eleven typed-array `at` signatures. The Rust bundled
+`lib.es2022.array.d.ts` is copied byte-for-byte from the exact source-25 Go
+reference; declaration signatures and executable code do not change. The
+generator's embedding list remains byte-identical after formatting. The
+ignored reference checkout advances to source 25, while the published
+TypeScript pin and base SDK manifest remain unchanged until the whole upgrade.
+
+All twelve full compiler pass and nonpass sets are identical to source 24,
+without crashes or timeouts. Go-history checker passes 13,518 diagnostic and
+12,833 type/symbol baselines; canonical checker passes 13,518 diagnostic and
+12,832 type/symbol baselines. Emit passes 13,522 diagnostic, 12,833 type and
+symbol, 13,448 JavaScript/declaration, 149 JavaScript-map, and 156 source-map
+baselines. The exact `compiler/indexAt` fixture passes all three variants in
+diagnostics, types, symbols and JavaScript emit. Exact-source Fourslash passes
+4,083 groups, skips 472 and fails none; all 4,615 named outcomes match source
+24. The full Rust workspace passes 1,106 tests with four existing ignored tests;
+the npm API suite passes 935 tests, and all 37 regression projects pass. The
+dev build, WASM target check, warnings-denied Clippy, source lint and formatting
+pass. All seven generators leave 1,172 tracked crate files byte-identical.
+The first workspace attempt was denied a local Unix socket by the sandbox;
+the complete rerun with socket access passed. The npm shutdown test must run
+from the npm package directory for its child process to resolve the package;
+the full suite passed there.
+
+The compatibility table and README summaries need no change: this port alters
+documentation wording without changing a capability or a cited pass count.
+No source-25 release performance measurement was collected under the user's
+nonblocking migration policy. The measured source-11 regressions remain
+disclosed above; no performance-equivalence claim is made for this port.
+Evidence is under `target/port-623/0025-a4b1410230/`, including exact-source
+library hashes, full compiler pass-set and Fourslash outcome comparisons,
+workspace, npm, regression, lint, WASM and generator logs.
