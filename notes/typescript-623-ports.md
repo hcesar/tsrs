@@ -998,3 +998,41 @@ compiler pass-set and Fourslash outcome comparisons, exact-source Go oracle, wor
 logs, build and lint logs, and generator hashes. The ignored reference checkout advances to this
 revision; the published TypeScript pin and base SDK manifest remain unchanged until the full source
 upgrade.
+
+## 20. `bf00f213ffd6` — add keyed Promise methods to the ESNext library
+
+Upstream `bf00f213ffd67ce4cc765c0db341e86c7057be44` gives `esnext.promise` its own
+library file, referenced by the `esnext` aggregate, rather than aliasing
+`lib.es2025.promise.d.ts`. The new library still references ES2020 and ES2025 promise
+declarations, then adds `Promise.allKeyed` and `Promise.allSettledKeyed`. Both methods
+preserve the input object's string and symbol keys, remove property `readonly`, and map
+each value through `Awaited`; the latter wraps each result in `PromiseSettledResult`.
+The Rust bundled-library generator includes the file in its name and embedded-content
+inventories, and the ordered `--lib` option map now resolves `esnext.promise` to it after
+the ES2026 feature aliases. The new library, changed `lib.esnext.d.ts`, and both npm
+configuration schemas are byte-identical to upstream. The npm package dry run contains
+and exports both parsed JSON schemas.
+
+The exact source-20 Go `TestLocal/promiseAllKeyed.ts` case and its bundled/compiler/options
+package tests pass. The new Rust compiler case matches diagnostics, `.types`, `.symbols`,
+and JavaScript output. Its four TS2345 errors intentionally reject `number`, `string`,
+`null`, and `undefined` inputs under the `object` constraint. `Promise.try` remains
+available through the referenced ES2025 promise library.
+
+All twelve full compiler passing sets retain every source-19 pass and known nonpassing
+outcome. Go-history checker passes 13,486 diagnostic and 12,801 type/symbol baselines;
+canonical checker passes 13,486 diagnostic and 12,800 type/symbol baselines. Emit passes
+13,490 diagnostic, 12,801 type/symbol, 13,416 JavaScript/declaration, 149 JavaScript-map,
+and 156 source-map baselines. Each gained only the new `promiseAllKeyed` case where that
+baseline exists. The full exact-source Go Fourslash gate passes 4,075 groups, skips 472,
+and fails none; all 4,603 named outcomes match source 19. All 37 regression projects
+pass. The workspace passes 1,076 tests with four existing ignored. Native and WASM
+builds, warnings-denied Clippy, source lint, formatting, and npm schema/package checks
+pass. Regeneration leaves all 1,167 tracked and new crate files byte-identical.
+
+No source-20 release performance measurement was collected under the user's nonblocking
+migration policy. The measured source-11 regressions remain disclosed above, and no
+performance-equivalence claim is made for this port. Evidence is under
+`target/port-623/0020-bf00f213ff/`. The ignored reference checkout advances to this
+revision; the published TypeScript pin and base SDK manifest remain unchanged until the
+full source upgrade.

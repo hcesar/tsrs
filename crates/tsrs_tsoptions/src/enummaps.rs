@@ -204,7 +204,6 @@ pub static LIB_MAP: LazyLock<OrderedMap<&'static str, CompilerOptionsValue>> =
             ("esnext.regexp", CompilerOptionsValue::String("lib.es2024.regexp.d.ts".to_string())),
             ("esnext.string", CompilerOptionsValue::String("lib.es2024.string.d.ts".to_string())),
             ("esnext.float16", CompilerOptionsValue::String("lib.es2025.float16.d.ts".to_string())),
-            ("esnext.promise", CompilerOptionsValue::String("lib.es2025.promise.d.ts".to_string())),
             ("esnext.array", CompilerOptionsValue::String("lib.es2026.array.d.ts".to_string())),
             (
                 "esnext.collection",
@@ -219,6 +218,7 @@ pub static LIB_MAP: LazyLock<OrderedMap<&'static str, CompilerOptionsValue>> =
                 "esnext.typedarrays",
                 CompilerOptionsValue::String("lib.es2026.typedarrays.d.ts".to_string()),
             ),
+            ("esnext.promise", CompilerOptionsValue::String("lib.esnext.promise.d.ts".to_string())),
             // ESNext By-feature options
             ("esnext.date", CompilerOptionsValue::String("lib.esnext.date.d.ts".to_string())),
             (
