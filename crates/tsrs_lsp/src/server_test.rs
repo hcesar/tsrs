@@ -293,6 +293,23 @@ fn server_shutdown_no_deadlock() {
     session.close();
 }
 
+// Go: TestCompletionItemResolveRejectsInvalidFileName.
+#[test]
+fn completion_item_resolve_rejects_invalid_file_name() {
+    for (file_name, message) in [
+        ("relative.ts", "completion item data fileName must be absolute"),
+        ("^/invalid", "completion item data fileName must be a valid dynamic path"),
+        (
+            "^/~ts-uri~/scheme/authority/~ts-uri-escape~zz~",
+            "completion item data fileName must be a valid dynamic path",
+        ),
+    ] {
+        let err = super::server::completion_item_file_name_to_document_uri(file_name)
+            .expect_err(file_name);
+        assert!(err.to_string().contains(message), "{file_name}: {err}");
+    }
+}
+
 // Not a Go test. completionItem/resolve takes the byte offset in `data.position` from the client unconverted; one
 // inside a multi-byte character (here in a JSDoc comment) resolves like the character's start instead of panicking
 // while slicing the text there; one past the end of the file resolves as in Go.
@@ -396,7 +413,8 @@ fn bad_client_input_does_not_end_the_session() {
     };
     open(&good);
 
-    for bad in ["", "not a uri", "relative/path.ts", "file://", "foo://host"] {
+    // Go now accepts a non-file URI with an authority and no path, such as `foo://host`.
+    for bad in ["", "not a uri", "relative/path.ts", "file://"] {
         let uri = lsproto::DocumentUri::from(bad);
         let (msg, _) = hover(&uri);
         assert!(is_invalid_params(&msg), "hover {bad:?}: {:?}", msg.error);
@@ -468,7 +486,8 @@ fn bad_client_input_does_not_end_the_session() {
             ..Default::default()
         };
         let (msg, _) = client.send_request(lsproto::COMPLETION_ITEM_RESOLVE_INFO, item);
-        assert!(is_invalid_params(&msg), "resolve {file_name:?}: {:?}", msg.error);
+        // Go reports these completion-item payload errors as ordinary request errors.
+        assert!(msg.error.is_some(), "resolve {file_name:?}: {:?}", msg.error);
     }
     let (msg, _) =
         client.send_request(lsproto::CODE_LENS_RESOLVE_INFO, lsproto::CodeLens::default());

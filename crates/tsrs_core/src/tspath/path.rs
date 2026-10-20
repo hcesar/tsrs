@@ -229,6 +229,21 @@ pub fn get_encoded_root_length(path: &str) -> EncodedRootLength {
         return EncodedRootLength::Disk(p1 + offset + 1); // UNC: "//server/" or "\\server\"
     }
 
+    // Dynamic/virtual compiler file name.
+    if ch0 == b'^' && ln > 1 && bytes[1] == b'/' {
+        if path.starts_with(super::DYNAMIC_URI_FILE_NAME_PREFIX) {
+            let prefix_len = super::DYNAMIC_URI_FILE_NAME_PREFIX.len();
+            if let Some(scheme_end) = path[prefix_len..].find('/') {
+                let scheme_end = prefix_len + scheme_end;
+                if let Some(authority_end) = path[scheme_end + 1..].find('/') {
+                    return EncodedRootLength::Disk(scheme_end + authority_end + 2);
+                }
+                return EncodedRootLength::Disk(ln);
+            }
+        }
+        return EncodedRootLength::Disk(2);
+    }
+
     // DOS
     if is_volume_character(ch0) && ln > 1 && bytes[1] == b':' {
         if ln == 2 {
@@ -238,11 +253,6 @@ pub fn get_encoded_root_length(path: &str) -> EncodedRootLength {
         if ch2 == b'/' || ch2 == b'\\' {
             return EncodedRootLength::Disk(3); // DOS: "c:/" or "c:\"
         }
-    }
-
-    // Untitled paths (e.g., "^/untitled/ts-nul-authority/Untitled-1")
-    if ch0 == b'^' && ln > 1 && bytes[1] == b'/' {
-        return EncodedRootLength::Disk(2); // Untitled: "^/"
     }
 
     // URL
@@ -261,8 +271,8 @@ pub fn get_encoded_root_length(path: &str) -> EncodedRootLength {
             // special case interpreted as "the machine from which the URL is being interpreted".
             let scheme = &path[..scheme_end];
             let authority = &path[authority_start..authority_end];
-            if scheme == "file"
-                && (authority.is_empty() || authority == "localhost")
+            if scheme.eq_ignore_ascii_case("file")
+                && (authority.is_empty() || authority.eq_ignore_ascii_case("localhost"))
                 && (ln > authority_end + 2)
                 && is_volume_character(bytes[authority_end + 1])
             {
@@ -772,6 +782,9 @@ pub fn to_path(file_name: &str, base_path: &str, use_case_sensitive_file_names: 
     } else {
         get_normalized_absolute_path(file_name, base_path)
     };
+    if super::is_encoded_dynamic_file_name(&non_canonicalized_path) {
+        return Path::new(super::canonical_dynamic_uri_path(&non_canonicalized_path));
+    }
     // get_canonical_file_name, reusing the owned string
     if use_case_sensitive_file_names {
         return Path::new(non_canonicalized_path);

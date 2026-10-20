@@ -17,6 +17,7 @@ fn test_set_directory() {
     let symlink_path =
         tspath::to_path("/test/symlink", "/test/dir", true).ensure_trailing_directory_separator();
     let real_directory = P::new(KnownDirectoryLink {
+        symlink: String::new(),
         real: "/real/path/".to_string(),
         real_path: tspath::to_path("/real/path", "/test/dir", true)
             .ensure_trailing_directory_separator(),
@@ -29,6 +30,7 @@ fn test_set_directory() {
         cache.directories().load(&symlink_path).expect("Expected directory to be stored").unwrap();
     assert_eq!(stored.real, real_directory.real);
     assert_eq!(stored.real_path, real_directory.real_path);
+    assert_eq!(stored.symlink, "/test/symlink/");
 
     // Check that realpath mapping was created
     let set = cache
@@ -36,6 +38,29 @@ fn test_set_directory() {
         .load(&real_directory.real_path)
         .expect("Expected realpath mapping to be created");
     assert!(set.has(&"/test/symlink".to_string()));
+}
+
+#[test]
+fn test_known_directory_link_preserves_child_spelling() {
+    let cache = new_known_symlink("/test/dir", false);
+    let symlink = "/Project/Node_Modules/pkg";
+    let symlink_path =
+        tspath::to_path(symlink, "/test/dir", false).ensure_trailing_directory_separator();
+    cache.set_directory(
+        symlink,
+        symlink_path.clone(),
+        Some(P::new(KnownDirectoryLink {
+            symlink: String::new(),
+            real: "/Real/Package/".to_string(),
+            real_path: tspath::to_path("/Real/Package", "/test/dir", false)
+                .ensure_trailing_directory_separator(),
+        })),
+    );
+    let link = cache.directories().load(&symlink_path).unwrap().unwrap();
+    assert_eq!(
+        link.resolve_file_name("/PROJECT/node_modules/pkg/Src/File.ts", false),
+        Some("/Real/Package/Src/File.ts".to_string())
+    );
 }
 
 #[test]
@@ -187,6 +212,7 @@ fn test_known_symlinks_thread_safety() {
                 let symlink_path = tspath::to_path(&format!("/test/symlink{c}"), "/test/dir", true)
                     .ensure_trailing_directory_separator();
                 let real_directory = P::new(KnownDirectoryLink {
+                    symlink: String::new(),
                     real: format!("/real/path{c}/"),
                     real_path: tspath::to_path(&format!("/real/path{c}"), "/test/dir", true)
                         .ensure_trailing_directory_separator(),

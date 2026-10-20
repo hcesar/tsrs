@@ -319,6 +319,14 @@ impl Session {
         Ok(self.snapshot_host.acquire_source_file(options, text, sk))
     }
 
+    // session.go:2074
+    fn resolve_create_source_file_name(&self, file_name: &str) -> ApiResult<String> {
+        if file_name.is_empty() {
+            return Err(ApiError::client("fileName must not be empty"));
+        }
+        Ok(tspath::get_normalized_absolute_path(file_name, self.current_directory()))
+    }
+
     /// Go `encodeLeasedSourceFile`.
     fn encode_leased(&self, lease: SourceFileLease) -> ApiResult<Response> {
         let mut data = match self.encode_source_file(lease.source_file()) {
@@ -334,17 +342,14 @@ impl Session {
     }
 
     pub(crate) fn handle_create_source_file(&self, p: Params) -> ApiResult<Response> {
-        let lease = self.create_source_file_lease(
-            p.str("fileName")?,
-            p.str("sourceText")?,
-            p.get("options"),
-        )?;
+        let file_name = self.resolve_create_source_file_name(p.str("fileName")?)?;
+        let lease =
+            self.create_source_file_lease(&file_name, p.str("sourceText")?, p.get("options"))?;
         self.encode_leased(lease)
     }
 
     pub(crate) fn handle_create_source_file_from_file(&self, p: Params) -> ApiResult<Response> {
-        let file_name =
-            tspath::get_normalized_absolute_path(p.str("fileName")?, self.current_directory());
+        let file_name = self.resolve_create_source_file_name(p.str("fileName")?)?;
         let text = self
             .base_fs()
             .read_file(&file_name)

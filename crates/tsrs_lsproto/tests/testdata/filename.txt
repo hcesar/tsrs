@@ -17,12 +17,12 @@ file://ser%41ver/a.ts	PANIC invalid file URI: file://ser%41ver/a.ts
 file://ser ver/a.ts	PANIC invalid file URI: file://ser ver/a.ts
 file:///é/😀.ts	/é/😀.ts
 file:///a%E2%82%AC.ts	/a€.ts
-untitled:Untitled-1	^/untitled/ts-nul-authority/Untitled-1
-untitled:/Untitled-1	^/untitled/ts-nul-authority//Untitled-1
-vscode-notebook-cell://authority/path/to/file.ts#cell	^/vscode-notebook-cell/authority/path/to/file.ts#cell
-vscode-vfs://github/microsoft/typescript/src/a.ts	^/vscode-vfs/github/microsoft/typescript/src/a.ts
-http://example.com/a.ts	^/http/example.com/a.ts
+untitled:Untitled-1	^/~ts-uri~/untitled/ts-nul-authority/Untitled-1
+untitled:/Untitled-1	^/~ts-uri~/untitled/ts-nul-authority/~ts-uri-escape~~/Untitled-1
+vscode-notebook-cell://authority/path/to/file.ts#cell	^/~ts-uri~/vscode-notebook-cell/authority/path/to/~ts-uri-escape~66696c65002363656c6c~.ts
+vscode-vfs://github/microsoft/typescript/src/a.ts	^/~ts-uri~/vscode-vfs/github/microsoft/typescript/src/a.ts
+http://example.com/a.ts	^/~ts-uri~/http/example.com/a.ts
 bundled:///libs/lib.d.ts	bundled:///libs/lib.d.ts
 noscheme	PANIC invalid URI: noscheme
-zip://	PANIC invalid URI: zip://
+zip://	^/~ts-uri~/zip/~ts-uri-escape~~/~ts-uri-no-path~~
 ^/scheme/authority/path	PANIC invalid URI: ^/scheme/authority/path

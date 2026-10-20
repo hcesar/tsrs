@@ -25,20 +25,36 @@ pub fn is_applicable_versioned_types_key(key: &str) -> bool {
     range_.test(&TYPE_SCRIPT_VERSION)
 }
 
+pub fn node_module_package_root_for_file(resolved: &str) -> String {
+    parse_node_module_package_root(resolved, false)
+}
+
+pub fn node_module_package_root_for_directory(resolved: &str) -> String {
+    parse_node_module_package_root(resolved, true)
+}
+
+// Kept for call sites outside the ported module surface.
 pub fn parse_node_module_from_path(resolved: &str, is_folder: bool) -> String {
+    parse_node_module_package_root(resolved, is_folder)
+}
+
+fn parse_node_module_package_root(resolved: &str, is_directory: bool) -> String {
     let path = tspath::normalize_path(resolved);
     let Some(idx) = path.rfind("/node_modules/") else {
         return String::new();
     };
 
     let index_after_node_modules = idx + "/node_modules/".len();
-    let mut index_after_package_name =
-        move_to_next_directory_separator_if_available(&path, index_after_node_modules, is_folder);
+    let mut index_after_package_name = move_to_next_directory_separator_if_available(
+        &path,
+        index_after_node_modules,
+        is_directory,
+    );
     if path.as_bytes()[index_after_node_modules] == b'@' {
         index_after_package_name = move_to_next_directory_separator_if_available(
             &path,
             index_after_package_name,
-            is_folder,
+            is_directory,
         );
     }
     path[..index_after_package_name].to_string()

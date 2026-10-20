@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, RwLock, Weak};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, RwLock, Weak};
 use std::time::{Duration, Instant};
 
 use rustc_hash::FxHashMap;
@@ -119,6 +119,26 @@ struct cancelState {
     generation: u64,
 }
 
+#[derive(Default)]
+struct idleCacheCleanState {
+    timer: Option<Timer>,
+    generation: u64,
+    pending: usize,
+    closed: bool,
+}
+
+struct idleCacheCleanDone(Arc<Session>);
+
+impl Drop for idleCacheCleanDone {
+    fn drop(&mut self) {
+        let mut state = self.0.idle_cache_clean.lock().unwrap();
+        state.pending -= 1;
+        if state.pending == 0 {
+            self.0.idle_cache_clean_done.notify_all();
+        }
+    }
+}
+
 // Session manages the state of an LSP session. It receives textDocument
 // events and requests for LanguageService objects from the LPS server
 // and processes them into immutable snapshots as the data source for
@@ -133,6 +153,7 @@ pub struct Session {
     options: Arc<SessionOptions>,
     logger: Arc<dyn Logger>,
     background_ctx: Context,
+    background_cancel: CancelFunc,
     to_path: ToPath,
     client: Option<Arc<dyn Client>>,
     #[expect(
@@ -158,7 +179,7 @@ pub struct Session {
     background_queue: Queue,
 
     // snapshot is the current immutable state of all projects.
-    snapshot: RwLock<Arc<Snapshot>>,
+    snapshot: RwLock<Option<Arc<Snapshot>>>,
     snapshot_update_mu: Mutex<()>,
 
     // scheduledSnapshotUpdateCancel is the cancelation function for a scheduled
@@ -190,7 +211,8 @@ pub struct Session {
     // idleCacheCleanTimer is a resettable timer for scheduling idle disk
     // cache cleans. The timer resets on any file event (open, close,
     // change, save, watch) and fires after 30 seconds of inactivity.
-    idle_cache_clean_timer: Mutex<Option<Timer>>,
+    idle_cache_clean: Mutex<idleCacheCleanState>,
+    idle_cache_clean_done: Condvar,
 
     // performanceTelemetryCancel cancels the periodic performance telemetry ticker.
     performance_telemetry_cancel: Mutex<Option<CancelFunc>>,
@@ -223,11 +245,13 @@ pub fn new_session(init: &SessionInit) -> Arc<Session> {
         .did_change_watched_files
         .relative_pattern_support;
     let snapshot = snapshot_host.new_root_snapshot_with(0, relative_pattern_support);
+    let (background_ctx, background_cancel) = init.background_ctx.with_cancel();
     // (ATA is not ported: Go creates a typings installer here when TypingsLocation and NpmExecutor are set.)
     Arc::new_cyclic(|self_ref| Session {
         options: Arc::clone(&init.options),
         logger: session_logger,
-        background_ctx: init.background_ctx.clone(),
+        background_ctx,
+        background_cancel,
         to_path: Arc::clone(&snapshot_host.to_path),
         client: init.client.clone(),
         npm_executor: init.npm_executor.clone(),
@@ -239,7 +263,7 @@ pub fn new_session(init: &SessionInit) -> Arc<Session> {
         )),
         background_queue: new_queue(),
         start_time: Instant::now(),
-        snapshot: RwLock::new(snapshot),
+        snapshot: RwLock::new(Some(snapshot)),
         initial_user_preferences: Mutex::new(lsutil::new_default_user_preferences()),
         user_config: Mutex::new(userConfigState {
             workspace_user_preferences: lsutil::new_default_user_preferences(),
@@ -256,7 +280,8 @@ pub fn new_session(init: &SessionInit) -> Arc<Session> {
         pending_file_changes: Mutex::new(Vec::new()),
         diagnostics_refresh: Mutex::new(cancelState::default()),
         warm_auto_import_cancel: Mutex::new(None),
-        idle_cache_clean_timer: Mutex::new(None),
+        idle_cache_clean: Mutex::new(idleCacheCleanState::default()),
+        idle_cache_clean_done: Condvar::new(),
         performance_telemetry_cancel: Mutex::new(None),
         seen_projects: SyncSet::default(),
         global_diag_publish_pending: AtomicBool::new(false),
@@ -516,7 +541,7 @@ impl Session {
                     if kind != FileChangeKind::WatchDelete {
                         has_relevant_change = self.fs.directory_exists(&file_name);
                     } else {
-                        let snapshot = self.snapshot.read().unwrap().clone();
+                        let snapshot = self.snapshot();
                         if snapshot.fs.cache_directories.contains_key(&path)
                             || snapshot.has_overlay_within(&path)
                             || is_node_modules_path(&path)
@@ -733,20 +758,37 @@ impl Session {
 
     // session.go:663
     fn schedule_idle_cache_clean(&self) {
-        let mut timer = self.idle_cache_clean_timer.lock().unwrap();
-
-        if let Some(timer) = timer.take() {
-            timer.stop();
+        let mut state = self.idle_cache_clean.lock().unwrap();
+        if state.closed {
+            return;
+        }
+        if let Some(timer) = state.timer.take() {
+            if timer.stop() {
+                state.pending -= 1;
+            }
         }
 
+        state.generation += 1;
+        state.pending += 1;
+        let generation = state.generation;
+
         let s = Weak::clone(&self.self_ref);
-        *timer = Some(after_func(idleCacheCleanDelay, move || {
+        state.timer = Some(after_func(idleCacheCleanDelay, move || {
             let Some(s) = s.upgrade() else {
                 return;
             };
-            *s.idle_cache_clean_timer.lock().unwrap() = None;
+            let _done = idleCacheCleanDone(Arc::clone(&s));
+            {
+                let mut state = s.idle_cache_clean.lock().unwrap();
+                if state.generation == generation {
+                    state.timer = None;
+                }
+            }
 
             let _update = s.snapshot_update_mu.lock().unwrap();
+            if s.background_ctx.is_canceled() {
+                return;
+            }
             s.cancel_scheduled_snapshot_update();
 
             let ctx = s.background_context();
@@ -768,13 +810,29 @@ impl Session {
     }
 
     // session.go:694
-    #[expect(
-        clippy::significant_drop_in_scrutinee,
-        reason = "Go holds idleCacheCleanMu while it stops the timer"
-    )]
     fn cancel_idle_cache_clean(&self) {
-        if let Some(timer) = self.idle_cache_clean_timer.lock().unwrap().take() {
-            timer.stop();
+        let mut state = self.idle_cache_clean.lock().unwrap();
+        if let Some(timer) = state.timer.take() {
+            if timer.stop() {
+                state.pending -= 1;
+                if state.pending == 0 {
+                    self.idle_cache_clean_done.notify_all();
+                }
+            }
+        }
+    }
+
+    // session.go:720
+    fn close_idle_cache_clean(&self) {
+        let mut state = self.idle_cache_clean.lock().unwrap();
+        state.closed = true;
+        if let Some(timer) = state.timer.take() {
+            if timer.stop() {
+                state.pending -= 1;
+            }
+        }
+        while state.pending != 0 {
+            state = self.idle_cache_clean_done.wait(state).unwrap();
         }
     }
 
@@ -806,7 +864,7 @@ impl Session {
 
     // session.go:1018
     pub fn snapshot(&self) -> Arc<Snapshot> {
-        self.snapshot.read().unwrap().clone()
+        Arc::clone(self.snapshot.read().unwrap().as_ref().expect("session is closed"))
     }
 
     // session.go:1028
@@ -847,7 +905,7 @@ impl Session {
         }
         // If there are no pending file changes, we can try to use the current snapshot.
         let guard = self.snapshot.read().unwrap();
-        let snapshot = guard.clone();
+        let snapshot = Arc::clone(guard.as_ref().expect("session is closed"));
         let mut update_reason = UpdateReason::Unknown;
         if !request.projects.is_empty() {
             update_reason = UpdateReason::RequestedLanguageServiceProjectDirty;
@@ -1229,11 +1287,11 @@ impl Session {
     // auto-imports will redo the work on the latest snapshot.
     fn adopt_snapshot_change(&self, base_snapshot: &Arc<Snapshot>, new_snapshot: &Arc<Snapshot>) {
         let mut guard = self.snapshot.write().unwrap();
-        let old_snapshot = guard.clone();
+        let old_snapshot = Arc::clone(guard.as_ref().expect("session is closed"));
         if Arc::ptr_eq(&old_snapshot, base_snapshot) {
             // Session hasn't moved on; adopt the new snapshot. The clone's initial
             // ref is transferred to become the session's ref for its current snapshot.
-            *guard = Arc::clone(new_snapshot);
+            *guard = Some(Arc::clone(new_snapshot));
             old_snapshot.deref();
             drop(guard);
             if self.options.logging_enabled {
@@ -1307,7 +1365,7 @@ impl Session {
         caller_ref: bool,
     ) -> Option<Arc<Snapshot>> {
         let mut guard = self.snapshot.write().unwrap();
-        let old_snapshot = guard.clone();
+        let old_snapshot = Arc::clone(guard.as_ref().expect("session is closed"));
         let ctx = if !has_locale(ctx) { self.with_current_locale(ctx) } else { ctx.clone() };
         let warm_change = WarmChange::of(&change);
         let new_snapshot = old_snapshot.clone_snapshot(
@@ -1328,7 +1386,7 @@ impl Session {
             new_snapshot.deref();
             return None;
         }
-        *guard = Arc::clone(&new_snapshot);
+        *guard = Some(Arc::clone(&new_snapshot));
         if caller_ref {
             new_snapshot.ref_();
         }
@@ -1706,11 +1764,18 @@ impl Session {
         self.cancel_diagnostics_refresh();
         // Cancel any pending auto-import cache warming
         self.cancel_warm_auto_import_cache();
-        // Cancel any pending idle cache clean
-        self.cancel_idle_cache_clean();
+        // Stop and drain any pending idle cache clean
+        self.close_idle_cache_clean();
         // Cancel periodic performance telemetry
         self.stop_performance_telemetry();
+        self.background_cancel.call();
         self.background_queue.close();
+
+        let _update = self.snapshot_update_mu.lock().unwrap();
+        let snapshot = self.snapshot.write().unwrap().take();
+        if let Some(snapshot) = snapshot {
+            snapshot.deref();
+        }
         self.snapshot_host.close();
     }
 
@@ -2143,8 +2208,9 @@ impl Session {
 
         let snapshot = {
             let guard = self.snapshot.read().unwrap();
-            guard.ref_();
-            guard.clone()
+            let snapshot = guard.as_ref().expect("session is closed");
+            snapshot.ref_();
+            Arc::clone(snapshot)
         };
         let _deref = derefOnDrop(&snapshot);
 

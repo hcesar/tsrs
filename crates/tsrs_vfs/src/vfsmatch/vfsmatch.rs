@@ -156,6 +156,8 @@ fn compile_glob_pattern(
     case_sensitive: bool,
 ) -> Option<GlobPattern> {
     let mut parts = tspath::get_normalized_path_components(spec, base_path);
+    let case_sensitive = case_sensitive
+        || parts.first().is_some_and(|root| tspath::is_encoded_dynamic_file_name(root));
 
     // "src/**" without a filename matches nothing (for include patterns)
     if usage != Usage::Exclude && parts.last().map_or("", std::string::String::as_str) == "**" {
@@ -164,6 +166,10 @@ fn compile_glob_pattern(
 
     // Normalize root: "/home/" -> "/home"
     parts[0] = tspath::remove_trailing_directory_separator(&parts[0]).to_string();
+    if tspath::is_encoded_dynamic_file_name(&parts[0]) {
+        let root_parts = parts[0].split('/').map(str::to_string).collect::<Vec<_>>();
+        parts.splice(0..1, root_parts);
+    }
 
     // Directories implicitly match all files: "src" -> "src/**/*"
     if is_implicit_glob(parts.last().map_or("", std::string::String::as_str)) {

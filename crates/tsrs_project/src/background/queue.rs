@@ -86,7 +86,8 @@ pub fn new_queue() -> Queue {
 impl Queue {
     // queue.go:20
     pub fn enqueue(&self, ctx: &Context, f: impl FnOnce(&Context) + Send + 'static) {
-        if *self.closed.read().unwrap() {
+        let closed = self.closed.read().unwrap();
+        if *closed {
             return;
         }
 
@@ -96,6 +97,7 @@ impl Queue {
         }
 
         *self.pending.count.lock().unwrap() += 1;
+        drop(closed);
         let pending = Arc::clone(&self.pending);
         let ctx = ctx.clone();
         let task: task = Box::new(move || {
@@ -128,6 +130,7 @@ impl Queue {
     // queue.go:48
     pub fn close(&self) {
         *self.closed.write().unwrap() = true;
+        self.wait();
     }
 }
 

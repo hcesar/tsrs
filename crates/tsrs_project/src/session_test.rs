@@ -5,6 +5,7 @@ use tsrs_core::context::Context;
 use tsrs_core::tspath::Path;
 use tsrs_lsproto as lsproto;
 
+use crate::parsecache::parse_cache_key_for_file;
 use crate::projecttestutil::{self, setup};
 
 fn uri(s: &str) -> lsproto::DocumentUri {
@@ -495,6 +496,33 @@ fn snapshot_refs_release_parse_cache() {
     assert_eq!(session.snapshot().ref_count(), 1);
     let _ = Arc::strong_count(&session);
     let _ = projecttestutil::TestTypingsLocation;
+}
+
+// refcountcache_test.go:752 TestRefCountingCaches/session close releases the current snapshot
+#[test]
+fn session_close_releases_current_snapshot() {
+    let file_name = "/project/index.ts";
+    let (session, _) = setup(&[(file_name, "export const value = 1;")]);
+    session.did_open_file(
+        &ctx(),
+        uri("file:///project/index.ts"),
+        1,
+        "export const value = 1;".to_string(),
+        lsproto::LanguageKind::TypeScript,
+    );
+    let program = session
+        .get_language_service(&ctx(), &uri("file:///project/index.ts"))
+        .unwrap()
+        .get_program();
+    let source_file = program.get_source_file(file_name).unwrap();
+    let key = parse_cache_key_for_file(source_file);
+    session.wait_for_background_tasks();
+    assert!(session.snapshot_host().parse_cache.has(&key));
+
+    session.close();
+
+    assert!(!session.snapshot_host().parse_cache.has(&key));
+    assert_eq!(session.snapshot_host().program_counter.len(), 0);
 }
 
 fn open(session: &crate::session::Session, files: &[(&str, &str)], name: &str) {
@@ -1759,7 +1787,7 @@ fn did_change_watched_files_change_program_file_not_in_tsconfig_root_files() {
         let program_before = ls_program(&session, "/home/projects/TS/p1/src/index.ts");
         session.wait_for_background_tasks();
 
-        assert!(utils.watches_file("/home/projects/ts/x.ts"), "workspaceDir={workspace_dir}");
+        assert!(utils.watches_file("/home/projects/TS/x.ts"), "workspaceDir={workspace_dir}");
 
         utils.fs().write_file("/home/projects/TS/x.ts", "export const x = 2;").unwrap();
 

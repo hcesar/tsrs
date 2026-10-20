@@ -1,5 +1,6 @@
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
+use std::time::Duration;
 
 use tsrs_core::context::Context;
 
@@ -81,4 +82,32 @@ fn queue_closed_queue_rejects_new_tasks() {
     q.wait();
 
     assert!(!executed.load(Ordering::SeqCst), "Task should not execute after queue is closed");
+}
+
+// queue_test.go:92 TestQueue/CloseWaitsForActiveTasks
+#[test]
+fn queue_close_waits_for_active_tasks() {
+    let q = Arc::new(new_queue());
+    let (started_tx, started_rx) = mpsc::channel();
+    let (finish_tx, finish_rx) = mpsc::channel();
+    q.enqueue(&Context::background(), move |_| {
+        started_tx.send(()).unwrap();
+        finish_rx.recv().unwrap();
+    });
+    started_rx.recv().unwrap();
+
+    let (close_started_tx, close_started_rx) = mpsc::channel();
+    let (closed_tx, closed_rx) = mpsc::channel();
+    let q_for_close = Arc::clone(&q);
+    let close_thread = std::thread::spawn(move || {
+        close_started_tx.send(()).unwrap();
+        q_for_close.close();
+        closed_tx.send(()).unwrap();
+    });
+
+    close_started_rx.recv().unwrap();
+    assert!(closed_rx.recv_timeout(Duration::from_millis(100)).is_err());
+    finish_tx.send(()).unwrap();
+    closed_rx.recv().unwrap();
+    close_thread.join().unwrap();
 }

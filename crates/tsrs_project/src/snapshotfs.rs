@@ -1057,7 +1057,7 @@ pub(crate) struct sourceFS {
     tracking: RwLock<bool>,
     to_path: ToPath,
     missing_directories: Option<Arc<SyncSet<Path>>>,
-    seen_files: RwLock<Option<Arc<SyncSet<Path>>>>,
+    seen_files: RwLock<Option<Arc<SyncMap<Path, String>>>>,
     source: RwLock<Arc<dyn FileSource>>,
 }
 
@@ -1068,7 +1068,7 @@ pub(crate) fn new_source_fs(
     to_path: ToPath,
 ) -> sourceFS {
     let (seen_files, missing_directories) = if tracking {
-        (Some(Arc::new(SyncSet::default())), Some(Arc::new(SyncSet::default())))
+        (Some(Arc::new(SyncMap::default())), Some(Arc::new(SyncSet::default())))
     } else {
         (None, None)
     };
@@ -1094,11 +1094,11 @@ impl sourceFS {
         *self.source.write().unwrap() = source;
     }
 
-    pub(crate) fn seen_files(&self) -> Option<Arc<SyncSet<Path>>> {
+    pub(crate) fn seen_files(&self) -> Option<Arc<SyncMap<Path, String>>> {
         self.seen_files.read().unwrap().clone()
     }
 
-    pub(crate) fn set_seen_files(&self, seen_files: Option<Arc<SyncSet<Path>>>) {
+    pub(crate) fn set_seen_files(&self, seen_files: Option<Arc<SyncMap<Path, String>>>) {
         *self.seen_files.write().unwrap() = seen_files;
     }
 
@@ -1113,7 +1113,7 @@ impl sourceFS {
             return;
         }
         if let Some(seen_files) = self.seen_files() {
-            seen_files.add((self.to_path)(file_name));
+            seen_files.store((self.to_path)(file_name), file_name.to_string());
         }
     }
 
@@ -1121,13 +1121,13 @@ impl sourceFS {
     pub(crate) fn seen_file(&self, path: &Path) -> bool {
         match self.seen_files() {
             None => false,
-            Some(seen_files) => seen_files.has(path),
+            Some(seen_files) => seen_files.load(path).is_some(),
         }
     }
 
     // snapshotfs.go:810
     pub(crate) fn seen_file_or_missing_parent_directory(&self, path: &Path) -> bool {
-        if self.seen_files().is_some_and(|s| s.has(path)) {
+        if self.seen_files().is_some_and(|s| s.load(path).is_some()) {
             return true;
         }
         if let Some(missing_directories) = &self.missing_directories {

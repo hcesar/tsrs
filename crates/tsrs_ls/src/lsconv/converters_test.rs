@@ -36,19 +36,22 @@ fn test_document_uri_to_file_name() {
         ("file:///users/me/c%23-projects/", "/users/me/c#-projects/"),
         ("file://localhost/c%24/GitDevelopment/express", "//localhost/c$/GitDevelopment/express"),
         ("file:///c%3A/test%20with%20%2525/c%23code", "c:/test with %25/c#code"),
-        ("untitled:Untitled-1", "^/untitled/ts-nul-authority/Untitled-1"),
-        ("untitled:Untitled-1#fragment", "^/untitled/ts-nul-authority/Untitled-1#fragment"),
+        ("untitled:Untitled-1", "^/~ts-uri~/untitled/ts-nul-authority/Untitled-1"),
+        (
+            "untitled:Untitled-1#fragment",
+            "^/~ts-uri~/untitled/ts-nul-authority/~ts-uri-escape~556e7469746c65642d310023667261676d656e74~",
+        ),
         (
             "untitled:c:/Users/jrieken/Code/abc.txt",
-            "^/untitled/ts-nul-authority/c:/Users/jrieken/Code/abc.txt",
+            "^/~ts-uri~/untitled/ts-nul-authority/~ts-uri-escape~633a~/Users/jrieken/Code/abc.txt",
         ),
         (
             "untitled:C:/Users/jrieken/Code/abc.txt",
-            "^/untitled/ts-nul-authority/C:/Users/jrieken/Code/abc.txt",
+            "^/~ts-uri~/untitled/ts-nul-authority/~ts-uri-escape~433a~/Users/jrieken/Code/abc.txt",
         ),
         (
             "untitled://wsl%2Bubuntu/home/jabaile/work/TypeScript/newfile.ts",
-            "^/untitled/wsl%2Bubuntu/home/jabaile/work/TypeScript/newfile.ts",
+            "^/~ts-uri~/untitled/wsl%2Bubuntu/home/jabaile/work/TypeScript/newfile.ts",
         ),
     ];
     for &(uri, file_name) in tests {
@@ -94,6 +97,29 @@ fn test_file_name_to_document_uri() {
     for &(file_name, uri) in tests {
         assert_eq!(file_name_to_document_uri(file_name).0, uri, "{file_name}");
     }
+}
+
+#[test]
+fn test_non_file_document_uris_roundtrip_through_normalized_file_names() {
+    for uri in [
+        "custom:folder/../~ts-uri~/café\\file.ts",
+        "custom://authority/path/file.ts#frag/a",
+        "custom://authority",
+        "custom:~ts-uri-escape~no-path",
+        "custom:name.ts\\",
+        "custom:name..ts",
+    ] {
+        let file_name = lsproto::DocumentUri::from(uri).file_name();
+        assert_eq!(file_name_to_document_uri(&file_name).0, uri);
+    }
+    assert_eq!(
+        file_name_to_document_uri("^/custom/ts-nul-authority/~ts-uri-escape~666f6f~.ts").0,
+        "custom:~ts-uri-escape~666f6f~.ts"
+    );
+    assert_eq!(
+        file_name_to_document_uri("^/~ts-uri~/custom/ts-nul-authority/~ts-uri-escape~ff~").0,
+        "custom:~ts-uri-escape~ff~"
+    );
 }
 
 // converters_test.go:93

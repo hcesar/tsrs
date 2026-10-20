@@ -98,6 +98,10 @@ fn create_source_file_leases() {
         r#"{"fileName":"/component.tsx","sourceText":"export const e = <div />;","options":{}}"#,
     );
     assert!(str_of(get(&r, "data")).len() > 50);
+    for method in ["createSourceFile", "createSourceFileFromFile"] {
+        let error = call_err(&s, method, r#"{"fileName":""}"#);
+        assert!(error.contains("fileName must not be empty"), "{method}: {error}");
+    }
     let e = call_err(
         &s,
         "createSourceFile",

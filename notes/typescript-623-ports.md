@@ -1074,3 +1074,57 @@ runtime assets change. No new release performance measurements were collected; t
 source-11 measured regressions remain disclosed above. Source identity, exact passing-set
 comparison, full gate logs, and build/lint evidence are under
 `target/port-623/0021-82f0546163/`.
+
+## 22. `59f5b0233f9d` — typed path prep bugfixes
+
+Upstream `59f5b0233f9d2411aacb77c7342ddb31002dd3dd` changes typed path preparation across
+the API, compiler, resolver, source-map reader/writer, incremental build, project watcher, and
+language server. Most of its 282 changed paths are regenerated source-map, build and Fourslash
+baselines. The Rust port encodes non-file document URIs without collapsing exceptional path
+segments, preserves their case-sensitive identity, and resolves imports, package exports and
+root-directory candidates through encoded dynamic paths. Project-reference symlink and
+auto-import paths retain their original spelling. The upstream npm path implementation and
+its changed API tests are carried into `npm/tsrs`.
+
+Source-map emit omits an empty `sourceRoot`; reverse mapping handles explicit empty/null
+sources, URL roots, invalid indices and duplicate source paths. Incremental snapshots resolve
+nested triple-slash references from the referring source file. Content-mapper manifest watches
+compare canonical paths. Project watchers retain original path spelling, and closing a project
+session cancels and drains background tasks, idle cache work and its current snapshot. The API
+rejects empty `createSourceFile` names and resolves relative names from its session directory;
+auto-import preparation uses the program's resolved source file. LSP completion resolution
+rejects relative or malformed dynamic file names. The existing Rust project builder already
+clones API state and rejects failed snapshots before adoption, matching the upstream rollback
+change without new code.
+
+The source commit also adds cancellation of npm installs for automatic type acquisition and
+closes LSP-attached API sessions on server shutdown. Neither operation has a tsrs counterpart:
+automatic type acquisition and attached API sessions remain unported, while the standalone
+Node API server is supported. The Go test harness changes do not alter product behavior.
+
+The exact-source Go path, module, symlink, source-map, LSP-conversion, project, API,
+incremental and VFS package suites pass. The new Rust resolver and source-mapper scenarios,
+dynamic URI/path/glob and symlink cases, API empty-name case, project watcher/shutdown cases,
+and LSP completion validation pass. Full checker conformance in Go and canonical histories and
+full emit conformance pass, with every passing and nonpassing set identical to source 21:
+13,486 diagnostic, 12,801 Go-history `.types` and `.symbols`, 12,800 canonical `.types` and
+`.symbols`, 13,416 JavaScript/declaration, 149 JavaScript-map, and 156 source-map passes. No
+new crash or timeout occurred.
+
+The exact-source-22 Fourslash run passes 4,075 groups, skips 472 and fails none; all 4,603
+named outcomes match source 20 (4,131 passes and 472 skips). The first full run used a stale
+`fourslash_server` binary and showed a quick-info truncation mismatch; rebuilding that binary
+made the unchanged upstream case pass, and the full run above uses the fresh binary. The
+`DocumentUri.FileName` differential fixture was regenerated from source-22 Go for its new
+non-file URI encoding. The full workspace passes 1,103 tests with four existing ignored; the
+Node transport round trip passes 15 client tests, the npm API suite passes 933, and all 37
+regression projects pass. The native dev build, WASM target check, warnings-denied Clippy,
+source lint and formatting pass. All seven generators plus formatting preserve all 1,169
+crate files byte-for-byte. A malformed absolute-looking completion filename now returns an
+error instead of panicking in the Rust LSP server.
+
+No source-22 release performance measurements were collected under the user's nonblocking
+migration policy. The measured source-11 regressions remain disclosed above; no performance
+equivalence claim is made for this port. Full gate logs, passing-set comparisons, exact-source
+Go oracle and Fourslash results, and generator integrity evidence are under
+`target/port-623/0022-59f5b0233f/`.

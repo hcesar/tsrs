@@ -7,6 +7,39 @@ use crate::vfstest::{MapFS, MapFile, from_map, symlink};
 
 type Host = IoVFS<MapFS>;
 
+#[test]
+fn test_read_directory_with_extended_dynamic_root() {
+    const PACKAGE_DIRECTORY: &str = "^/~ts-uri~/custom/ts-nul-authority/node_modules/Pkg";
+    let host = from_map(
+        [
+            (format!("{PACKAGE_DIRECTORY}/value.d.ts"), ""),
+            (format!("{PACKAGE_DIRECTORY}/node_modules/dep/index.d.ts"), ""),
+        ],
+        true,
+    );
+    assert_eq!(
+        read_directory(
+            &host,
+            PACKAGE_DIRECTORY,
+            PACKAGE_DIRECTORY,
+            &[".d.ts"],
+            &[] as &[&str],
+            &["**/*"],
+            UNLIMITED_DEPTH,
+        ),
+        vec![format!("{PACKAGE_DIRECTORY}/value.d.ts")]
+    );
+}
+
+#[test]
+fn test_dynamic_absolute_glob_uses_case_sensitive_pattern() {
+    const ROOT: &str = "^/~ts-uri~/custom/ts-nul-authority";
+    let matcher = new_spec_matcher(&[format!("{ROOT}/Foo/**/*.ts")], "/dev", Usage::Files, false)
+        .expect("dynamic absolute glob");
+    assert!(matcher.match_string(&format!("{ROOT}/Foo/a.ts")));
+    assert!(!matcher.match_string(&format!("{ROOT}/foo/a.ts")));
+}
+
 // caseInsensitiveHost simulates a Windows-like file system
 fn case_insensitive_host() -> Host {
     from_map(

@@ -1,5 +1,4 @@
-// sourcemap has no Go tests besides generator_test.go; these cover the decoder, the data-URL parsing and the
-// position mapping end to end.
+// Port of source_mapper_test.go plus decoder and data-URL coverage.
 
 use std::sync::Arc;
 
@@ -195,4 +194,153 @@ fn document_position_mapper_rejects_inlined_sources() {
     r#gen.set_source_content(SourceIndex::Index(0), "let x: number = 1;\n").unwrap();
     let host = test_host("", Some(&r#gen.string()));
     assert!(get_document_position_mapper(&host, "/out/main.js").is_none());
+}
+
+fn mapper_for_source_case(
+    source_map: &str,
+    source_files: &[(&str, &str)],
+) -> DocumentPositionMapper {
+    let mut files = FxHashMap::default();
+    files.insert("/project/out/out.d.ts".to_string(), "generated".to_string());
+    for &(path, text) in source_files {
+        files.insert(path.to_string(), text.to_string());
+    }
+    let host = TestHost { files };
+    convert_document_to_source_mapper(&host, source_map, "/project/out/out.d.ts.map").unwrap()
+}
+
+fn source_position(mapper: &DocumentPositionMapper) -> Option<DocumentPosition> {
+    mapper.get_source_position(&DocumentPosition {
+        file_name: "/project/out/out.d.ts".to_string(),
+        pos: 0,
+    })
+}
+
+#[test]
+fn test_source_mapper_preserves_empty_source_entries() {
+    let mapper = mapper_for_source_case(
+        r#"{"version":3,"file":"out.d.ts","sourceRoot":"../src","sources":["","real.ts"],"names":[],"mappings":"ACAA"}"#,
+        &[("/project/src/real.ts", "source")],
+    );
+    assert_eq!(
+        source_position(&mapper),
+        Some(DocumentPosition { file_name: "/project/src/real.ts".to_string(), pos: 0 })
+    );
+    assert_eq!(
+        mapper.get_generated_position(&DocumentPosition {
+            file_name: "/project/src/real.ts".to_string(),
+            pos: 0,
+        }),
+        Some(DocumentPosition { file_name: "/project/out/out.d.ts".to_string(), pos: 0 })
+    );
+}
+
+#[test]
+fn test_source_mapper_resolves_empty_source_to_source_root() {
+    let mapper = mapper_for_source_case(
+        r#"{"version":3,"file":"out.d.ts","sourceRoot":"../src","sources":[""],"names":[],"mappings":"AAAA"}"#,
+        &[("/project/src", "source")],
+    );
+    assert_eq!(
+        source_position(&mapper),
+        Some(DocumentPosition { file_name: "/project/src".to_string(), pos: 0 })
+    );
+}
+
+#[test]
+fn test_source_mapper_resolves_empty_source_to_map_url_without_source_root() {
+    let mapper = mapper_for_source_case(
+        r#"{"version":3,"file":"out.d.ts","sources":[""],"names":[],"mappings":"AAAA"}"#,
+        &[("/project/out/out.d.ts.map", "source")],
+    );
+    assert_eq!(
+        source_position(&mapper),
+        Some(DocumentPosition { file_name: "/project/out/out.d.ts.map".to_string(), pos: 0 })
+    );
+}
+
+#[test]
+fn test_source_mapper_treats_empty_source_root_as_absent() {
+    let files = [
+        ("/project/out/out.d.ts.map", "map-relative empty source"),
+        ("/project/out/a.ts", "map-relative source"),
+        ("/project/src/a.ts", "parent-relative source"),
+        ("/", "unrelated root"),
+    ];
+    for (source, expected) in [
+        ("", "/project/out/out.d.ts.map"),
+        ("a.ts", "/project/out/a.ts"),
+        ("../src/a.ts", "/project/src/a.ts"),
+        ("missing.ts", ""),
+    ] {
+        for root_field in ["", r#""sourceRoot":"","#] {
+            let map = format!(
+                r#"{{"version":3,"file":"out.d.ts",{root_field}"sources":["{source}"],"names":[],"mappings":"AAAA"}}"#
+            );
+            let mapper = mapper_for_source_case(&map, &files);
+            let pos = source_position(&mapper);
+            if expected.is_empty() {
+                assert!(pos.is_none(), "{source} / {root_field}");
+            } else {
+                assert_eq!(
+                    pos,
+                    Some(DocumentPosition { file_name: expected.to_string(), pos: 0 }),
+                    "{source} / {root_field}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_source_mapper_prefixes_absolute_source_with_nonempty_source_root() {
+    let mapper = mapper_for_source_case(
+        r#"{"version":3,"file":"out.d.ts","sourceRoot":"../src","sources":["/actual/a.ts"],"names":[],"mappings":"AAAA"}"#,
+        &[("/project/src/actual/a.ts", "prefixed source"), ("/actual/a.ts", "unprefixed")],
+    );
+    assert_eq!(
+        source_position(&mapper),
+        Some(DocumentPosition { file_name: "/project/src/actual/a.ts".to_string(), pos: 0 })
+    );
+}
+
+#[test]
+fn test_source_mapper_retains_duplicate_source_indices() {
+    let mapper = mapper_for_source_case(
+        r#"{"version":3,"file":"out.d.ts","sourceRoot":"../src","sources":["",""],"names":[],"mappings":"AAAA"}"#,
+        &[("/project/src", "source")],
+    );
+    assert_eq!(
+        mapper.get_generated_position(&DocumentPosition {
+            file_name: "/project/src".to_string(),
+            pos: 0,
+        }),
+        Some(DocumentPosition { file_name: "/project/out/out.d.ts".to_string(), pos: 0 })
+    );
+}
+
+#[test]
+fn test_source_mapper_preserves_null_source_entries() {
+    let mapper = mapper_for_source_case(
+        r#"{"version":3,"file":"out.d.ts","sources":[null,"real.ts"],"names":[],"mappings":"ACAA"}"#,
+        &[("/project/out/real.ts", "source")],
+    );
+    assert_eq!(
+        source_position(&mapper),
+        Some(DocumentPosition { file_name: "/project/out/real.ts".to_string(), pos: 0 })
+    );
+    let null_mapper = mapper_for_source_case(
+        r#"{"version":3,"file":"out.d.ts","sources":[null],"names":[],"mappings":"AAAA"}"#,
+        &[],
+    );
+    assert_eq!(source_position(&null_mapper), None);
+}
+
+#[test]
+fn test_source_mapper_ignores_out_of_range_source_index() {
+    let mapper = mapper_for_source_case(
+        r#"{"version":3,"file":"out.d.ts","sources":["real.ts"],"names":[],"mappings":"ACAA"}"#,
+        &[],
+    );
+    assert_eq!(source_position(&mapper), None);
 }

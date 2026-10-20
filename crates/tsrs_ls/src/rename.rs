@@ -406,10 +406,8 @@ fn would_rename_in_other_node_modules(
         return None;
     }
 
-    let original_package = tsrs_module::parse_node_module_from_path(
-        original_file.file_name(),
-        false, /*isFolder*/
-    );
+    let original_package =
+        tsrs_module::node_module_package_root_for_file(original_file.file_name());
     if original_package.is_empty() {
         // Original source file is not in node_modules.
         if let Some(result) = declarations.iter().find_map(|&declaration| {
@@ -426,7 +424,7 @@ fn would_rename_in_other_node_modules(
 
     // Original source file is in node_modules.
     if let Some(result) = declarations.iter().find_map(|&declaration| {
-        let decl_package = tsrs_module::parse_node_module_from_path(ast::get_source_file_of_node(declaration).unwrap().file_name(), false /*isFolder*/);
+        let decl_package = tsrs_module::node_module_package_root_for_file(ast::get_source_file_of_node(declaration).unwrap().file_name());
         if !decl_package.is_empty() && decl_package != original_package {
             return Some(Some(&diagnostics::You_cannot_rename_elements_that_are_defined_in_another_node_modules_folder));
         }

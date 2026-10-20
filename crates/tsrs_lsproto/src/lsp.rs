@@ -38,17 +38,40 @@ impl DocumentUri {
             panic!("invalid URI: {uri}");
         };
 
+        let (mut path, suffix) = match path.find(['?', '#']) {
+            Some(i) => (&path[..i], &path[i..]),
+            None => (path, ""),
+        };
         let mut authority = "ts-nul-authority";
-        let mut path = path;
+        let mut has_authority = false;
+        let mut has_path = true;
         if let Some(rest) = path.strip_prefix("//") {
-            let Some((a, p)) = rest.split_once('/') else {
-                panic!("invalid URI: {uri}");
-            };
-            authority = a;
-            path = p;
+            has_authority = true;
+            if let Some((a, p)) = rest.split_once('/') {
+                authority = a;
+                path = p;
+            } else {
+                authority = rest;
+                path = "";
+                has_path = false;
+            }
         }
-
-        format!("^/{scheme}/{authority}/{path}")
+        let encoded_authority = if !has_authority {
+            authority.to_string()
+        } else if authority == "ts-nul-authority" {
+            tspath::force_encode_dynamic_uri_path_segment(authority, false)
+        } else {
+            tspath::encode_dynamic_uri_path(authority)
+        };
+        let encoded_path = if has_path {
+            tspath::encode_dynamic_uri_path_with_suffix(path, suffix)
+        } else {
+            tspath::encode_dynamic_uri_no_path(suffix)
+        };
+        format!(
+            "{}{scheme}/{encoded_authority}/{encoded_path}",
+            tspath::DYNAMIC_URI_FILE_NAME_PREFIX
+        )
     }
 
     /// tsrs-only: whether `file_name` can turn this URI into a file name. Go takes any string and panics on one it
@@ -63,6 +86,60 @@ impl DocumentUri {
     pub fn path(&self, use_case_sensitive_file_names: bool) -> tspath::Path {
         let file_name = self.file_name();
         tspath::to_path(&file_name, "", use_case_sensitive_file_names)
+    }
+
+    // lsp.go:65
+    pub fn dynamic_file_name_to_document_uri(file_name: &str) -> Self {
+        Self::try_dynamic_file_name_to_document_uri_worker(file_name, false)
+            .unwrap_or_else(|| panic!("invalid file name: {file_name}"))
+    }
+
+    // lsp.go:73
+    pub fn try_dynamic_file_name_to_document_uri(file_name: &str) -> Option<Self> {
+        Self::try_dynamic_file_name_to_document_uri_worker(file_name, true)
+    }
+
+    fn try_dynamic_file_name_to_document_uri_worker(file_name: &str, strict: bool) -> Option<Self> {
+        let encoded = tspath::is_encoded_dynamic_file_name(file_name);
+        let rest = if encoded {
+            file_name.strip_prefix(tspath::DYNAMIC_URI_FILE_NAME_PREFIX)?
+        } else {
+            file_name.strip_prefix("^/")?
+        };
+        let (scheme, rest) = rest.split_once('/')?;
+        if strict && scheme.is_empty() {
+            return None;
+        }
+        let (encoded_authority, encoded_path) = rest.split_once('/')?;
+        let has_authority = encoded_authority != "ts-nul-authority";
+        let authority = if encoded {
+            if strict {
+                tspath::try_decode_dynamic_uri_path_segment(encoded_authority)?
+            } else {
+                tspath::decode_dynamic_uri_path_segment(encoded_authority)
+            }
+        } else {
+            encoded_authority.to_string()
+        };
+        if encoded && has_authority {
+            if let Some(suffix) = tspath::decode_dynamic_uri_no_path(encoded_path) {
+                return Some(Self(format!("{scheme}://{authority}{suffix}")));
+            }
+        }
+        let path = if encoded {
+            if strict {
+                tspath::try_decode_dynamic_uri_path(encoded_path)?
+            } else {
+                tspath::decode_dynamic_uri_path(encoded_path)
+            }
+        } else {
+            encoded_path.to_string()
+        };
+        if has_authority {
+            Some(Self(format!("{scheme}://{authority}/{path}")))
+        } else {
+            Some(Self(format!("{scheme}:{path}")))
+        }
     }
 
     pub fn as_str(&self) -> &str {
@@ -121,7 +198,7 @@ fn check_uri(uri: &str) -> Result<(), String> {
         }
         return Ok(());
     }
-    let Some((scheme, path)) = uri.split_once(':') else {
+    let Some((scheme, _path)) = uri.split_once(':') else {
         return Err(format!("invalid URI {uri:?}: no scheme"));
     };
     let mut chars = scheme.chars();
@@ -129,9 +206,6 @@ fn check_uri(uri: &str) -> Result<(), String> {
         || !chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
     {
         return Err(format!("invalid URI {uri:?}: bad scheme"));
-    }
-    if path.strip_prefix("//").is_some_and(|rest| !rest.contains('/')) {
-        return Err(format!("invalid URI {uri:?}: no path after the authority"));
     }
     Ok(())
 }

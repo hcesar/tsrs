@@ -2676,17 +2676,8 @@ impl Server {
         let Some(data) = params.data.clone() else {
             return Err(Error::new("completion item data is nil"));
         };
-        // tsrs-only: Go turns any file name into a URI and panics on one that is not a rooted path ("", a URI).
-        if !tspath::is_rooted_disk_path(&data.file_name) && !data.file_name.starts_with("^/") {
-            return Err(Error::wrap_code(
-                ErrorCode::InvalidParams,
-                Error::new(format!("completion item data has no file name: {:?}", data.file_name)),
-            ));
-        }
-        let language_service = self.session().get_language_service(
-            ctx,
-            &tsrs_ls::lsconv::file_name_to_document_uri(&data.file_name),
-        )?;
+        let uri = completion_item_file_name_to_document_uri(&data.file_name)?;
+        let language_service = self.session().get_language_service(ctx, &uri)?;
         // `defer s.recover(reqMsg)`: Go answers the recovered panic with an internal error and then sends the nil
         // result; here the handler returns an error instead of a second (null) result.
         match recover_scope(|| language_service.resolve_completion_item(ctx, params, Some(&data))) {
@@ -3671,6 +3662,25 @@ fn check_uri(uri: &lsproto::DocumentUri) -> Result<(), Error> {
 // none; Go panics.
 fn file_name_or_empty(uri: &lsproto::DocumentUri) -> String {
     if uri.check().is_ok() { uri.file_name() } else { String::new() }
+}
+
+pub(crate) fn completion_item_file_name_to_document_uri(
+    file_name: &str,
+) -> Result<lsproto::DocumentUri, Error> {
+    if !tspath::path_is_absolute(file_name) {
+        return Err(Error::new("completion item data fileName must be absolute"));
+    }
+    if tspath::is_dynamic_file_name(file_name) {
+        return lsproto::DocumentUri::try_dynamic_file_name_to_document_uri(file_name).ok_or_else(
+            || Error::new("completion item data fileName must be a valid dynamic path"),
+        );
+    }
+    let uri = tsrs_ls::lsconv::file_name_to_document_uri(file_name);
+    // A URL-shaped name has an absolute path root, but converting it as a disk file name can
+    // produce an invalid file URI. Keep a malformed completion payload from ending the session.
+    uri.check()
+        .map_err(|err| Error::new(format!("completion item data fileName is invalid: {err}")))?;
+    Ok(uri)
 }
 
 // server.go:1431 (Go's req field is never read)

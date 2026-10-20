@@ -7,12 +7,26 @@ use crate::types::{ResolvedModule, ResolvedTypeReferenceDirective};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KnownDirectoryLink {
+    /// Original spelling used to reach the symlink, with trailing separator.
+    pub symlink: String,
     // Matches the casing returned by `realpath`. Used to compute the `realpath` of children.
     // Always has trailing directory separator
     pub real: String,
     // toPath(real). Stored to avoid repeated recomputation.
     // Always has trailing directory separator
     pub real_path: Path,
+}
+
+impl KnownDirectoryLink {
+    pub fn resolve_file_name(
+        &self,
+        file_name: &str,
+        use_case_sensitive_file_names: bool,
+    ) -> Option<String> {
+        let relative =
+            tspath::trim_file_path_prefix(file_name, &self.symlink, use_case_sensitive_file_names)?;
+        Some(format!("{}{relative}", self.real))
+    }
 }
 
 #[derive(Debug, Default)]
@@ -55,6 +69,11 @@ impl KnownSymlinks {
         symlink_path: Path,
         real_directory: Option<P<KnownDirectoryLink>>,
     ) {
+        let real_directory = real_directory.map(|real_directory| {
+            let mut link = (*real_directory).clone();
+            link.symlink = tspath::ensure_trailing_directory_separator(symlink);
+            P::new(link)
+        });
         if let Some(real_directory) = real_directory {
             if self.directories.load(&symlink_path).is_none() {
                 let (set, _) = self
@@ -140,6 +159,7 @@ impl KnownSymlinks {
                     &common_original,
                     symlink_path.ensure_trailing_directory_separator(),
                     Some(P::new(KnownDirectoryLink {
+                        symlink: String::new(),
                         real: tspath::ensure_trailing_directory_separator(&common_resolved),
                         real_path: tspath::to_path(
                             &common_resolved,

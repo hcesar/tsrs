@@ -71,16 +71,7 @@ fn test_unmarshal_completion_item() {
 // the session), and accepts those it can.
 #[test]
 fn check_rejects_uris_without_a_file_name() {
-    for bad in [
-        "",
-        "not a uri",
-        "%%%",
-        "relative/path.ts",
-        "file://",
-        "file:///%zz",
-        "1abc:x",
-        "foo://host",
-    ] {
+    for bad in ["", "not a uri", "%%%", "relative/path.ts", "file://", "file:///%zz", "1abc:x"] {
         assert!(DocumentUri::from(bad).check().is_err(), "{bad:?} passed");
     }
     for good in [
@@ -90,6 +81,7 @@ fn check_rejects_uris_without_a_file_name() {
         "untitled:Untitled-1",
         "vscode-notebook-cell:/a.ipynb#x",
         "foo://host/x",
+        "foo://host",
         "bundled:///libs/lib.d.ts",
     ] {
         let uri = DocumentUri::from(good);
@@ -99,4 +91,53 @@ fn check_rejects_uris_without_a_file_name() {
             "{good:?}"
         );
     }
+}
+
+#[test]
+fn test_dynamic_document_uri_roundtrip() {
+    for uri in [
+        "untitled:folder/../file.ts",
+        "vscode-vfs://github/path//file.ts",
+        "custom:/path/./file.ts/",
+        "custom:",
+        "custom:///path",
+        "custom://authority",
+        "custom://authority/",
+        "custom:path/file.ts?rev=a/b#frag/c",
+        "custom://authority/path/file.ts#frag/a",
+        "custom:path\\file.ts",
+        "custom:.git/file.ts",
+        "custom:..hidden/file.ts",
+        "custom://~ts-uri~/path",
+        "custom://ts-nul-authority/path",
+        "custom:~ts-uri-escape~file.ts",
+        "custom:~ts-uri-escape~no-path",
+        "custom://authority/~ts-uri-no-path~~",
+        "custom:~ts-uri-spec~666f6f~/file.ts?x=1",
+        "custom:folder/../~ts-uri~/café\\file.ts",
+        "custom:name.ts\\",
+        "custom:name..ts",
+    ] {
+        let document = DocumentUri::from(uri);
+        let file_name = document.file_name();
+        assert_eq!(DocumentUri::dynamic_file_name_to_document_uri(&file_name).0, uri, "{uri}");
+    }
+
+    assert_eq!(
+        DocumentUri::from("custom:folder/../~ts-uri~/café\\file.ts").file_name(),
+        "^/~ts-uri~/custom/ts-nul-authority/folder/~ts-uri-escape~2e2e~/~ts-uri~/~ts-uri-escape~636166c3a95c66696c65~.ts"
+    );
+    assert_eq!(
+        DocumentUri::from("custom:~ts-uri-escape~dir.js/file.ts?x=1").file_name(),
+        "^/~ts-uri~/custom/ts-nul-authority/~ts-uri-escape~7e74732d7572692d6573636170657e6469722e6a73~/~ts-uri-escape~66696c65003f783d31~.ts"
+    );
+    assert_ne!(
+        DocumentUri::from("custom:name.ts\\").file_name(),
+        DocumentUri::from("custom:name..ts").file_name()
+    );
+    assert!(
+        DocumentUri::from("custom:~ts-uri-escape~types.d.css.ts")
+            .file_name()
+            .ends_with(".d.css.ts")
+    );
 }
