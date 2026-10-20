@@ -1,4 +1,4 @@
-"""Source-32 import-localization behavior, matching upstream's Go cases."""
+"""Source-61 import-localization behavior, matching upstream's Go cases."""
 
 from pathlib import Path
 import tempfile

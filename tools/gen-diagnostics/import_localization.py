@@ -2,7 +2,7 @@
 """Import a completed OneLoc handback without discarding pending translations.
 
 This is the Python counterpart of TypeScript's tools/cmd/import-localization at
-cb72b2e17b. The OneLoc pipeline itself belongs to the upstream repository.
+fff11d8a7c. The OneLoc pipeline itself belongs to the upstream repository.
 """
 
 from __future__ import annotations

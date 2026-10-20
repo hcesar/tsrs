@@ -1,8 +1,8 @@
 # Diagnostic localization data
 
-`crates/tsrs_diagnostics/loc/` contains the 13 source-32 TypeScript locale
+`crates/tsrs_diagnostics/loc/` contains the 13 source-61 TypeScript locale
 handbacks and matching runtime gzip archives, copied byte for byte from
-`cb72b2e17b75557db7e3286d835544aef5d85f6c`. The English diagnostic
+`fff11d8a7c18c6f3e23eef988406732a5a9294b2`. The English diagnostic
 catalog still comes from `gen.py`.
 
 `import_localization.py` mirrors the upstream OneLoc handback importer. Run it

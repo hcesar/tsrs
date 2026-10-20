@@ -2704,3 +2704,46 @@ increases in the framed-server run are disclosed under the user's
 nonblocking migration policy; neither indicates a material throughput loss.
 The scripts, raw pairs, and compiler/Fourslash outcome files are under
 `target/port-623/0060-aad4c72bf2/`.
+
+## 61. `fff11d8a7c` — update localization files
+
+Upstream `fff11d8a7c18c6f3e23eef988406732a5a9294b2` refreshes all 13
+OneLoc handbacks and their runtime gzip archives. The 26 files in
+`crates/tsrs_diagnostics/loc/` match the source-61 files byte for byte.
+The locale checker validates canonical CRLF JSON, diagnostic placeholders,
+deterministic gzip payloads, and matching handback/runtime maps against the
+2,222 current English diagnostics. The handbacks have 2,218–2,222 translated
+keys each; the differences include entries now removed because their text
+equals current English. Upstream also changes the handback importer to filter
+all existing English-equivalent translations after processing. That rule and
+the strengthened test assertions were already present in the source-32
+Python port, so
+this commit updates the data and source references without changing importer
+behavior. Exact-source Go importer and diagnostics package tests pass.
+
+The `--locale` gap is unchanged: the Rust compiler does not load these
+catalogs and still emits English diagnostics. The compatibility table and
+localization tooling documentation identify the current source-61 data; root
+and npm README summaries require no change. The ignored `ts-ref` checkout
+advances to source 61, while the published TypeScript pin remains at the base
+revision until the full upgrade.
+
+All three complete compiler modes have outcome lists byte-identical to source
+60: 18 Go-history, 18 canonical, and 36 emit pass/nonpass lists, with no lost
+passes, new failures, crashes, or timeouts. Go-history checker passes 13,552
+diagnostics and 12,862 type/symbol baselines; canonical checker passes 13,552
+diagnostics and 12,861 type/symbol baselines. Emit passes 13,556 diagnostics,
+12,862 type/symbol, 13,482 JavaScript/declaration, 149 JavaScript-map and
+156 source-map baselines. Exact-source Fourslash passes 4,088 of 4,558 groups,
+skips 470, fails none, and preserves all 4,622 named source-60 outcomes.
+The full Rust workspace, 39 CLI regressions, WebAssembly target check,
+warnings-denied Clippy, source lint, formatting, diagnostics generator and
+locale checks, and Python importer cases pass. Fourslash and workspace socket
+checks used the established sandbox escalation after local bind denials.
+
+No release instruction-count, wall-time, or peak-RSS comparison was collected
+for source 61 under the user's nonblocking migration policy. The changed
+catalogs are not read by the Rust compiler, and this port changes no Rust
+runtime path, but no numerical performance-equality claim follows. The
+measured source-11 regressions remain disclosed above. Evidence is under
+`target/port-623/0061-fff11d8a7c/`.

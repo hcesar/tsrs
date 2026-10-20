@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate imported source-32 locale catalogs against Rust diagnostics."""
+"""Validate imported TypeScript locale catalogs against Rust diagnostics."""
 
 import gzip
 import json
