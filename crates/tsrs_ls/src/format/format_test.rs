@@ -3,6 +3,7 @@ use tsrs_core::{ScriptKind, Tristate};
 use super::api_test::{apply_bulk_edits, settings};
 use super::*;
 use crate::astnav::parse_for_test;
+use crate::lsutil;
 
 // format_test.go:15
 #[test]
@@ -41,4 +42,36 @@ fn test_format_no_trailing_space() {
             );
         }
     }
+}
+
+// Upstream f9f8d01292: a template token may span lines even when it starts on the
+// same line as the previous token. The spacing rule compares token starts.
+#[test]
+fn test_format_template_tokens_on_same_line() {
+    for (space, input, expected) in [
+        (Tristate::False, "const a = `\n    ${ 1 }${ 1 }\n`;", "const a = `\n    ${1}${1}\n`;"),
+        (Tristate::True, "const a = `\n    ${1}${1}\n`;", "const a = `\n    ${ 1 }${ 1 }\n`;"),
+    ] {
+        let mut options = lsutil::get_default_format_code_settings();
+        options.insert_space_after_opening_and_before_closing_template_string_braces = space;
+        let ctx = with_format_code_settings(&FormatContext::default(), options, "\n");
+        let source_file = parse_for_test("/test.ts", input, ScriptKind::TS);
+        let actual = apply_bulk_edits(input, &format_document(&ctx, source_file));
+        assert_eq!(actual, expected);
+    }
+}
+
+// The source-33 Fourslash fixture changes the JSX attribute spacing for an
+// unterminated string; keep that exact formatting result in the Rust suite.
+#[test]
+fn test_format_jsx_attribute_with_unterminated_string() {
+    let input = "const x = <HangupButton customClass = 'ha\n";
+    let ctx = with_format_code_settings(
+        &FormatContext::default(),
+        lsutil::get_default_format_code_settings(),
+        "\n",
+    );
+    let source_file = parse_for_test("/a.tsx", input, ScriptKind::TSX);
+    let actual = apply_bulk_edits(input, &format_document(&ctx, source_file));
+    assert_eq!(actual, "const x = <HangupButton customClass='ha\n");
 }

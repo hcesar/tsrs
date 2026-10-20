@@ -1561,3 +1561,38 @@ nonblocking migration policy. No production Rust or npm runtime code
 changed; the staged catalogs are not embedded or loaded by tsrs. The measured
 source-11 regressions remain disclosed above. Evidence is under
 `target/port-623/0032-cb72b2e17b/`.
+
+## 33. `f9f8d0129256` — fix formatter token-line comparison
+
+Upstream `f9f8d01292562242b6e7c7142e46ed7e470926f9` corrects
+`FormattingContext.TokensAreOnSameLine` to compare the start of the current
+token with the **start** of the next token. A next token may extend over
+multiple lines without changing whether the two token starts share a line.
+The Rust formatter now makes that same comparison and retains the upstream
+tri-state cache. Focused Rust regressions reproduce the source-32 failures
+for template-head/middle spacing and an unterminated JSX attribute string,
+then pass with the fix. The upstream commit also removes skips from two
+template-formatting Fourslash tests and changes the JSX fixture's expected
+spacing; those three exact source-33 Go Fourslash cases pass against the Rust
+server. The ignored reference checkout advances to source 33; the published
+TypeScript pin and base SDK manifest remain unchanged until the full upgrade.
+
+All twelve complete checker and emit pass/nonpass sets match source 32 with
+no lost passes, new failures, crashes or timeouts. Go-history checker passes
+13,521 diagnostics and 12,836 type/symbol baselines; canonical checker passes
+13,521 diagnostics and 12,835 type/symbol baselines. Emit passes 13,525
+diagnostics, 12,836 type/symbol, 13,451 JavaScript/declaration, 149
+JavaScript-map and 156 source-map baselines. Exact-source Fourslash passes
+4,086 groups, skips 470 and fails none; of all 4,620 named outcomes, only
+`TestFormatNoSpaceAfterTemplateHeadAndMiddle` and
+`TestFormatSpaceAfterTemplateHeadAndMiddle` change from skip to pass. The
+source-33 Go formatter package, focused Rust formatter tests, full Rust
+workspace, regression projects, warnings-denied Clippy, source lint,
+formatting and generator integrity pass. Fourslash and workspace needed
+escalated reruns only because the sandbox denied Unix-socket binds. The
+capability table and language-server documentation now cite the measured
+Fourslash counts.
+
+No source-33 release performance measurement was collected under the user's
+nonblocking migration policy. The measured source-11 regressions remain
+disclosed above. Evidence is under `target/port-623/0033-f9f8d01292/`.
