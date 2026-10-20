@@ -751,3 +751,38 @@ absence of further regressions is made. Evidence is under `target/port-623/0012-
 exact-source Go diff, full compiler results and pass-set comparison, Go/API/fourslash/workspace and lint logs,
 and generated-source hashes. The ignored reference checkout advances to this revision; the published
 `Cargo.toml` TypeScript pin remains unchanged until the full source upgrade.
+
+## 13. `edf7da4e93ab6` — preserve reverse-mapped declaration types
+
+Upstream `edf7da4e93ab65e1f7766deae156c35132c0cde3` keeps reverse-mapped properties and index signatures
+in declaration emit instead of replacing them with display placeholders. The Rust node builder follows all three
+Go changes: placeholders remain for display only; reverse-mapped types without symbols enter the visited-type
+guard during declaration serialization; and a separate mapped-declaration node identity limits expansion to 100
+levels, restoring its depth on exit. The upstream `reverseMappedDeclarationSerialization` fixture covers indexed,
+nested, named, and recursive/growing types. It passes its diagnostic, type, symbol, and JavaScript/declaration
+baselines against this exact Go revision. The new `TestReverseMappedDeclarationQuickInfo` also passes through the
+Rust LSP subprocess, preserving display behavior.
+
+All twelve full compiler passing sets retain every source-12 pass and known nonpassing outcome; only the new
+compiler case is added. Go-history checker: 13,464 diagnostics and 12,785 types/symbols; canonical checker:
+13,464 diagnostics and 12,784 types/symbols; emit: 13,468 diagnostics, 12,785 types/symbols,
+13,398 JavaScript/declaration outputs, 149 JS maps, and 156 source maps. The full source-13 Go Fourslash gate
+passes 4,075 groups with 472 skipped and zero failures: the complete source-12 outcome set is unchanged, with
+the new quick-info group added as a pass.
+
+The upstream `reverse mapped declaration consumption` incremental scenario is dumped from the exact Go source
+and passes the Rust `tsctests` harness. An isolated direct Go/Rust comparison exercises initial build, no-change
+rebuild, comment-only producer edit, and another no-change rebuild. Both compilers report the same three TS2322
+consumer errors and emit identical producer `.d.ts` and JavaScript in each phase. The consumer build info is
+byte-identical. Producer build info differs only in Rust's existing optional `tsrsCanonicalCheckSignature` field.
+The exact-source Go compiler, Fourslash, and incremental tests pass independently. All 37 existing regression
+projects pass. The full workspace has 1,072 passing tests and four existing ignored tests; the public Node API
+suite passes 910 tests. Native and WASM checks, warnings-denied Clippy, source lint, formatting, and
+generated-source verification pass. Regeneration leaves every tracked crate file byte-identical to its
+pre-generation snapshot. No performance measurement was collected for source 13 under the user's nonblocking
+policy; the known source-11 regressions remain disclosed above.
+
+Evidence is under `target/port-623/0013-edf7da4e93/`, including all compiler pass sets and their complete
+comparison, exact-source Go oracle and four-phase build comparison, focused scenario dump and Rust result,
+Fourslash raw events/outcome comparison, and workspace, API, lint and build logs. The ignored reference checkout
+advances to this revision; the published TypeScript pin remains unchanged until the full source upgrade.
