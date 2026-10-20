@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Converts the Go option declaration lists in ts-ref/tsc/internal/tsoptions/decls*.go into Rust statics.
+"""Converts Go option declaration lists into Rust statics.
 
-Usage: gen_decls.py <go file> <rust file>
+Usage: gen_decls.py [--vars name,...] <go file> <rust file>
+Source 17 collects the declarations in tsoptions/declarations_generated.go; --vars selects
+the variables that belong in each Rust module. The Go generator moved non-declaration metadata
+to options_generated.go, so fields that remain in Rust's combined option table are preserved
+from the target. Review those fields against options.ts when an upstream option changes.
 Only the `[]*CommandLineOption{...}` and `CommandLineOption{...}` literals are converted; the
 surrounding Rust (imports, functions) lives in the hand-written part of the target file between the
 `// BEGIN GENERATED` / `// END GENERATED` markers.
 """
+import argparse
 import re
-import sys
 
 KIND = {
     "CommandLineOptionTypeString": "String",
@@ -25,7 +29,13 @@ KIND = {
     '"enum"': "Enum",
 }
 
-CORE_ENUMS = ["ScriptTarget", "WatchFileKind", "WatchDirectoryKind", "PollingKind"]
+CORE_ENUMS = ["ScriptTarget"]
+MOVED_METADATA = {
+    "affects_declaration_path", "affects_program_structure", "affects_semantic_diagnostics",
+    "affects_build_info", "affects_bind_diagnostics", "affects_source_file",
+    "affects_module_resolution", "affects_emit", "allow_js_flag", "strict_flag",
+    "transpile_option_value", "allow_config_dir_template_substitution",
+}
 
 
 def snake(name):
@@ -58,6 +68,9 @@ def default_value(v):
 
 
 def convert_field(key, value):
+    if key == "PathKind":
+        # Rust's current option representation uses IsFilePath for path conversion.
+        return None
     if key == "Name":
         return f"name: {value}"
     if key == "ShortName":
@@ -82,7 +95,26 @@ def convert_field(key, value):
     raise Exception(f"unknown field {key}: {value}")
 
 
-def convert_literal(body, indent):
+def existing_metadata(target):
+    generated = target.split("// BEGIN GENERATED\n", 1)[1].split("// END GENERATED", 1)[0]
+    result = {}
+    pattern = r"CommandLineOption \{\n(.*?)\n\s*\.\.CommandLineOption::DEFAULT\n\s*\}"
+    for m in re.finditer(pattern, generated, re.S):
+        body = m.group(1)
+        name = re.search(r'name: "([^"]+)"', body)
+        if name is None:
+            continue
+        short = re.search(r'short_name: "([^"]+)"', body)
+        fields = {}
+        for line in body.splitlines():
+            field = re.fullmatch(r"\s*(\w+):\s*(.*),\s*", line)
+            if field and field.group(1) in MOVED_METADATA:
+                fields[field.group(1)] = field.group(2)
+        result[(name.group(1), short.group(1) if short else "")] = fields
+    return result
+
+
+def convert_literal(body, indent, previous):
     fields = []
     for line in body.split("\n"):
         line = re.sub(r"//.*$", "", line).strip()
@@ -91,7 +123,16 @@ def convert_literal(body, indent):
         m = re.fullmatch(r"(\w+):\s*(.+?),?", line)
         if not m:
             raise Exception("cannot parse line: " + line)
-        fields.append(convert_field(m.group(1), m.group(2)))
+        field = convert_field(m.group(1), m.group(2))
+        if field is not None:
+            fields.append(field)
+    name = re.search(r'\bName:\s*"([^"]+)"', body)
+    short = re.search(r'\bShortName:\s*"([^"]+)"', body)
+    if name:
+        present = {field.split(":", 1)[0] for field in fields}
+        for key, value in previous.get((name.group(1), short.group(1) if short else ""), {}).items():
+            if key not in present:
+                fields.append(f"{key}: {value}")
     pad = " " * (indent + 4)
     out = "CommandLineOption {\n"
     for f in fields:
@@ -108,16 +149,28 @@ def scream(n):
 
 
 def main():
-    go = open(sys.argv[1]).read()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--vars", help="comma-separated Go declarations to include")
+    parser.add_argument("go_file")
+    parser.add_argument("rust_file")
+    args = parser.parse_args()
+    selected = set(args.vars.split(",")) if args.vars else None
+    go = open(args.go_file).read()
+    target = open(args.rust_file).read()
+    previous = existing_metadata(target)
     out = []
     # single named literals: var X = CommandLineOption{ ... }
     for m in re.finditer(r"^var (\w+) = CommandLineOption\{\n(.*?)\n\}", go, re.S | re.M):
         name, body = m.group(1), m.group(2)
+        if selected is not None and name not in selected:
+            continue
         vis = "pub " if name[0].isupper() else "pub(crate) "
         name = scream(name)
-        out.append(f"{vis}static {name}: CommandLineOption = {convert_literal(body, 0)};\n")
+        out.append(f"{vis}static {name}: CommandLineOption = {convert_literal(body, 0, previous)};\n")
     for m in re.finditer(r"^var (\w+) = \[\]\*CommandLineOption\{\n(.*?)\n\}\n", go, re.S | re.M):
         name, body = m.group(1), m.group(2)
+        if selected is not None and name not in selected:
+            continue
         vis = "pub " if name[0].isupper() else "pub(crate) "
         name = scream(name)
         items = []
@@ -151,7 +204,7 @@ def main():
         arr = f"{name}_ITEMS"
         s = f"static {arr}: [CommandLineOption; {len(lits)}] = [\n"
         for _, body in lits:
-            s += "    " + convert_literal(body, 4) + ",\n"
+            s += "    " + convert_literal(body, 4, previous) + ",\n"
         s += "];\n\n"
         s += f"{vis}static {name}: LazyLock<Vec<&'static CommandLineOption>> = LazyLock::new(|| {{\n"
         s += "    vec![\n"
@@ -165,10 +218,9 @@ def main():
         s += "    ]\n});\n"
         out.append(s)
     text = "\n".join(out)
-    target = open(sys.argv[2]).read()
     begin = target.index("// BEGIN GENERATED\n") + len("// BEGIN GENERATED\n")
     end = target.index("// END GENERATED")
-    open(sys.argv[2], "w").write(target[:begin] + text + target[end:])
+    open(args.rust_file, "w").write(target[:begin] + text + target[end:])
 
 
 main()

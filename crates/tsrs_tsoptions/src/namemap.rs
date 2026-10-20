@@ -6,14 +6,11 @@ use tsrs_core::collections::{OrderedMap, OrderedMapExt};
 use crate::commandlineoption::CommandLineOption;
 use crate::declsbuild::BUILD_OPTS;
 use crate::declscompiler::OPTIONS_DECLARATIONS;
-use crate::declswatch::OPTIONS_FOR_WATCH;
 
 pub static COMPILER_NAME_MAP: LazyLock<NameMap> =
     LazyLock::new(|| get_name_map_from_list(&OPTIONS_DECLARATIONS));
 pub static BUILD_NAME_MAP: LazyLock<NameMap> =
     LazyLock::new(|| get_name_map_from_list(&BUILD_OPTS));
-pub static WATCH_NAME_MAP: LazyLock<NameMap> =
-    LazyLock::new(|| get_name_map_from_list(&OPTIONS_FOR_WATCH));
 
 pub fn get_name_map_from_list(opt_decls: &[&'static CommandLineOption]) -> NameMap {
     let mut options_names =

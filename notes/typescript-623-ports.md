@@ -886,3 +886,43 @@ Fourslash outcome comparisons, exact-source Go API test, full npm API and worksp
 lint and build logs, and generator hashes. The ignored reference checkout advances to this revision; the
 published `Cargo.toml` TypeScript pin and `npm/tsrs/UPSTREAM.json` base manifest remain unchanged until the full
 source upgrade.
+
+## 17. `e8fd69fc1e19` — generate compiler options and publish config schemas
+
+Upstream `e8fd69fc1e1974f7f7410f79a04adad692dff0dc` moves option definitions to a shared generator and
+publishes `tsconfig` and `jsconfig` JSON schemas. No compiler, build or type-acquisition option field is added or
+removed. The observable parser change is deletion of seven watch-tuning flags: `watchInterval`, `watchFile`,
+`watchDirectory`, `fallbackPolling`, `synchronousWatchDirectory`, `excludeDirectories`, and `excludeFiles`.
+The Rust CLI and build parser now reject each one while preserving `--watch`; the exact Go baseline pair for
+each flag is TS5023 in compiler mode and TS5072 in build mode. The former watch-option types and parsed fields
+are removed. Rust's watcher uses the new parsed-option equality semantics, including type-acquisition's
+nil/empty-list equivalence and ordered compiler `paths` comparison. The Rust compiler fixture runner now uses
+the exact 91-name generated Go variation inventory, rather than deriving 72 names from declaration flags.
+
+The public npm package contains upstream's byte-identical generated `CompilerOptions` and `proto` files, the
+changed enum source files, and both byte-identical JSON schemas. It exports both schemas; its SDK sync inventory
+will hash them when the final TypeScript pin advances. The local `gen_decls.py` now accepts the combined
+`declarations_generated.go` source and preserves Rust metadata fields that upstream moved out of declarations.
+Dry-run regeneration keeps the same order for all 126 compiler and seven build declarations, with compiler
+field values unchanged. Go's generated option parsing, build-info, transpile, and declaration metadata keep
+their existing Rust behavior; the exact Go `tsoptions`, `transpile`, and `tsctests` packages pass.
+
+All twelve full compiler passing sets and every known nonpassing outcome match source 16 exactly. Go-history
+checker retains 13,471 diagnostic and 12,786 type/symbol passes; canonical checker retains 13,471 diagnostic
+and 12,785 type/symbol passes. Emit retains 13,475 diagnostic, 12,786 type/symbol, 13,401 JavaScript/declaration,
+149 JavaScript-map, and 156 source-map passes. The full exact-source Go Fourslash gate passes 4,075 groups with
+472 skipped and zero failures; all 4,603 named outcomes match source 16. The Rust workspace passes 1,076 tests
+with four existing ignored, including the new watch-option and equality cases. The public npm API suite passes
+925 tests, the SDK typechecks, both schemas appear in the npm package dry run, and all 37 regression projects
+pass. Native and WASM checks, warnings-denied Clippy, source lint, formatting, and upstream artifact hashes
+pass. Regeneration leaves all 1,166 retained tracked crate files byte-identical.
+
+`--showConfig` and full `--help --all` output were already outside tsrs's supported CLI scope, so source 17's
+new show-config scenarios and removed help section do not change those capabilities. Rust's internal parsed
+configuration representation also does not distinguish nil from empty file-name/content-mapper collections
+or nil entries inside them, unlike Go's pointer/slice equality; ordinary parsed configurations and the
+observable conformance sets above retain parity. No source-17 release performance measurement was collected
+under the user's nonblocking regression policy; the measured source-11 regressions remain disclosed above,
+and no performance-equivalence claim is made. Evidence is under `target/port-623/0017-e8fd69fc1e/`. The ignored
+reference checkout advances to this revision; the published TypeScript pin and base SDK manifest remain
+unchanged until the full upgrade.

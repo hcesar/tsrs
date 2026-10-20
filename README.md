@@ -29,6 +29,7 @@ between runs.
 
 `--init` and `--showConfig` are not supported. See [compatibility and evidence](https://github.com/oxc-project/tsrs/blob/main/docs/COMPATIBILITY.md)
 for supported features and known gaps.
+The seven watch-tuning flags removed by TypeScript 7 are rejected by tsrs as well.
 
 <a href="https://github.com/oxc-project/tsrs/blob/main/bench/RESULTS.md">
   <picture>

@@ -60,9 +60,6 @@ pub fn options_value_to_json(v: &CompilerOptionsValue) -> Value {
         CompilerOptionsValue::JsxEmit(x) => Value::Number(x.value() as f64),
         CompilerOptionsValue::NewLineKind(x) => Value::Number(*x as i32 as f64),
         // toProtocolJSONValue: watch enums are shifted to the public (TS5) numbering.
-        CompilerOptionsValue::WatchFileKind(x) => Value::Number((*x as i32 - 1) as f64),
-        CompilerOptionsValue::WatchDirectoryKind(x) => Value::Number((*x as i32 - 1) as f64),
-        CompilerOptionsValue::PollingKind(x) => Value::Number((*x as i32 - 1) as f64),
     }
 }
 

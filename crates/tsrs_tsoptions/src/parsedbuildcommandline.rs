@@ -2,16 +2,13 @@ use std::sync::OnceLock;
 
 use tsrs_ast::Diagnostic;
 use tsrs_core::tspath::{self, ComparePathsOptions};
-use tsrs_core::{
-    BuildOptions, CompilerOptions, P, WatchOptions, resolve_config_file_name_of_project_reference,
-};
+use tsrs_core::{BuildOptions, CompilerOptions, P, resolve_config_file_name_of_project_reference};
 
 use crate::commandlineoption::CompilerOptionsValue;
 
 pub struct ParsedBuildCommandLine {
     pub build_options: BuildOptions,
     pub compiler_options: CompilerOptions,
-    pub watch_options: WatchOptions,
     pub projects: Vec<String>,
     pub errors: Vec<P<Diagnostic>>,
     pub raw: CompilerOptionsValue,

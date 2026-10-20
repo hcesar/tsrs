@@ -681,8 +681,5 @@ fn option_value_to_json(v: &CompilerOptionsValue) -> Value {
         V::ScriptTarget(k) => Value::Number(k.value() as f64),
         V::JsxEmit(k) => Value::Number(k.value() as f64),
         V::NewLineKind(k) => Value::Number(*k as i32 as f64),
-        V::WatchFileKind(k) => Value::Number(*k as i32 as f64),
-        V::WatchDirectoryKind(k) => Value::Number(*k as i32 as f64),
-        V::PollingKind(k) => Value::Number(*k as i32 as f64),
     }
 }

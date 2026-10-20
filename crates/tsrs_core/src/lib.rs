@@ -65,7 +65,6 @@ mod textchange;
 mod tristate;
 mod typeacquisition;
 mod version;
-mod watchoptions;
 mod workgroup;
 
 pub use bfs::*;
@@ -86,5 +85,4 @@ pub use textchange::*;
 pub use tristate::*;
 pub use typeacquisition::*;
 pub use version::*;
-pub use watchoptions::*;
 pub use workgroup::*;

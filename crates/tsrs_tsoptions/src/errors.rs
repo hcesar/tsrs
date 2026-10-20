@@ -160,7 +160,6 @@ pub fn create_diagnostic_for_node_in_source_file_or_compiler_diagnostic(
 pub(crate) fn extra_key_diagnostics(s: &str) -> Option<&'static Message> {
     match s {
         "compilerOptions" => Some(&diagnostics::Unknown_compiler_option_0),
-        "watchOptions" => Some(&diagnostics::Unknown_watch_option_0),
         "typeAcquisition" => Some(&diagnostics::Unknown_type_acquisition_option_0),
         "buildOptions" => Some(&diagnostics::Unknown_build_option_0),
         _ => None,
@@ -170,7 +169,6 @@ pub(crate) fn extra_key_diagnostics(s: &str) -> Option<&'static Message> {
 pub(crate) fn extra_key_did_you_mean_diagnostics(s: &str) -> Option<&'static Message> {
     match s {
         "compilerOptions" => Some(&diagnostics::Unknown_compiler_option_0_Did_you_mean_1),
-        "watchOptions" => Some(&diagnostics::Unknown_watch_option_0_Did_you_mean_1),
         "typeAcquisition" => Some(&diagnostics::Unknown_type_acquisition_option_0_Did_you_mean_1),
         "buildOptions" => Some(&diagnostics::Unknown_build_option_0_Did_you_mean_1),
         _ => None,

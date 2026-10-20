@@ -23,6 +23,7 @@
     "files": [
         "bin",
         "lib",
+        "schemas",
         "dist",
         "vendor",
         "UPSTREAM.json",
@@ -33,6 +34,8 @@
     },
     "exports": {
         "./package.json": "./package.json",
+        "./schemas/tsconfig.schema.json": "./schemas/tsconfig.schema.json",
+        "./schemas/jsconfig.schema.json": "./schemas/jsconfig.schema.json",
         ".": {
             "types": "./lib/version.d.cts",
             "default": "./lib/version.cjs"

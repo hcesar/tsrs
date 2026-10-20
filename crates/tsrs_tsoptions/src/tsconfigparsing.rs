@@ -537,16 +537,6 @@ pub(crate) fn validate_json_option_value(
     let mut errors: Vec<P<Diagnostic>> = Vec::new();
 
     match opt.extra_validation {
-        ExtraValidation::Spec => {
-            if let Some(diag) = spec_to_diagnostic(val.as_str().unwrap(), false) {
-                errors.push(create_diagnostic_for_node_in_source_file_or_compiler_diagnostic(
-                    source_file,
-                    value_expression,
-                    diag,
-                    &[],
-                ));
-            }
-        }
         ExtraValidation::Locale => {
             if !locale_parse(val.as_str().unwrap()) {
                 errors.push(create_diagnostic_for_node_in_source_file_or_compiler_diagnostic(
@@ -2304,7 +2294,6 @@ fn parse_json_config_file_content_worker(
             project_references_is_nil: project_references.is_none(),
             project_references: project_references.unwrap_or_default(),
             content_mappers: content_mappers.into(),
-            watch_options: None,
         },
         config_file: source_file,
         raw: parsed_config.raw,
@@ -3222,9 +3211,6 @@ fn write_json(out: &mut String, value: &CompilerOptionsValue) {
         CompilerOptionsValue::ScriptTarget(v) => out.push_str(&v.value().to_string()),
         CompilerOptionsValue::JsxEmit(v) => out.push_str(&v.value().to_string()),
         CompilerOptionsValue::NewLineKind(v) => out.push_str(&v.value().to_string()),
-        CompilerOptionsValue::WatchFileKind(v) => out.push_str(&(*v as i32).to_string()),
-        CompilerOptionsValue::WatchDirectoryKind(v) => out.push_str(&(*v as i32).to_string()),
-        CompilerOptionsValue::PollingKind(v) => out.push_str(&(*v as i32).to_string()),
     }
 }
 

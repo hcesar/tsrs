@@ -188,6 +188,16 @@ pub fn empty_compiler_options() -> crate::P<CompilerOptions> {
 }
 
 impl CompilerOptions {
+    // Go's generated CompilerOptions.Equals compares every stored field and keeps the
+    // insertion order of `paths` significant, independent of its backing allocation.
+    pub fn equals(&self, other: &Self) -> bool {
+        self == other
+            && match (&self.paths, &other.paths) {
+                (Some(a), Some(b)) => a.keys().eq(b.keys()),
+                _ => true,
+            }
+    }
+
     /// Whether the caller requested compilation statistics and timings.
     pub fn diagnostics_enabled(&self) -> bool {
         self.diagnostics.is_true() || self.extended_diagnostics.is_true()
@@ -368,6 +378,28 @@ impl CompilerOptions {
             return self.paths_base_path.clone();
         }
         current_directory.to_string()
+    }
+}
+
+#[cfg(test)]
+mod equality_tests {
+    use super::*;
+
+    #[test]
+    fn paths_order_is_part_of_compiler_option_equality() {
+        let mut left = CompilerOptions::default();
+        let mut right = CompilerOptions::default();
+        left.paths = Some(OrderedMap::from_iter([
+            ("a".to_string(), Some(vec!["one".to_string()])),
+            ("b".to_string(), Some(vec!["two".to_string()])),
+        ]));
+        right.paths = Some(OrderedMap::from_iter([
+            ("b".to_string(), Some(vec!["two".to_string()])),
+            ("a".to_string(), Some(vec!["one".to_string()])),
+        ]));
+        assert!(!left.equals(&right));
+        right.paths = left.paths.clone();
+        assert!(left.equals(&right));
     }
 }
 

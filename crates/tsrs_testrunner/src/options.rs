@@ -74,28 +74,104 @@ pub fn get_harness_option(name: &str) -> Option<&'static CommandLineOption> {
 
 // compilerVaryBy (compiler_runner.go getCompilerVaryByMap) and the option kinds used for variations.
 pub fn tsoptions_option_table() -> OptionTable {
-    let mut vary_by = FxHashSet::default();
-    vary_by.extend(tsoptions::OPTIONS_DECLARATIONS.iter().filter_map(|option| {
-        if !option.is_command_line_only
-            && (option.kind == CommandLineOptionKind::Boolean
-                || option.kind == CommandLineOptionKind::Enum)
-            && (option.affects_program_structure
-                || option.affects_emit
-                || option.affects_module_resolution
-                || option.affects_bind_diagnostics
-                || option.affects_semantic_diagnostics
-                || option.affects_source_file
-                || option.affects_declaration_path
-                || option.affects_build_info)
-        {
-            Some(option.name.to_lowercase())
-        } else {
-            None
-        }
-    }));
-    // explicit variations that do not match above conditions
-    vary_by.insert("noemit".to_string());
-    vary_by.insert("isolatedmodules".to_string());
+    // Source 17 generates compilerVaryBy from the shared options model. Keep this exact
+    // inventory so the Rust compiler runner expands the same fixture variations as Go.
+    let vary_by: FxHashSet<String> = [
+        "all",
+        "allowarbitraryextensions",
+        "allowimportingtsextensions",
+        "allowjs",
+        "allowsyntheticdefaultimports",
+        "allowumdglobalaccess",
+        "allowunreachablecode",
+        "allowunusedlabels",
+        "alwaysstrict",
+        "assumechangesonlyaffectdirectdependencies",
+        "checkjs",
+        "composite",
+        "declaration",
+        "declarationmap",
+        "deduplicatepackages",
+        "diagnostics",
+        "disablereferencedprojectload",
+        "disablesizelimit",
+        "disablesolutionsearching",
+        "disablesourceofprojectreferenceredirect",
+        "downleveliteration",
+        "emitbom",
+        "emitdeclarationonly",
+        "emitdecoratormetadata",
+        "erasablesyntaxonly",
+        "esmoduleinterop",
+        "exactoptionalpropertytypes",
+        "experimentaldecorators",
+        "explainfiles",
+        "extendeddiagnostics",
+        "forceconsistentcasinginfilenames",
+        "importhelpers",
+        "incremental",
+        "init",
+        "inlinesourcemap",
+        "inlinesources",
+        "isolateddeclarations",
+        "isolatedmodules",
+        "jsx",
+        "libreplacement",
+        "listemittedfiles",
+        "listfiles",
+        "module",
+        "moduledetection",
+        "moduleresolution",
+        "newline",
+        "nocheck",
+        "noemit",
+        "noemithelpers",
+        "noemitonerror",
+        "noerrortruncation",
+        "nofallthroughcasesinswitch",
+        "noimplicitany",
+        "noimplicitoverride",
+        "noimplicitreturns",
+        "noimplicitthis",
+        "nolib",
+        "nopropertyaccessfromindexsignature",
+        "noresolve",
+        "nouncheckedindexedaccess",
+        "nouncheckedsideeffectimports",
+        "nounusedlocals",
+        "nounusedparameters",
+        "preserveconstenums",
+        "preservesymlinks",
+        "preservewatchoutput",
+        "pretty",
+        "quiet",
+        "removecomments",
+        "resolvejsonmodule",
+        "resolvepackagejsonexports",
+        "resolvepackagejsonimports",
+        "rewriterelativeimportextensions",
+        "singlethreaded",
+        "skipdefaultlibcheck",
+        "skiplibcheck",
+        "sourcemap",
+        "stabletypeordering",
+        "strict",
+        "strictbindcallapply",
+        "strictbuiltiniteratorreturn",
+        "strictfunctiontypes",
+        "strictnullchecks",
+        "strictpropertyinitialization",
+        "stripinternal",
+        "target",
+        "traceresolution",
+        "usedefineforclassfields",
+        "useunknownincatchvariables",
+        "verbatimmodulesyntax",
+        "version",
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .collect();
 
     let decls = HARNESS_COMPILER_OPTIONS
         .iter()

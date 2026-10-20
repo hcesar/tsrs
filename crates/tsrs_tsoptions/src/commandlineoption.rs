@@ -3,15 +3,14 @@ use std::sync::LazyLock;
 use rustc_hash::{FxHashMap, FxHashSet};
 use tsrs_core::collections::OrderedMap;
 use tsrs_core::{
-    JsxEmit, ModuleDetectionKind, ModuleKind, ModuleResolutionKind, NewLineKind, PollingKind,
-    ScriptTarget, Tristate, WatchDirectoryKind, WatchFileKind,
+    JsxEmit, ModuleDetectionKind, ModuleKind, ModuleResolutionKind, NewLineKind, ScriptTarget,
+    Tristate,
 };
 use tsrs_diagnostics::Message;
 
 use crate::enummaps::{
-    FALLBACK_ENUM_MAP, JSX_OPTION_MAP, LIB_MAP, MODULE_DETECTION_OPTION_MAP, MODULE_OPTION_MAP,
-    MODULE_RESOLUTION_OPTION_MAP, NEW_LINE_OPTION_MAP, TARGET_OPTION_MAP, WATCH_DIRECTORY_ENUM_MAP,
-    WATCH_FILE_ENUM_MAP,
+    JSX_OPTION_MAP, LIB_MAP, MODULE_DETECTION_OPTION_MAP, MODULE_OPTION_MAP,
+    MODULE_RESOLUTION_OPTION_MAP, NEW_LINE_OPTION_MAP, TARGET_OPTION_MAP,
 };
 use crate::tsconfigparsing::CommandLineOptionNameMap;
 
@@ -56,9 +55,6 @@ pub enum DefaultValueDescription {
     Message(&'static Message),
     Tristate(Tristate),
     ScriptTarget(ScriptTarget),
-    WatchFileKind(WatchFileKind),
-    WatchDirectoryKind(WatchDirectoryKind),
-    PollingKind(PollingKind),
 }
 
 #[derive(Debug)]
@@ -124,7 +120,6 @@ pub struct CommandLineOption {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum ExtraValidation {
     None,
-    Spec,
     Locale,
 }
 
@@ -302,27 +297,6 @@ pub(crate) static COMMAND_LINE_OPTION_ELEMENTS: LazyLock<
             ..CommandLineOption::DEFAULT
         },
     );
-    // For Watch options
-    m.insert(
-        "excludeDirectories",
-        CommandLineOption {
-            name: "excludeDirectory",
-            kind: CommandLineOptionKind::String,
-            is_file_path: true,
-            extra_validation: ExtraValidation::Spec,
-            ..CommandLineOption::DEFAULT
-        },
-    );
-    m.insert(
-        "excludeFiles",
-        CommandLineOption {
-            name: "excludeFile",
-            kind: CommandLineOptionKind::String,
-            is_file_path: true,
-            extra_validation: ExtraValidation::Spec,
-            ..CommandLineOption::DEFAULT
-        },
-    );
     // Test infra options
     m.insert(
         "libFiles",
@@ -350,9 +324,6 @@ pub(crate) static COMMAND_LINE_OPTION_ENUM_MAP: LazyLock<
     m.insert("moduleDetection", &MODULE_DETECTION_OPTION_MAP);
     m.insert("jsx", &JSX_OPTION_MAP);
     m.insert("newLine", &NEW_LINE_OPTION_MAP);
-    m.insert("watchFile", &WATCH_FILE_ENUM_MAP);
-    m.insert("watchDirectory", &WATCH_DIRECTORY_ENUM_MAP);
-    m.insert("fallbackPolling", &FALLBACK_ENUM_MAP);
     m
 });
 
@@ -398,9 +369,6 @@ pub enum CompilerOptionsValue {
     ScriptTarget(ScriptTarget),
     JsxEmit(JsxEmit),
     NewLineKind(NewLineKind),
-    WatchFileKind(WatchFileKind),
-    WatchDirectoryKind(WatchDirectoryKind),
-    PollingKind(PollingKind),
 }
 
 impl CompilerOptionsValue {

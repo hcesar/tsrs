@@ -5,7 +5,7 @@ use tsrs_core::collections::OrderedMap;
 use tsrs_core::tspath;
 use tsrs_core::{
     CompilerOptions, JsxEmit, ModuleDetectionKind, ModuleKind, ModuleResolutionKind, NewLineKind,
-    PollingKind, ScriptTarget, WatchDirectoryKind, WatchFileKind,
+    ScriptTarget,
 };
 
 use crate::commandlineoption::CompilerOptionsValue;
@@ -373,60 +373,3 @@ pub fn get_default_lib_file_name(options: &CompilerOptions) -> &'static str {
         None => "lib.d.ts",
     }
 }
-
-pub(crate) static WATCH_FILE_ENUM_MAP: LazyLock<OrderedMap<&'static str, CompilerOptionsValue>> =
-    LazyLock::new(|| {
-        new_map(&[
-            (
-                "fixedpollinginterval",
-                CompilerOptionsValue::WatchFileKind(WatchFileKind::FixedPollingInterval),
-            ),
-            (
-                "prioritypollinginterval",
-                CompilerOptionsValue::WatchFileKind(WatchFileKind::PriorityPollingInterval),
-            ),
-            (
-                "dynamicprioritypolling",
-                CompilerOptionsValue::WatchFileKind(WatchFileKind::DynamicPriorityPolling),
-            ),
-            (
-                "fixedchunksizepolling",
-                CompilerOptionsValue::WatchFileKind(WatchFileKind::FixedChunkSizePolling),
-            ),
-            ("usefsevents", CompilerOptionsValue::WatchFileKind(WatchFileKind::UseFsEvents)),
-            (
-                "usefseventsonparentdirectory",
-                CompilerOptionsValue::WatchFileKind(WatchFileKind::UseFsEventsOnParentDirectory),
-            ),
-        ])
-    });
-
-pub(crate) static WATCH_DIRECTORY_ENUM_MAP: LazyLock<
-    OrderedMap<&'static str, CompilerOptionsValue>,
-> = LazyLock::new(|| {
-    new_map(&[
-        ("usefsevents", CompilerOptionsValue::WatchDirectoryKind(WatchDirectoryKind::UseFsEvents)),
-        (
-            "fixedpollinginterval",
-            CompilerOptionsValue::WatchDirectoryKind(WatchDirectoryKind::FixedPollingInterval),
-        ),
-        (
-            "dynamicprioritypolling",
-            CompilerOptionsValue::WatchDirectoryKind(WatchDirectoryKind::DynamicPriorityPolling),
-        ),
-        (
-            "fixedchunksizepolling",
-            CompilerOptionsValue::WatchDirectoryKind(WatchDirectoryKind::FixedChunkSizePolling),
-        ),
-    ])
-});
-
-pub(crate) static FALLBACK_ENUM_MAP: LazyLock<OrderedMap<&'static str, CompilerOptionsValue>> =
-    LazyLock::new(|| {
-        new_map(&[
-            ("fixedinterval", CompilerOptionsValue::PollingKind(PollingKind::FixedInterval)),
-            ("priorityinterval", CompilerOptionsValue::PollingKind(PollingKind::PriorityInterval)),
-            ("dynamicpriority", CompilerOptionsValue::PollingKind(PollingKind::DynamicPriority)),
-            ("fixedchunksize", CompilerOptionsValue::PollingKind(PollingKind::FixedChunkSize)),
-        ])
-    });

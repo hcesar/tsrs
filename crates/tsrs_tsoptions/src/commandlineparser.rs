@@ -3,7 +3,7 @@ use tsrs_ast::{Diagnostic, Node, SourceFile, new_compiler_diagnostic};
 use tsrs_core::collections::{OrderedMap, OrderedMapExt};
 use tsrs_core::stringutil;
 use tsrs_core::tspath::{self, ComparePathsOptions, Path};
-use tsrs_core::{BuildOptions, CompilerOptions, P, WatchOptions};
+use tsrs_core::{BuildOptions, CompilerOptions, P};
 use tsrs_diagnostics as diagnostics;
 use tsrs_diagnostics::Message;
 use tsrs_vfs::FS;
@@ -13,19 +13,16 @@ use crate::declsbuild::TSC_BUILD_OPTION;
 use crate::diagnostics::{
     AlternateModeDiagnostics, BUILD_OPTIONS_DID_YOU_MEAN_DIAGNOSTICS,
     COMPILER_OPTIONS_DID_YOU_MEAN_DIAGNOSTICS, ParseCommandLineWorkerDiagnostics,
-    WATCH_OPTIONS_DID_YOU_MEAN_DIAGNOSTICS,
 };
 use crate::errors::{
     create_diagnostic_for_invalid_enum_type, get_compiler_option_value_type_string,
 };
-use crate::namemap::{
-    BUILD_NAME_MAP, COMPILER_NAME_MAP, NameMap, WATCH_NAME_MAP, get_name_map_from_list,
-};
+use crate::namemap::{BUILD_NAME_MAP, COMPILER_NAME_MAP, NameMap, get_name_map_from_list};
 use crate::parsedbuildcommandline::ParsedBuildCommandLine;
 use crate::parsedcommandline::{ParsedCommandLine, new_parsed_command_line};
 use crate::parsinghelpers::{
-    BuildOptionsParser, CompilerOptionsParser, WatchOptionsParser,
-    convert_to_options_with_absolute_paths, parse_compiler_options,
+    BuildOptionsParser, CompilerOptionsParser, convert_to_options_with_absolute_paths,
+    parse_compiler_options,
 };
 use crate::tsconfigparsing::{
     COMMAND_LINE_COMPILER_OPTIONS_MAP, ParseConfigHost, convert_map_to_options,
@@ -78,8 +75,6 @@ pub fn parse_command_line(
     );
     let compiler_options =
         convert_map_to_options(&options, CompilerOptionsParser(CompilerOptions::default())).0;
-    let watch_options =
-        convert_map_to_options(&options, WatchOptionsParser(WatchOptions::default())).0;
     let mut result = new_parsed_command_line(
         P::new(compiler_options),
         parser.file_names,
@@ -89,7 +84,6 @@ pub fn parse_command_line(
             current_directory: host.get_current_directory().to_string(),
         },
     );
-    result.parsed_config.watch_options = Some(watch_options);
     result.errors = parser.errors;
     result.raw = CompilerOptionsValue::Object(parser.options);
     result
@@ -126,11 +120,6 @@ pub fn parse_build_command_line(
         )
         .0,
         compiler_options,
-        watch_options: convert_map_to_options(
-            &parser.options,
-            WatchOptionsParser(WatchOptions::default()),
-        )
-        .0,
         projects: parser.file_names,
         errors: parser.errors,
         raw: CompilerOptionsValue::Object(parser.options),
@@ -223,23 +212,9 @@ impl CommandLineParser {
                             self.worker_diagnostics.option_type_mismatch_diagnostic,
                         );
                     } else {
-                        let watch_opt = WATCH_NAME_MAP.get_option_declaration_from_name(
-                            input_option_name,
-                            true, /*allowShort*/
-                        );
-                        if let Some(watch_opt) = watch_opt {
-                            i = self.parse_option_value(
-                                args,
-                                i,
-                                watch_opt,
-                                WATCH_OPTIONS_DID_YOU_MEAN_DIAGNOSTICS
-                                    .option_type_mismatch_diagnostic,
-                            );
-                        } else {
-                            let err =
-                                self.create_unknown_option_error(input_option_name, s, None, None);
-                            self.errors.push(err);
-                        }
+                        let err =
+                            self.create_unknown_option_error(input_option_name, s, None, None);
+                        self.errors.push(err);
                     }
                 }
                 _ => {

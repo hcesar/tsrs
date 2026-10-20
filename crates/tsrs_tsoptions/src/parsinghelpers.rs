@@ -5,7 +5,6 @@ use tsrs_core::tspath;
 use tsrs_core::{
     BuildOptions, CompilerOptions, JsxEmit, ModuleDetectionKind, ModuleKind, ModuleResolutionKind,
     NewLineKind, P, PluginImport, ProjectReference, ScriptTarget, Tristate, TypeAcquisition,
-    WatchOptions,
 };
 use tsrs_diagnostics as diagnostics;
 use tsrs_diagnostics::Message;
@@ -57,14 +56,6 @@ pub fn parse_string(value: &CompilerOptionsValue) -> String {
         return str.clone();
     }
     String::new()
-}
-
-pub(crate) fn parse_number(value: &CompilerOptionsValue) -> Option<i32> {
-    match value {
-        CompilerOptionsValue::Int(num) => Some(*num as i32),
-        CompilerOptionsValue::Float(num) => Some(*num as i32),
-        _ => None,
-    }
 }
 
 // parseNumber into a Go `*int` (64-bit) option.
@@ -248,22 +239,6 @@ impl OptionParser for CompilerOptionsParser {
 
     fn unknown_did_you_mean_diagnostic(&self) -> &'static Message {
         extra_key_did_you_mean_diagnostics("compilerOptions").unwrap()
-    }
-}
-
-pub(crate) struct WatchOptionsParser(pub(crate) WatchOptions);
-
-impl OptionParser for WatchOptionsParser {
-    fn parse_option(&mut self, key: &str, value: &CompilerOptionsValue) -> Vec<P<Diagnostic>> {
-        parse_watch_options(key, value, &mut self.0)
-    }
-
-    fn unknown_option_diagnostic(&self) -> &'static Message {
-        extra_key_diagnostics("watchOptions").unwrap()
-    }
-
-    fn unknown_did_you_mean_diagnostic(&self) -> &'static Message {
-        extra_key_did_you_mean_diagnostics("watchOptions").unwrap()
     }
 }
 
@@ -582,45 +557,6 @@ float_or_int32_to_flag!(
 );
 float_or_int32_to_flag!(float_or_int32_to_script_target, ScriptTarget, TARGET_OPTION_MAP);
 float_or_int32_to_flag!(float_or_int32_to_new_line_kind, NewLineKind, NEW_LINE_OPTION_MAP);
-
-pub fn parse_watch_options(
-    key: &str,
-    value: &CompilerOptionsValue,
-    all_options: &mut WatchOptions,
-) -> Vec<P<Diagnostic>> {
-    match key {
-        "watchInterval" => all_options.interval = parse_number(value),
-        "watchFile" => {
-            if !value.is_null() {
-                let CompilerOptionsValue::WatchFileKind(v) = value else {
-                    panic!("interface conversion")
-                };
-                all_options.file_kind = *v;
-            }
-        }
-        "watchDirectory" => {
-            if !value.is_null() {
-                let CompilerOptionsValue::WatchDirectoryKind(v) = value else {
-                    panic!("interface conversion")
-                };
-                all_options.directory_kind = *v;
-            }
-        }
-        "fallbackPolling" => {
-            if !value.is_null() {
-                let CompilerOptionsValue::PollingKind(v) = value else {
-                    panic!("interface conversion")
-                };
-                all_options.fallback_polling = *v;
-            }
-        }
-        "synchronousWatchDirectory" => all_options.sync_watch_dir = parse_tristate(value),
-        "excludeDirectories" => all_options.exclude_dir = parse_string_array(value),
-        "excludeFiles" => all_options.exclude_files = parse_string_array(value),
-        _ => {}
-    }
-    Vec::new()
-}
 
 pub fn parse_type_acquisition(
     key: &str,
