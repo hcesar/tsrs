@@ -786,3 +786,34 @@ Evidence is under `target/port-623/0013-edf7da4e93/`, including all compiler pas
 comparison, exact-source Go oracle and four-phase build comparison, focused scenario dump and Rust result,
 Fourslash raw events/outcome comparison, and workspace, API, lint and build logs. The ignored reference checkout
 advances to this revision; the published TypeScript pin remains unchanged until the full source upgrade.
+
+## 14. `02c1c9a6ab49` — preserve a removed CommonJS `with` body
+
+Upstream `02c1c9a6ab49334a5ca9c1d7852647b7a3fad18a` fixes a CommonJS transformer crash when a top-level
+`with` statement's nested visitor removes its body. Rust had the same unchecked unwrap. The port visits that
+body first, substitutes an empty statement only when the visitor returns none, then visits the expression and
+updates the `with` statement, matching the Go operation order. The new upstream
+`withStatementCommonJsEmit` compiler case has four forms: the removed `export let a` emits `;`, while an
+initialized export, a local variable, and an export in a block keep their expected output. All eight expected
+strict-mode and unsupported-`with` diagnostics match. The exact source-14 Go compiler passes all nine fixture
+subtests, and Rust passes the diagnostic, type, symbol, and JavaScript baselines.
+
+Full Go-history and canonical checker runs and the full emit run preserve every source-13 passing case and all
+known nonpassing outcomes. The new fixture adds one pass to every applicable checker and emit list: Go-history
+checker has 13,465 diagnostic and 12,786 type/symbol passes; canonical checker has 13,465 diagnostic and
+12,785 type/symbol passes; emit has 13,469 diagnostic, 12,786 type/symbol, and 13,399 JavaScript/declaration
+output passes, with the existing 149 JavaScript map and 156 source-map passes unchanged. All 37 existing
+regression projects pass. The full workspace has 1,072 passing tests and four existing ignored tests. Native
+and WASM checks, warnings-denied Clippy, source lint, and formatting pass. Regenerating with all seven generators
+leaves every tracked crate file byte-identical. A direct `tools/gen-check.sh` on the uncommitted transformer edit
+reported that intended edit as a diff; the generator write and full before/after crate hash comparison verify
+that no generated file changes.
+
+The full exact-source Go Fourslash gate passes 4,075 groups with 472 skipped and zero failures. All 4,603 named
+outcomes match source 13 exactly, including its 4,131 passing events. The first sandboxed launch could not bind
+the bridge's local Unix socket; the complete rerun with socket access passed.
+
+No source-14 release performance measurements were collected under the user's nonblocking regression policy.
+The measured source-11 regressions remain disclosed above; no source-14 performance-equivalence claim is made.
+Evidence is under `target/port-623/0014-02c1c9a6ab/`. The ignored reference checkout advances to this revision;
+the published TypeScript pin remains unchanged until the full source upgrade.
