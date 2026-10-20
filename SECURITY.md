@@ -28,7 +28,9 @@ The TypeScript compiler (`tsrs`) is a **build tool**, not a sandbox. It transfor
 
 ### Language Service
 
-The TypeScript Language Service only executes in the context of a [trusted workspace (VS Code)](https://code.visualstudio.com/docs/editing/workspaces/workspace-trust) or [trusted folder (Visual Studio)](https://learn.microsoft.com/en-us/visualstudio/ide/trust-settings?view=visualstudio). Similar to the compiler, there are no guaranteed resource caps in the Language Service, and hangs may occur in the presence of adversarial inputs.
+Editor integrations can gate language-service execution on a [trusted workspace (VS Code)](https://code.visualstudio.com/docs/editing/workspaces/workspace-trust) or [trusted folder (Visual Studio)](https://learn.microsoft.com/en-us/visualstudio/ide/trust-settings?view=visualstudio); clients that start `tsrs --lsp` directly must make their own trust decision. Similar to the compiler, there are no guaranteed resource caps in the Language Service, and hangs may occur in the presence of adversarial inputs.
+
+Workspace trust can authorize an editor and its extensions to execute code from the project, including tools installed in `node_modules`. Grant trust only when you are willing to run that code. The `tsrs` language server does not currently start content mappers. The compiler and build commands can start configured content mappers when `--runExternalCode` is enabled, including mappers installed in `node_modules`; review those packages and the project configuration before enabling the flag.
 
 ### Summary
 

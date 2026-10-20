@@ -1036,3 +1036,41 @@ performance-equivalence claim is made for this port. Evidence is under
 `target/port-623/0020-bf00f213ff/`. The ignored reference checkout advances to this
 revision; the published TypeScript pin and base SDK manifest remain unchanged until the
 full source upgrade.
+
+## 21. `82f054616325` — clarify security information
+
+Upstream `82f054616325c1550b184f26a64f26b44ce6b99d` adds Workspace Trust/content-mapper
+and Go-compiler CVE guidance only to `.github/skills/security-report-check/SKILL.md`.
+`tsrs` has a user-facing `SECURITY.md` rather than an equivalent security-report skill.
+Its Language Service section now says that editor integrations decide workspace trust,
+direct LSP clients must make their own trust decision, and a trusted workspace may run
+project tools from `node_modules`. It also states the current tsrs boundary: the language
+server does not start content mappers, while compiler/build mode can start configured
+mappers only with `--runExternalCode`. The upstream Go-compiler CVE and `govulncheck`
+advice does not apply to this Rust compiler, so no Go-specific claim or new release
+policy was copied.
+
+The upstream source-20-to-21 diff contains only that skill file; the `tsc` tree is
+`639627690565280fef5ece5479386bf63db835f1` at both revisions. The source and fixture
+directories used by the tsrs conformance runner are unchanged. The ignored reference
+checkout advances to source 21, while the published TypeScript pin remains unchanged.
+Only `SECURITY.md` and this port record change in tsrs; there is no compiler, library,
+runtime-asset, test, or capability change.
+
+Full checker conformance in Go and canonical histories and full emit conformance were
+rerun against the final dev build. All twelve complete passing sets and every known
+nonpassing set match source 20 exactly: Go-history checker has 13,486 diagnostic and
+12,801 type/symbol passes; canonical checker has 13,486 diagnostic and 12,800
+type/symbol passes. Emit has 13,490 diagnostic, 12,801 type/symbol, 13,416 JavaScript/
+declaration, 149 JavaScript-map, and 156 source-map passes. No new crash or timeout
+occurred. The source-20 Fourslash, workspace, regression, native/WASM, npm and generator
+results are reused because their product inputs and upstream fixture trees are unchanged;
+they were not independently rerun for this documentation-only entry. The dev build,
+warnings-denied Clippy, source lint, formatting, and whitespace checks pass.
+
+The release compiler binary is byte-identical before and after this port (SHA-256
+`3edc24074ab2ce687196eb816f114115c6292f3d27bf06a5e918fdfaee07a1dd`), and no
+runtime assets change. No new release performance measurements were collected; the
+source-11 measured regressions remain disclosed above. Source identity, exact passing-set
+comparison, full gate logs, and build/lint evidence are under
+`target/port-623/0021-82f0546163/`.
