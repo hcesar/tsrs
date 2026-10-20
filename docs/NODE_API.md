@@ -53,9 +53,9 @@ The JS API runs on the package's minimum Node (16.20; checked on 16.20, 18, 20, 
 
 Port of the TypeScript 7 native API, with the workspace `Cargo.toml` still pinned at the base
 `b85298b6a81f772d080b0455de0ca9d744cd6fd6` while the commit-by-commit migration includes API changes
-through `688d86d7f647781565dc1f6438a4fb09b5179160`: server side `tsc/internal/api` + `tsc/internal/ipc`, client
+through `d2f9dd68cfff50ca3c2fdf3152f808fd9d4ca2d6`: server side `tsc/internal/api` + `tsc/internal/ipc`, client
 side `packages/typescript/src/{api,ast}` exported as `unstable/sync` and `unstable/async`. The wire
-format, method names, params and response schemas are the pinned Go ones; tsrs does not define its own
+format, method names, params and response schemas follow the ported Go revision; tsrs does not define its own
 protocol or a one-shot CLI wrapper, and it is not compatible with TS5 `createProgram` objects.
 
 Status: shipped (in the npm package since 0.3.0, docs/STATUS.md), with the gaps below. The matrix at the end is
@@ -161,7 +161,7 @@ Core provides (stable API for the checker lane):
 - `session::parse_params`, `session::json_response`; node handles through `CheckerHost::node_handle` /
   `resolve_node_handle` (core wraps the codec's `node_handle` / `resolve_node_index`).
 
-`handle` receives every method whose `methods::METHODS` owner is `Checker` (115 methods). `None` means
+`handle` receives every method whose `methods::METHODS` owner is `Checker` (119 methods). `None` means
 "not recognized" and becomes `ApiError::unsupported`.
 
 ## Lifetimes
@@ -173,8 +173,13 @@ Core provides (stable API for the checker lane):
 
 ## Coverage matrix
 
-The protocol port through source 16 has 173 `Method` constants (core 58, checker 115). Kept in sync with
+The protocol port through source 29 has 177 `Method` constants (core 58, checker 119). Kept in sync with
 `crates/tsrs_api/src/methods.rs`.
+
+Source 29 adds checker-scoped `getMergedSymbol`, `getSymbolOfNode`,
+`getSymbolOfDeclarationForChecker`, and `getParentOfSymbolForChecker`. All resolve handles in the requested
+snapshot and project. The node/declaration and parent methods return `null` when no symbol exists; the
+existing core `getSymbolOfDeclaration` instead retrieves a binder symbol from a cached source file.
 
 | # | method | owner | status | evidence / gap |
 |---|---|---|---|---|
@@ -308,49 +313,53 @@ The protocol port through source 16 has 173 `Method` constants (core 58, checker
 | 128 | `getAliasedSymbol` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
 | 129 | `getImmediateAliasedSymbol` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
 | 130 | `getTargetSymbol` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 131 | `getExportSymbolOfSymbolForChecker` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 132 | `getFullyQualifiedName` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 133 | `getExportsOfModule` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 134 | `getMemberInModuleExports` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 135 | `getJsDocTags` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 136 | `getDocumentationComment` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 137 | `isArrayType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 138 | `isReadonlySymbol` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 139 | `getReferencesToSymbolInFile` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 140 | `getReferencedSymbolsForNode` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 141 | `getSignatureUsages` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 142 | `getCompletionsAtPosition` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 143 | `getSyntacticDiagnostics` | core | supported | program_test |
-| 144 | `getBindDiagnostics` | core | supported | program_test |
-| 145 | `getSemanticDiagnostics` | core | supported | program_test |
-| 146 | `getSuggestionDiagnostics` | core | partial | dispatches; no fixture asserting a specific suggestion yet |
-| 147 | `getDeclarationDiagnostics` | core | supported | program_test |
-| 148 | `getProgramDiagnostics` | core | supported | program_test (empty case) |
-| 149 | `getGlobalDiagnostics` | core | supported | program_test (empty case) |
-| 150 | `getConfigFileParsingDiagnostics` | core | supported | program_test (client-supplied diagnostics round trip) |
-| 151 | `printNode` | core | partial | upstream sync printNode/printFile tests pass; recovered printer panics use Go's `Kind…` names (`printing.rs` unit test) |
-| 152 | `formatNodeForInsertion` | core | partial | upstream sync formatNodeForInsertion tests pass |
-| 153 | `emit` | core | supported | program_test (write-through, no TSRS_EMIT), requestfs_test (full filesystem returns emittedFilesContents, no disk write) |
-| 154 | `emitToString` | core | supported | program_test |
-| 155 | `getJavaScriptEmit` | core | supported | program_test |
-| 156 | `getDeclarationEmit` | core | supported | program_test |
-| 157 | `getAnyType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 158 | `getStringType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 159 | `getNumberType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 160 | `getBooleanType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 161 | `getVoidType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 162 | `getUndefinedType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 163 | `getNullType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 164 | `getNeverType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 165 | `getUnknownType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 166 | `getBigIntType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 167 | `getESSymbolType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 168 | `getNonPrimitiveType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 169 | `getWellKnownSymbols` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 170 | `getWellKnownSignatures` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
-| 171 | `startCPUProfile` | core | not implemented |  |
-| 172 | `stopCPUProfile` | core | not implemented |  |
-| 173 | `saveHeapProfile` | core | not implemented |  |
+| 131 | `getMergedSymbol` | checker | partial | checker lane: source 29 real-program Rust test and upstream sync/async API cases; no pinned-Go golden or byte-level response comparison |
+| 132 | `getSymbolOfNode` | checker | partial | checker lane: source 29 real-program Rust test and upstream sync/async API cases; no pinned-Go golden or byte-level response comparison |
+| 133 | `getSymbolOfDeclarationForChecker` | checker | partial | checker lane: source 29 real-program Rust test and upstream sync/async API cases; no pinned-Go golden or byte-level response comparison |
+| 134 | `getParentOfSymbolForChecker` | checker | partial | checker lane: source 29 real-program Rust test and upstream sync/async API cases; no pinned-Go golden or byte-level response comparison |
+| 135 | `getExportSymbolOfSymbolForChecker` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 136 | `getFullyQualifiedName` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 137 | `getExportsOfModule` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 138 | `getMemberInModuleExports` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 139 | `getJsDocTags` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 140 | `getDocumentationComment` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 141 | `isArrayType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 142 | `isReadonlySymbol` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 143 | `getReferencesToSymbolInFile` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 144 | `getReferencedSymbolsForNode` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 145 | `getSignatureUsages` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 146 | `getCompletionsAtPosition` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 147 | `getSyntacticDiagnostics` | core | supported | program_test |
+| 148 | `getBindDiagnostics` | core | supported | program_test |
+| 149 | `getSemanticDiagnostics` | core | supported | program_test |
+| 150 | `getSuggestionDiagnostics` | core | partial | dispatches; no fixture asserting a specific suggestion yet |
+| 151 | `getDeclarationDiagnostics` | core | supported | program_test |
+| 152 | `getProgramDiagnostics` | core | supported | program_test (empty case) |
+| 153 | `getGlobalDiagnostics` | core | supported | program_test (empty case) |
+| 154 | `getConfigFileParsingDiagnostics` | core | supported | program_test (client-supplied diagnostics round trip) |
+| 155 | `printNode` | core | partial | upstream sync printNode/printFile tests pass; recovered printer panics use Go's `Kind…` names (`printing.rs` unit test) |
+| 156 | `formatNodeForInsertion` | core | partial | upstream sync formatNodeForInsertion tests pass |
+| 157 | `emit` | core | supported | program_test (write-through, no TSRS_EMIT), requestfs_test (full filesystem returns emittedFilesContents, no disk write) |
+| 158 | `emitToString` | core | supported | program_test |
+| 159 | `getJavaScriptEmit` | core | supported | program_test |
+| 160 | `getDeclarationEmit` | core | supported | program_test |
+| 161 | `getAnyType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 162 | `getStringType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 163 | `getNumberType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 164 | `getBooleanType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 165 | `getVoidType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 166 | `getUndefinedType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 167 | `getNullType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 168 | `getNeverType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 169 | `getUnknownType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 170 | `getBigIntType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 171 | `getESSymbolType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 172 | `getNonPrimitiveType` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 173 | `getWellKnownSymbols` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 174 | `getWellKnownSignatures` | checker | partial | checker lane: real-snapshot unit tests + pinned-Go golden subset; dispatched through core Session; not byte-compared end-to-end |
+| 175 | `startCPUProfile` | core | not implemented |  |
+| 176 | `stopCPUProfile` | core | not implemented |  |
+| 177 | `saveHeapProfile` | core | not implemented |  |
 
 ## Request-filesystem regression fixtures
 

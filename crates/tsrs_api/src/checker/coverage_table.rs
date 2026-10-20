@@ -1,4 +1,4 @@
-// @generated from tsc/internal/api/proto.go through microsoft/TypeScript 688d86d7f6. One row per Method constant.
+// @generated from tsc/internal/api/proto.go through microsoft/TypeScript d2f9dd68cf. One row per Method constant.
 // Lane: Checker = owned by the checker lane; Ls = language-service backed (unassigned, needs core decision); Other = owned by another lane.
 use super::coverage_types::{Lane::*, Row, Status::*};
 
@@ -137,6 +137,10 @@ pub const PINNED_METHODS: &[Row] = &[
     Row { method: "getAliasedSymbol", lane: Checker, status: Tested },
     Row { method: "getImmediateAliasedSymbol", lane: Checker, status: Tested },
     Row { method: "getTargetSymbol", lane: Checker, status: Tested },
+    Row { method: "getMergedSymbol", lane: Checker, status: Tested },
+    Row { method: "getSymbolOfNode", lane: Checker, status: Tested },
+    Row { method: "getSymbolOfDeclarationForChecker", lane: Checker, status: Tested },
+    Row { method: "getParentOfSymbolForChecker", lane: Checker, status: Tested },
     Row { method: "getExportSymbolOfSymbolForChecker", lane: Checker, status: Tested },
     Row { method: "getFullyQualifiedName", lane: Checker, status: Tested },
     Row { method: "getExportsOfModule", lane: Checker, status: Tested },

@@ -1368,3 +1368,50 @@ remain disclosed above. Evidence is under
 `target/port-623/0028-0ad3777160/`, including upstream source-tree and
 binary identity, complete compiler pass-set and Fourslash outcome
 comparisons, LSP generator identity, build and lint logs.
+
+## 29. `d2f9dd68cfff` — checker-scoped merged symbol API methods
+
+Upstream `d2f9dd68cfff50ca3c2fdf3152f808fd9d4ca2d6` adds four
+checker requests: `getMergedSymbol`, `getSymbolOfNode`,
+`getSymbolOfDeclarationForChecker`, and `getParentOfSymbolForChecker`.
+The matching Rust checker exports and API handlers use the specified
+snapshot/project's persistent checker, resolve node or symbol handles
+through its registry, and return nullable symbols where the Go handlers
+do. The sync and async SDKs, generated protocol types, generator methods,
+and exact upstream tests advance with the source. A Rust real-program
+test covers merged namespaces, missing node symbols, merged parents and
+late-bound computed members. The existing file-owned `getSymbol(decl)`
+continues to return the raw binder symbol; its no-symbol behavior remains
+unchanged even though upstream removes redundant assertions for it.
+The API coverage matrix now has 177 methods (58 core, 119 checker). The
+ignored reference checkout advances to source 29; the published TypeScript
+pin and base SDK manifest remain unchanged until the full upgrade.
+
+All twelve complete checker and emit pass and nonpass sets match source
+28 exactly, without crashes or timeouts. Go-history checker passes 13,518
+diagnostic and 12,833 type/symbol baselines; canonical checker passes
+13,518 diagnostic and 12,832 type/symbol baselines. Emit passes 13,522
+diagnostic, 12,833 type/symbol, 13,448 JavaScript/declaration, 149
+JavaScript-map and 156 source-map baselines. Exact-source Fourslash
+passes 4,083 groups, skips 472 and fails none; all 4,615 named outcomes
+match source 28. Go API and checker package tests pass. Four new upstream
+sync/async client cases pass against both the source-29 Go server and tsrs;
+the generator parity case and full npm API suite pass (939/939). The full
+Rust workspace passes 1,108 tests with four existing ignored tests, and
+the regression projects pass. The dev CLI/testrunner and Fourslash server
+builds, WASM target check, warnings-denied Clippy, source lint and format
+check pass. All seven generators leave 1,172 tracked crate files
+byte-identical.
+
+The first workspace and Fourslash attempts could not bind local Unix
+sockets in the sandbox; complete reruns with socket access passed. An
+initial full npm run from the repository root reached 938/939, with its
+shutdown child unable to resolve the package from that working directory;
+the full run from `npm/tsrs` passed. No source-29 release performance
+measurement was collected under the user's nonblocking migration policy;
+these changes add API methods and checker exports without altering the
+compiler's existing call paths. The measured source-11 regressions remain
+disclosed above. Evidence is under `target/port-623/0029-d2f9dd68cf/`,
+including exact-source Go and npm runs, full compiler pass-set and
+Fourslash outcome comparisons, workspace, regression, WASM, lint and
+generator logs.

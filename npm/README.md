@@ -101,6 +101,8 @@ During the [#623 commit-by-commit migration](../notes/typescript-623-ports.md), 
 corresponding source commit; the published `Cargo.toml` pin and `UPSTREAM.json` manifest remain at the base until
 the full upgrade is complete. The in-progress source tree supports `import source` and `import.source()` as of
 source commit `2f9fd09a104e`.
+Source commit `d2f9dd68cfff` adds the project checker's merged-symbol and parent lookup methods to the sync and
+async SDKs, including generator forms. These changes are not in published packages until the source pin advances.
 The package exports `./schemas/tsconfig.schema.json` and `./schemas/jsconfig.schema.json`, copied from upstream.
 After bumping `[workspace.metadata.typescript]`, check out that commit as `ts-ref` and rerun it;
 `node npm/sdk/sync-upstream.mjs --check` fails if the copy drifted.

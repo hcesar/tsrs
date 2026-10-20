@@ -32,6 +32,7 @@ for supported features and known gaps.
 The seven watch-tuning flags removed by TypeScript 7 are rejected by tsrs as well.
 The in-progress [#623 source upgrade](https://github.com/oxc-project/tsrs/issues/623) supports source-phase
 `import source` and `import.source()` syntax; published packages stay on the earlier TypeScript pin until it completes.
+Its in-progress Node API also exposes the project checker's merged, declaration, node, and parent symbol lookups.
 
 <a href="https://github.com/oxc-project/tsrs/blob/main/bench/RESULTS.md">
   <picture>

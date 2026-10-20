@@ -1,8 +1,9 @@
 # Node API checker lane
 
-Port of the checker / symbol / type / signature request handlers of the pinned tsgo API
-(microsoft/TypeScript `b85298b6a81f772d080b0455de0ca9d744cd6fd6`, `tsc/internal/api/session.go` and
-`proto.go`). Wire shapes, id ownership and nullability follow the Go structs and handlers one to one;
+Port of the checker / symbol / type / signature request handlers of the tsgo API
+(microsoft/TypeScript pinned base `b85298b6a81f772d080b0455de0ca9d744cd6fd6`, ported through
+`d2f9dd68cfff50ca3c2fdf3152f808fd9d4ca2d6`, `tsc/internal/api/session.go` and `proto.go`). Wire shapes,
+id ownership and nullability follow the Go structs and handlers one to one;
 there is no separate "tsrs subset" API.
 
 ## Contract with the core session
@@ -54,18 +55,24 @@ if let Some(result) = checker::handle(session, method, &params) { /* map result 
 
 ## Coverage
 
-`coverage_table.rs` has one row per `Method` constant in ported `proto.go` (173 through source 16, same order as core's
-`methods.rs`). 115 are owned by this lane (the 111 checker/symbol/type/signature methods plus the four
+`coverage_table.rs` has one row per `Method` constant in ported `proto.go` (177 through source 29, same order as core's
+`methods.rs`). 119 are owned by this lane (the 115 checker/symbol/type/signature methods plus the four
 language-service backed ones: `getCompletionsAtPosition`, `getReferencedSymbolsForNode`,
 `getSignatureUsages`, `getImportAdderEdits`). `tests.rs` checks the table against core's inventory and
 `ts-ref/tsc/internal/api/proto.go` (when checked out) and that every `Implemented`/`Tested` row is
 dispatched.
 
-Status today: all 115 are `Tested` = dispatched and exercised by a real-program Rust test (real
+Status today: all 119 are `Tested` = dispatched and exercised by a real-program Rust test (real
 `tsrs_project` snapshot of a tsconfig project + the program's persistent API checker; fixtures cover
 generics, unions, aliases, overloads, `.d.ts` imports, labeled tuples, mapped / conditional /
 substitution / template-literal types, enums, JSDoc, unicode identifiers and UTF-16 positions after
 non-BMP text, plus stale / cross-project / released / malformed handle validation).
+
+Source 29 adds `getMergedSymbol`, `getSymbolOfNode`, `getSymbolOfDeclarationForChecker`, and
+`getParentOfSymbolForChecker`. They use the checker and handle registry for the specified snapshot/project;
+the node/declaration and parent methods may return `null`. A focused real-program Rust test covers merges,
+missing symbols, parent lookup, and late-bound symbols, and upstream sync/async API cases exercise the
+client path. These four methods are not in the pinned-base Go golden fixtures below.
 
 What `Tested` does **not** mean yet (open gaps, for the integration lead):
 

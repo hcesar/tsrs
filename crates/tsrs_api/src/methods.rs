@@ -1,5 +1,5 @@
 // Method inventory: every `Method` constant in microsoft/TypeScript
-// tsc/internal/api/proto.go through 688d86d7f647781565dc1f6438a4fb09b5179160 (173 entries, same order).
+// tsc/internal/api/proto.go through d2f9dd68cfff50ca3c2fdf3152f808fd9d4ca2d6 (177 entries, same order).
 // `status` is the honest implementation state in tsrs; it must only become `Supported` when a real
 // compiler-backed test exercises the method (docs/NODE_API.md keeps the matrix in sync).
 
@@ -25,7 +25,7 @@ pub struct MethodInfo {
     pub status: Status,
 }
 
-pub const METHODS: [MethodInfo; 173] = [
+pub const METHODS: [MethodInfo; 177] = [
     MethodInfo { name: "release", owner: Owner::Core, status: Status::Supported },
     MethodInfo { name: "releaseSourceFile", owner: Owner::Core, status: Status::Supported },
     MethodInfo { name: "retainSourceFile", owner: Owner::Core, status: Status::Partial },
@@ -272,6 +272,18 @@ pub const METHODS: [MethodInfo; 173] = [
         status: Status::Partial,
     },
     MethodInfo { name: "getTargetSymbol", owner: Owner::Checker, status: Status::Partial },
+    MethodInfo { name: "getMergedSymbol", owner: Owner::Checker, status: Status::Partial },
+    MethodInfo { name: "getSymbolOfNode", owner: Owner::Checker, status: Status::Partial },
+    MethodInfo {
+        name: "getSymbolOfDeclarationForChecker",
+        owner: Owner::Checker,
+        status: Status::Partial,
+    },
+    MethodInfo {
+        name: "getParentOfSymbolForChecker",
+        owner: Owner::Checker,
+        status: Status::Partial,
+    },
     MethodInfo {
         name: "getExportSymbolOfSymbolForChecker",
         owner: Owner::Checker,
@@ -472,6 +484,10 @@ pub const PARAMS_TYPES: &[(&str, Option<&str>)] = &[
     ("getAliasedSymbol", Some("CheckerSymbolParams")),
     ("getImmediateAliasedSymbol", Some("CheckerSymbolParams")),
     ("getTargetSymbol", Some("CheckerSymbolParams")),
+    ("getMergedSymbol", Some("CheckerSymbolParams")),
+    ("getSymbolOfNode", Some("CheckerNodeParams")),
+    ("getSymbolOfDeclarationForChecker", Some("CheckerNodeParams")),
+    ("getParentOfSymbolForChecker", Some("CheckerSymbolParams")),
     ("getExportSymbolOfSymbolForChecker", Some("CheckerSymbolParams")),
     ("getFullyQualifiedName", Some("CheckerSymbolParams")),
     ("getExportsOfModule", Some("CheckerSymbolParams")),

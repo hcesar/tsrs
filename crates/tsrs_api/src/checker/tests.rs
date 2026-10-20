@@ -361,7 +361,7 @@ const MAIN_FILE: &str = "/p/main.ts";
 
 #[test]
 fn coverage_inventory_matches_pinned_proto_and_dispatch() {
-    assert_eq!(PINNED_METHODS.len(), 173);
+    assert_eq!(PINNED_METHODS.len(), 177);
     let mut seen = rustc_hash::FxHashSet::default();
     for row in PINNED_METHODS {
         assert!(seen.insert(row.method), "duplicate {}", row.method);
@@ -892,6 +892,102 @@ fn unowned_methods_fall_through() {
     for method in ["getSourceFile", "createSnapshot", "emit", "printNode"] {
         assert!(handle(&h, method, &params).is_none(), "{method}");
     }
+}
+
+#[test]
+fn merged_symbol_checker_methods() {
+    let h = TestHost::new(&[
+        ("/p/tsconfig.json", r#"{"files":["/p/a.ts","/p/b.ts"]}"#),
+        ("/p/a.ts", "namespace Merged { export const a = 1; }"),
+        ("/p/b.ts", "namespace Merged { export const b = 1; }"),
+    ]);
+    let a = h.program().get_source_file("/p/a.ts").unwrap().statements().nodes()[0];
+    let b = h.program().get_source_file("/p/b.ts").unwrap().statements().nodes()[0];
+    let raw_a = super::setup::file_symbol_response(&h, a.symbol().unwrap()).unwrap();
+    let raw_b = super::setup::file_symbol_response(&h, b.symbol().unwrap()).unwrap();
+    assert_ne!(field(&raw_a, "reference"), field(&raw_b, "reference"));
+
+    let node_a = h.node_handle(a).unwrap();
+    let node_b = h.node_handle(b).unwrap();
+    let merged =
+        h.ok("getSymbolOfDeclarationForChecker", &h.sp(&format!(r#""location":"{node_a}""#)));
+    for (method, params) in [
+        ("getSymbolOfDeclarationForChecker", h.sp(&format!(r#""location":"{node_b}""#))),
+        ("getSymbolOfNode", h.sp(&format!(r#""location":"{node_a}""#))),
+        ("getMergedSymbol", h.sp(&format!(r#""symbol":{}"#, TestHost::symbol_ref(&raw_a)))),
+        ("getMergedSymbol", h.sp(&format!(r#""symbol":{}"#, TestHost::symbol_ref(&raw_b)))),
+        ("getMergedSymbol", h.sp(&format!(r#""symbol":{}"#, TestHost::symbol_ref(&merged)))),
+    ] {
+        assert_eq!(
+            field(&h.ok(method, &params), "reference"),
+            field(&merged, "reference"),
+            "{method}"
+        );
+    }
+    let name = h.node_handle(a.as_module_declaration().name()).unwrap();
+    let file = h.node_handle(h.program().get_source_file("/p/a.ts").unwrap().as_node()).unwrap();
+    for location in [name, file] {
+        assert_eq!(
+            h.ok("getSymbolOfNode", &h.sp(&format!(r#""location":"{location}""#))),
+            Value::Null
+        );
+    }
+    assert_eq!(
+        h.ok(
+            "getParentOfSymbolForChecker",
+            &h.sp(&format!(r#""symbol":{}"#, TestHost::symbol_ref(&merged)))
+        ),
+        Value::Null
+    );
+    let member = a.symbol().unwrap().exports().unwrap().lookup("a").unwrap();
+    let member = super::setup::file_symbol_response(&h, member).unwrap();
+    let parent = h.ok(
+        "getParentOfSymbolForChecker",
+        &h.sp(&format!(r#""symbol":{}"#, TestHost::symbol_ref(&member))),
+    );
+    assert_eq!(field(&parent, "reference"), field(&merged, "reference"));
+}
+
+#[test]
+fn late_bound_symbol_checker_methods() {
+    let h = TestHost::new(&[
+        ("/p/tsconfig.json", r#"{"files":["/p/computed.ts"]}"#),
+        (
+            "/p/computed.ts",
+            "declare const key: unique symbol;\nclass Container { [key] = 1; ordinary = 2; }",
+        ),
+    ]);
+    let file = h.program().get_source_file("/p/computed.ts").unwrap();
+    let class = file.statements().nodes()[1];
+    let members = class.as_class_declaration().members().nodes();
+    let computed = members[0];
+    let ordinary = members[1];
+    let raw = super::setup::file_symbol_response(&h, computed.symbol().unwrap()).unwrap();
+    let late = h.ok(
+        "getSymbolOfDeclarationForChecker",
+        &h.sp(&format!(r#""location":"{}""#, h.node_handle(computed).unwrap())),
+    );
+    assert_ne!(field(&raw, "reference"), field(&late, "reference"));
+    let through_node = h.ok(
+        "getSymbolOfNode",
+        &h.sp(&format!(r#""location":"{}""#, h.node_handle(computed).unwrap())),
+    );
+    assert_eq!(field(&through_node, "reference"), field(&late, "reference"));
+    let container = h.ok(
+        "getSymbolOfDeclarationForChecker",
+        &h.sp(&format!(r#""location":"{}""#, h.node_handle(class).unwrap())),
+    );
+    let parent = h.ok(
+        "getParentOfSymbolForChecker",
+        &h.sp(&format!(r#""symbol":{}"#, TestHost::symbol_ref(&late))),
+    );
+    assert_eq!(field(&parent, "reference"), field(&container, "reference"));
+    let ordinary_checker = h.ok(
+        "getSymbolOfDeclarationForChecker",
+        &h.sp(&format!(r#""location":"{}""#, h.node_handle(ordinary).unwrap())),
+    );
+    let ordinary_raw = super::setup::file_symbol_response(&h, ordinary.symbol().unwrap()).unwrap();
+    assert_eq!(field(&ordinary_checker, "reference"), field(&ordinary_raw, "reference"));
 }
 
 impl TestHost {
