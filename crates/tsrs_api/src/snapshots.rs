@@ -10,6 +10,8 @@ use tsrs_core::P;
 use tsrs_core::collections::{OrderedMap, Set};
 use tsrs_core::json::Value;
 use tsrs_core::tspath::Path;
+use tsrs_ls::autoimport::ProjectID as AutoImportProjectID;
+use tsrs_ls::lsutil;
 use tsrs_project::dirty::Shared;
 use tsrs_project::{
     APICreateProgramRequest, APIReconfigureProgramRequest, APISnapshotRequest, FileChangeSummary,
@@ -501,6 +503,51 @@ impl Session {
         Ok(())
     }
 
+    /// Go `validatePreparedAutoImports`: a prepared snapshot is returned only if its
+    /// registry can serve auto-imports for the requested file and default project.
+    fn validate_prepared_auto_imports(
+        &self,
+        snapshot: &Snapshot,
+        file: Option<&DocumentIdentifier>,
+    ) -> ApiResult<()> {
+        let Some(file) = file else { return Ok(()) };
+        let uri = file.to_uri(self.current_directory());
+        let prepared = snapshot.get_default_project(&uri).is_some_and(|project| {
+            snapshot.auto_import_registry().is_some_and(|registry| {
+                registry.is_prepared_for_importing_file(
+                    &uri.file_name(),
+                    &AutoImportProjectID(project.id().0),
+                    snapshot.user_preferences(),
+                )
+            })
+        });
+        if prepared {
+            Ok(())
+        } else {
+            Err(ApiError::client(format!("could not prepare auto-imports for {file}")))
+        }
+    }
+
+    /// Go's two snapshot handlers copy the extra fields after `toAPISnapshotRequest`.
+    fn snapshot_preferences_and_auto_imports(
+        &self,
+        p: Params,
+        req: &mut APISnapshotRequest,
+    ) -> ApiResult<Option<DocumentIdentifier>> {
+        if let Value::Object(config) = p.get("userPreferences") {
+            req.user_preferences = Some(lsutil::parse_api_user_preferences(config));
+        }
+        let file = if p.has("prepareAutoImports") {
+            Some(p.document("prepareAutoImports")?)
+        } else {
+            None
+        };
+        if let Some(file) = &file {
+            req.prepare_auto_imports = file.to_uri(self.current_directory());
+        }
+        Ok(file)
+    }
+
     /// Go `requestfilesystem.NewForUpdate` for the request's optional `fileSystem`.
     fn request_file_system(
         &self,
@@ -529,6 +576,7 @@ impl Session {
             p.object()?;
         }
         let (mut req, echo) = self.to_api_snapshot_request(p)?;
+        let prepare_auto_imports = self.snapshot_preferences_and_auto_imports(p, &mut req)?;
         let open_state = self.reconcile_snapshot_opens(&mut req, &OpenState::default());
         let mut file_changes = self.to_file_change_summary(p.get("fileNotifications"))?;
         let snapshot_fs =
@@ -560,6 +608,12 @@ impl Session {
                 )));
             }
         };
+        if let Err(e) =
+            self.validate_prepared_auto_imports(&snapshot, prepare_auto_imports.as_ref())
+        {
+            snapshot.deref();
+            return Err(e);
+        }
         if let Err(e) = Self::module_resolution_error(&snapshot) {
             snapshot.deref();
             return Err(e);
@@ -585,6 +639,7 @@ impl Session {
             changes.object()?;
         }
         let (mut req, echo) = self.to_api_snapshot_request(changes)?;
+        let prepare_auto_imports = self.snapshot_preferences_and_auto_imports(changes, &mut req)?;
         let open_state = self.reconcile_snapshot_opens(&mut req, &base.open_state);
         let mut file_changes = self.to_file_change_summary(changes.get("fileNotifications"))?;
         let new_fs =
@@ -615,6 +670,12 @@ impl Session {
                 )));
             }
         };
+        if let Err(e) =
+            self.validate_prepared_auto_imports(&snapshot, prepare_auto_imports.as_ref())
+        {
+            snapshot.deref();
+            return Err(e);
+        }
         if let Err(e) = Self::module_resolution_error(&snapshot) {
             snapshot.deref();
             return Err(e);

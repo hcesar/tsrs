@@ -253,6 +253,326 @@ pub(super) fn session_with(extra: &[(&str, &str)], configs: &[&str]) -> S {
     s
 }
 
+fn number_value(value: &Value) -> f64 {
+    match value {
+        Value::Number(number) => *number,
+        other => panic!("expected number, got {other:?}"),
+    }
+}
+
+fn array_value(value: &Value) -> &[Value] {
+    match value {
+        Value::Array(items) => items,
+        other => panic!("expected array, got {other:?}"),
+    }
+}
+
+#[test]
+fn completion_symbols_require_preparation_in_the_same_snapshot() {
+    let files = [
+        ("/p/tsconfig.json", r#"{"compilerOptions":{"module":"esnext","target":"esnext"}}"#),
+        ("/p/src/main.ts", "someV"),
+        ("/p/src/export.ts", "export const someValue = 1;"),
+    ];
+    let fs: Arc<dyn FS> = Arc::new(bundled::wrap_fs(vfstest::from_map(
+        files.into_iter().map(|(name, text)| (name.to_string(), text.to_string())),
+        true,
+    )));
+    let session =
+        Session::new(SessionOptions::new("/".to_string(), bundled::lib_path(), fs, false));
+    let mut s = S { session, snapshot: 0.0, project: String::new(), lines: Vec::new() };
+    let unprepared = s
+        .call(
+            "createSnapshot",
+            &obj(&[
+                ("openProjects", Value::Array(vec![Value::String("/p/tsconfig.json".into())])),
+                (
+                    "userPreferences",
+                    obj(&[("includeCompletionsForModuleExports", Value::Bool(true))]),
+                ),
+            ]),
+        )
+        .unwrap();
+    s.snapshot = number_value(&get(&unprepared, "snapshot"));
+    let project = s
+        .call(
+            "getDefaultProjectForFile",
+            &obj(&[("snapshot", n(s.snapshot)), ("file", Value::String("/p/src/main.ts".into()))]),
+        )
+        .unwrap();
+    s.project = match get(&project, "id") {
+        Value::String(id) => id,
+        other => panic!("missing project ID: {other:?}"),
+    };
+    let completion_params = |snapshot: f64, project: &str, include_symbol: bool| {
+        obj(&[
+            ("snapshot", n(snapshot)),
+            ("project", Value::String(project.into())),
+            ("file", Value::String("/p/src/main.ts".into())),
+            ("position", n(5.0)),
+            ("includeSymbol", Value::Bool(include_symbol)),
+        ])
+    };
+    let err = s
+        .call("getCompletionsAtPosition", &completion_params(s.snapshot, &s.project, true))
+        .unwrap_err();
+    assert!(err.contains("snapshot is not prepared for auto-imports"), "{err}");
+    let retried = s
+        .call("getCompletionsAtPosition", &completion_params(s.snapshot, &s.project, false))
+        .unwrap();
+    assert!(
+        array_value(&get(&retried, "entries"))
+            .iter()
+            .any(|entry| get(entry, "name") == Value::String("someValue".into()))
+    );
+
+    let prepared = s
+        .call(
+            "updateSnapshot",
+            &obj(&[
+                ("snapshot", n(s.snapshot)),
+                ("changes", obj(&[("prepareAutoImports", Value::String("/p/src/main.ts".into()))])),
+            ]),
+        )
+        .unwrap();
+    let prepared_id = number_value(&get(&prepared, "snapshot"));
+    let completions = s
+        .call("getCompletionsAtPosition", &completion_params(prepared_id, &s.project, true))
+        .unwrap();
+    assert!(
+        array_value(&get(&completions, "entries"))
+            .iter()
+            .any(|entry| get(entry, "name") == Value::String("someValue".into()))
+    );
+}
+
+#[test]
+fn snapshot_preferences_control_auto_import_completions() {
+    let files = [
+        ("/p/tsconfig.json", r#"{"compilerOptions":{"module":"esnext","target":"esnext"}}"#),
+        ("/p/src/main.ts", "someV"),
+        ("/p/src/export.ts", "export const someValue = 1;"),
+    ];
+    let fs: Arc<dyn FS> = Arc::new(bundled::wrap_fs(vfstest::from_map(
+        files.into_iter().map(|(name, text)| (name.to_string(), text.to_string())),
+        true,
+    )));
+    let session =
+        Session::new(SessionOptions::new("/".to_string(), bundled::lib_path(), fs, false));
+    let s = S { session, snapshot: 0.0, project: String::new(), lines: Vec::new() };
+    let disabled = s
+        .call(
+            "createSnapshot",
+            &obj(&[
+                ("openProjects", Value::Array(vec![Value::String("/p/tsconfig.json".into())])),
+                (
+                    "userPreferences",
+                    obj(&[("includeCompletionsForModuleExports", Value::Bool(false))]),
+                ),
+            ]),
+        )
+        .unwrap();
+    let disabled_id = number_value(&get(&disabled, "snapshot"));
+    let project = s
+        .call(
+            "getDefaultProjectForFile",
+            &obj(&[("snapshot", n(disabled_id)), ("file", Value::String("/p/src/main.ts".into()))]),
+        )
+        .unwrap();
+    let project_id = match get(&project, "id") {
+        Value::String(id) => id,
+        other => panic!("missing project ID: {other:?}"),
+    };
+    let completions = |snapshot| {
+        s.call(
+            "getCompletionsAtPosition",
+            &obj(&[
+                ("snapshot", n(snapshot)),
+                ("project", Value::String(project_id.clone())),
+                ("file", Value::String("/p/src/main.ts".into())),
+                ("position", n(5.0)),
+                ("includeSymbol", Value::Bool(true)),
+            ]),
+        )
+        .unwrap()
+    };
+    let disabled_completions = completions(disabled_id);
+    assert!(
+        !array_value(&get(&disabled_completions, "entries"))
+            .iter()
+            .any(|entry| get(entry, "name") == Value::String("someValue".into()))
+    );
+
+    let enabled = s
+        .call(
+            "updateSnapshot",
+            &obj(&[
+                ("snapshot", n(disabled_id)),
+                (
+                    "changes",
+                    obj(&[
+                        (
+                            "userPreferences",
+                            obj(&[("includeCompletionsForModuleExports", Value::Bool(true))]),
+                        ),
+                        ("prepareAutoImports", Value::String("/p/src/main.ts".into())),
+                    ]),
+                ),
+            ]),
+        )
+        .unwrap();
+    let enabled_completions = completions(number_value(&get(&enabled, "snapshot")));
+    assert!(
+        array_value(&get(&enabled_completions, "entries"))
+            .iter()
+            .any(|entry| get(entry, "name") == Value::String("someValue".into()))
+    );
+}
+
+#[test]
+fn fresh_snapshots_prepare_dependency_imports_while_creating_programs() {
+    for update in [false, true] {
+        let files = [
+            ("/home/projects/MixedCase/tsconfig.json", "{}"),
+            ("/home/projects/MixedCase/index.ts", "packageV"),
+            ("/home/projects/MixedCase/package.json", r#"{"dependencies":{"my-pkg":"1.0.0"}}"#),
+            (
+                "/home/projects/MixedCase/node_modules/my-pkg/package.json",
+                r#"{"name":"my-pkg","version":"1.0.0","types":"index.d.ts"}"#,
+            ),
+            (
+                "/home/projects/MixedCase/node_modules/my-pkg/index.d.ts",
+                "export declare const packageValue: number;",
+            ),
+            ("/home/projects/synthetic.ts", "export const x = 1;"),
+        ];
+        let fs: Arc<dyn FS> = Arc::new(bundled::wrap_fs(vfstest::from_map(
+            files.into_iter().map(|(name, text)| (name.to_string(), text.to_string())),
+            true,
+        )));
+        let session =
+            Session::new(SessionOptions::new("/".to_string(), bundled::lib_path(), fs, false));
+        let s = S { session, snapshot: 0.0, project: String::new(), lines: Vec::new() };
+        let changes = obj(&[
+            (
+                "openProjects",
+                Value::Array(vec![Value::String("/home/projects/MixedCase/tsconfig.json".into())]),
+            ),
+            ("prepareAutoImports", Value::String("/home/projects/MixedCase/index.ts".into())),
+            (
+                "createPrograms",
+                Value::Array(vec![obj(&[
+                    (
+                        "rootFiles",
+                        Value::Array(vec![Value::String("/home/projects/synthetic.ts".into())]),
+                    ),
+                    ("compilerOptions", obj(&[("noLib", Value::Bool(true))])),
+                ])]),
+            ),
+        ]);
+        let response = if update {
+            let base = s.call("createSnapshot", &obj(&[])).unwrap();
+            s.call(
+                "updateSnapshot",
+                &obj(&[("snapshot", get(&base, "snapshot")), ("changes", changes)]),
+            )
+            .unwrap()
+        } else {
+            s.call("createSnapshot", &changes).unwrap()
+        };
+        assert_eq!(array_value(&get(&get(&response, "operation"), "createdPrograms")).len(), 1);
+        let snapshot_id = get(&response, "snapshot");
+        let project = s
+            .call(
+                "getDefaultProjectForFile",
+                &obj(&[
+                    ("snapshot", snapshot_id.clone()),
+                    ("file", Value::String("/home/projects/MixedCase/index.ts".into())),
+                ]),
+            )
+            .unwrap();
+        let completions = s
+            .call(
+                "getCompletionsAtPosition",
+                &obj(&[
+                    ("snapshot", snapshot_id),
+                    ("project", get(&project, "id")),
+                    ("file", Value::String("/home/projects/MixedCase/index.ts".into())),
+                    ("position", n(8.0)),
+                    ("includeSymbol", Value::Bool(true)),
+                ]),
+            )
+            .unwrap();
+        assert!(
+            array_value(&get(&completions, "entries"))
+                .iter()
+                .any(|entry| get(entry, "name") == Value::String("packageValue".into())),
+            "update={update}: {completions:?}"
+        );
+    }
+}
+
+#[test]
+fn fresh_unprepared_snapshot_retries_dependency_imports_without_symbols() {
+    let files = [
+        ("/home/projects/MixedCase/tsconfig.json", "{}"),
+        ("/home/projects/MixedCase/index.ts", "packageV"),
+        ("/home/projects/MixedCase/package.json", r#"{"dependencies":{"my-pkg":"1.0.0"}}"#),
+        (
+            "/home/projects/MixedCase/node_modules/my-pkg/package.json",
+            r#"{"name":"my-pkg","version":"1.0.0","types":"index.d.ts"}"#,
+        ),
+        (
+            "/home/projects/MixedCase/node_modules/my-pkg/index.d.ts",
+            "export declare const packageValue: number;",
+        ),
+    ];
+    let fs: Arc<dyn FS> = Arc::new(bundled::wrap_fs(vfstest::from_map(
+        files.into_iter().map(|(name, text)| (name.to_string(), text.to_string())),
+        true,
+    )));
+    let session =
+        Session::new(SessionOptions::new("/".to_string(), bundled::lib_path(), fs, false));
+    let s = S { session, snapshot: 0.0, project: String::new(), lines: Vec::new() };
+    let created = s
+        .call(
+            "createSnapshot",
+            &obj(&[(
+                "openProjects",
+                Value::Array(vec![Value::String("/home/projects/MixedCase/tsconfig.json".into())]),
+            )]),
+        )
+        .unwrap();
+    let snapshot = get(&created, "snapshot");
+    let project = s
+        .call(
+            "getDefaultProjectForFile",
+            &obj(&[
+                ("snapshot", snapshot.clone()),
+                ("file", Value::String("/home/projects/MixedCase/index.ts".into())),
+            ]),
+        )
+        .unwrap();
+    let completions = s
+        .call(
+            "getCompletionsAtPosition",
+            &obj(&[
+                ("snapshot", snapshot),
+                ("project", get(&project, "id")),
+                ("file", Value::String("/home/projects/MixedCase/index.ts".into())),
+                ("position", n(8.0)),
+                ("includeSymbol", Value::Bool(false)),
+            ]),
+        )
+        .unwrap();
+    assert!(
+        array_value(&get(&completions, "entries"))
+            .iter()
+            .any(|entry| get(entry, "name") == Value::String("packageValue".into())),
+        "{completions:?}"
+    );
+}
+
 /// Same request sequence as `TestTsrsCheckerShapes` in `testdata/go_probe/zz_tsrs_probe_test.go`.
 fn shapes() -> Vec<(String, Value)> {
     let mut s = session();

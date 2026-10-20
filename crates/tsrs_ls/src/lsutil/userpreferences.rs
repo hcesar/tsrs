@@ -189,7 +189,8 @@ pub struct UserPreferences {
 }
 
 // userpreferences.go:47 (the struct tags of UserPreferences and the structs it embeds, flattened in declaration order)
-// Go reads the tags by reflection; each entry carries the tag strings verbatim plus accessors for the field.
+// Source12's Go parser is generated from the preference schema. This Rust table retains the same raw/config
+// field names and accessors; decoding it matches the generated parser without Go's code generator.
 pub(crate) struct FieldTag {
     pub(crate) name: &'static str,
     pub(crate) raw: &'static str,
@@ -199,8 +200,7 @@ pub(crate) struct FieldTag {
     pub(crate) get_mut: for<'a> fn(&'a mut UserPreferences) -> FieldMut<'a>,
 }
 
-// The Go field types that the reflection code distinguishes (by reflect.Type for the typeParsers/typeSerializers
-// entries, by reflect.Kind otherwise).
+// Field types determine the parsers and serializers for each preference.
 #[derive(Clone, Copy)]
 pub(crate) enum FieldRef<'a> {
     Tristate(&'a Tristate),
@@ -669,7 +669,12 @@ pub(crate) static USER_PREFERENCES_FIELD_TAGS: &[FieldTag] = &[
         "excludeLibrarySymbolsInNavTo",
         "workspaceSymbols.excludeLibrarySymbols"
     ),
-    field_tag!(WorkspaceSymbolsScope, workspace_symbols_scope, "", "workspaceSymbols.scope"),
+    field_tag!(
+        WorkspaceSymbolsScope,
+        workspace_symbols_scope,
+        "workspaceSymbolsScope",
+        "workspaceSymbols.scope"
+    ),
     field_tag!(Tristate, enable_formatting, "formatEnabled", "format.enabled", "format.enable"),
     field_tag!(
         Tristate,
@@ -687,7 +692,7 @@ pub(crate) static USER_PREFERENCES_FIELD_TAGS: &[FieldTag] = &[
         "reportStyleChecksAsWarnings",
         "reportStyleChecksAsWarnings"
     ),
-    field_tag!(String, locale, "", "locale"),
+    field_tag!(String, locale, "locale", "locale"),
     field_tag!(
         Tristate,
         disable_automatic_type_acquisition,
@@ -763,7 +768,7 @@ impl QuotePreference {
 }
 
 // userpreferences.go:232
-// Go `type WorkspaceSymbolsScope string` with no parser: any configured string is stored as is.
+// Go `type WorkspaceSymbolsScope string`; source12's generated parser accepts the two protocol values.
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Default)]
 pub struct WorkspaceSymbolsScope(pub Cow<'static, str>);
 
@@ -897,7 +902,7 @@ pub(crate) fn parse_include_inlay_parameter_name_hints(
     val: &Value,
 ) -> IncludeInlayParameterNameHints {
     if let Value::String(s) = val {
-        match s.as_str() {
+        match s.to_lowercase().as_str() {
             "all" => return IncludeInlayParameterNameHints::All,
             "literals" => return IncludeInlayParameterNameHints::Literals,
             _ => {}
@@ -930,7 +935,7 @@ pub(crate) fn parse_organize_imports_collation(val: &Value) -> OrganizeImportsCo
 
 pub(crate) fn parse_organize_imports_case_first(val: &Value) -> OrganizeImportsCaseFirst {
     if let Value::String(s) = val {
-        match s.as_str() {
+        match s.to_lowercase().as_str() {
             "lower" => return OrganizeImportsCaseFirst::Lower,
             "upper" => return OrganizeImportsCaseFirst::Upper,
             _ => {}
@@ -941,7 +946,7 @@ pub(crate) fn parse_organize_imports_case_first(val: &Value) -> OrganizeImportsC
 
 pub(crate) fn parse_organize_imports_type_order(val: &Value) -> OrganizeImportsTypeOrder {
     if let Value::String(s) = val {
-        match s.as_str() {
+        match s.to_lowercase().as_str() {
             "last" => return OrganizeImportsTypeOrder::Last,
             "inline" => return OrganizeImportsTypeOrder::Inline,
             "first" => return OrganizeImportsTypeOrder::First,
@@ -977,6 +982,17 @@ pub(crate) fn parse_import_module_specifier_ending_preference(
         }
     }
     ImportModuleSpecifierEndingPreference::Auto
+}
+
+pub(crate) fn parse_workspace_symbols_scope(val: &Value) -> WorkspaceSymbolsScope {
+    if let Value::String(s) = val {
+        match s.to_lowercase().as_str() {
+            "allopenprojects" => return WorkspaceSymbolsScope::AllOpenProjects,
+            "currentproject" => return WorkspaceSymbolsScope::CurrentProject,
+            _ => {}
+        }
+    }
+    WorkspaceSymbolsScope::default()
 }
 
 // userpreferences.go:426
@@ -1369,9 +1385,7 @@ pub(crate) fn set_field_from_value(field: FieldMut<'_>, val: &Value) {
             }
         }
         FieldMut::WorkspaceSymbolsScope(f) => {
-            if let Value::String(s) = val {
-                *f = WorkspaceSymbolsScope(Cow::Owned(s.clone()));
-            }
+            *f = parse_workspace_symbols_scope(val);
         }
         FieldMut::Slice(f) => {
             if let Value::Array(arr) = val {
@@ -1561,6 +1575,12 @@ pub fn parse_user_preferences(items: &OrderedMap<String, Value>) -> UserPreferen
             prefs
         });
     prefs
+}
+
+/// Decode the API's `userPreferences` object, starting from Go's default preferences.
+/// Unlike LSP configuration, the API value is itself a flat/raw preference object.
+pub fn parse_api_user_preferences(config: &OrderedMap<String, Value>) -> UserPreferences {
+    new_default_user_preferences().with_config(config)
 }
 
 #[cfg(test)]

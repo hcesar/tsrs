@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use tsrs_core::Tristate;
 use tsrs_core::collections::OrderedMap;
 use tsrs_core::json::{self, Value};
@@ -31,6 +29,66 @@ fn s(v: &str) -> Value {
     Value::String(v.to_string())
 }
 
+// Go source12 userpreferences_test.go:13. The API decoder uses the same raw/config
+// parser as LSP settings, starting from `NewDefaultUserPreferences`.
+#[test]
+fn source12_user_preferences_parsing_edge_cases() {
+    let mut base = new_default_user_preferences();
+    base.quote_preference = QuotePreference::Double;
+    base.maximum_hover_length = 17;
+    base.organize_imports_ignore_case = Tristate::True;
+
+    let nulls = config(
+        r#"{"quotePreference":null,"maximumHoverLength":null,"includeCompletionsForModuleExports":null}"#,
+    );
+    assert_eq!(base.clone().with_config(&nulls), base);
+
+    let invalid_boolean = config(r#"{"includeCompletionsForModuleExports":"invalid"}"#);
+    let mut expected = base.clone();
+    expected.include_completions_for_module_exports = Tristate::Unknown;
+    assert_eq!(base.clone().with_config(&invalid_boolean), expected);
+
+    let enums = config(
+        r#"{"quotePreference":"SINGLE","jsxAttributeCompletionStyle":"BRACES","organizeImportsCaseFirst":"LOWER","includeInlayParameterNameHints":"ALL","organizeImportsTypeOrder":"FIRST","workspaceSymbolsScope":"CURRENTPROJECT"}"#,
+    );
+    let mut expected = base.clone();
+    expected.quote_preference = QuotePreference::Single;
+    expected.jsx_attribute_completion_style = JsxAttributeCompletionStyle::Braces;
+    expected.organize_imports_case_first = OrganizeImportsCaseFirst::Lower;
+    expected.inlay_hints.include_inlay_parameter_name_hints = IncludeInlayParameterNameHints::All;
+    expected.organize_imports_type_order = OrganizeImportsTypeOrder::First;
+    expected.workspace_symbols_scope = WorkspaceSymbolsScope::CurrentProject;
+    assert_eq!(base.clone().with_config(&enums), expected);
+
+    let primary_null = config(r#"{"suggest":{"jsdoc":{"enabled":null},"completeJSDocs":false}}"#);
+    assert_eq!(base.clone().with_config(&primary_null), base);
+
+    let case_sensitivity_null =
+        config(r#"{"preferences":{"organizeImports":{"caseSensitivity":null}}}"#);
+    let mut expected = base.clone();
+    expected.organize_imports_ignore_case = Tristate::Unknown;
+    assert_eq!(base.clone().with_config(&case_sensitivity_null), expected);
+
+    let numeric_and_array = config(
+        r#"{"maximumHoverLength":9.8,"indentStyle":1.7,"autoImportFileExcludePatterns":["first",false,3,"second"]}"#,
+    );
+    let mut expected = base.clone();
+    expected.maximum_hover_length = 9;
+    expected.format_code_settings.editor_settings.indent_style = IndentStyle::Block;
+    expected.auto_import_file_exclude_patterns = Some(vec!["first".into(), "second".into()]);
+    assert_eq!(base.clone().with_config(&numeric_and_array), expected);
+
+    let empty_array = config(r#"{"autoImportFileExcludePatterns":[]}"#);
+    let mut expected = base.clone();
+    expected.auto_import_file_exclude_patterns = Some(Vec::new());
+    assert_eq!(base.clone().with_config(&empty_array), expected);
+
+    let invalid_specifier = config(r#"{"importModuleSpecifierPreference":true}"#);
+    let mut expected = base.clone();
+    expected.import_module_specifier_preference = ImportModuleSpecifierPreference::Shortest;
+    assert_eq!(base.with_config(&invalid_specifier), expected);
+}
+
 // userpreferences_test.go:13 (reflection over the struct fields -> the field table)
 fn fill_non_zero_value(field: FieldMut<'_>) {
     match field {
@@ -54,7 +112,7 @@ fn fill_non_zero_value(field: FieldMut<'_>) {
         FieldMut::ImportModuleSpecifierEndingPreference(f) => {
             *f = ImportModuleSpecifierEndingPreference::Js;
         }
-        FieldMut::WorkspaceSymbolsScope(f) => *f = WorkspaceSymbolsScope(Cow::Borrowed("test")),
+        FieldMut::WorkspaceSymbolsScope(f) => *f = WorkspaceSymbolsScope::CurrentProject,
         FieldMut::String(f) => *f = "test".to_string(),
         FieldMut::Slice(f) => *f = Some(vec!["test".to_string()]),
     }

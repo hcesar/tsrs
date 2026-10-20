@@ -706,3 +706,48 @@ instructions retired increase **0.182604%** in the initial ten pairs and **0.178
 confirmation (19/20 paired increases; `diagnosis/c20-formal-t3/run/results.json`). The full fourteen-cell
 performance cohort was not an entry-11 acceptance requirement after the user's policy change. These measured
 regressions are retained in the record; they do not change the correctness verdict or hold the corresponding port.
+
+## 12. `43521c80ec5e` — completion symbols remain in their snapshot
+
+Upstream `43521c80ec5ebe4bc2948f1df3747773e48d8312` adds `userPreferences` and `prepareAutoImports` to
+`createSnapshot` and `updateSnapshot`. The Rust API now passes both into the same clone, verifies the requested
+file's default project and prepared auto-import registry before registering the result, and dereferences an
+invalid clone. The requested filename is also passed to the registry's ancestor-directory walk, so a fresh
+snapshot can index dependencies below a mixed-case project directory even when the file is not open. Completion
+uses the active source filename. If auto-imports are needed, `includeSymbol: true` now returns the upstream
+client error for an unprepared snapshot; without symbols, the existing transient-clone retry still works.
+This prevents returning symbol handles owned by another snapshot. Focused Rust tests cover those paths,
+per-snapshot preferences, creation/update with synthetic programs and a dependency auto-import, and an
+unprepared dependency auto-import retry without symbols.
+
+The public sync/async/protocol types export the new preference interfaces and snapshot fields. The new
+`userPreferences.generated.ts` is byte-identical to upstream (SHA-256
+`07d16cbb3a300152a1533628529baa0df9861815f8d0b82943acfde087fd4e3c`). Rust's existing tag-table
+decoder now accepts all 83 raw names in source 12's generated Go decoder and matches its tested enum/default
+edge cases. The Go schema/generator and reflection-to-generated parser refactor are implementation tooling,
+not an additional runtime component to port; tsrs retains its equivalent Rust table and the exact generated
+public TypeScript artifact. Go Fourslash fixture changes only rename preference fields to the generated shape;
+the full exact-source Fourslash gate covers their behavior. LSP-derived API snapshots remain outside tsrs's
+standalone Node API scope, as documented in `docs/LSP.md`. Upstream Go linter scoping and preference-generator
+task registration do not apply to Cargo/pnpm builds; their generated public artifact is carried above.
+
+The full dev compiler suite preserves all twelve complete source-11 passing sets and all known nonpassing
+artifacts byte-for-byte, excluding timing summaries: Go-history checker 13,463 diagnostics and 12,784
+types/symbols; canonical checker 13,463 and 12,783; emit 13,467 diagnostics, 12,784 types/symbols, 13,397
+JavaScript/declaration outputs, 149 JS maps and 156 source maps. There are no new failures, crashes or timeouts.
+The exact-source Go API, project, auto-import registry and preference tests pass. Workspace tests pass 1,072
+with four existing ignored;
+the public sync/async API suites pass 691 tests, including the new snapshot tests; all 37 regressions pass.
+The full source-12 Go Fourslash gate passes 4,074 groups with 472 skipped, zero failed, and an identical
+4,602-event outcome set to source 11. Native and WASM checks, warnings-denied Clippy, source lint, formatting,
+and generated-code verification pass; regenerating leaves every tracked crate file byte-identical to its
+pre-generation snapshot. The initial sandboxed workspace run failed only because a local Unix socket could not
+be created; the complete rerun with socket access passed. An initial Clippy run found an assigning-clones lint
+in the new snapshot preference copy; `clone_from` fixed it before the passing run.
+
+No source-12 release performance measurements were collected. Under the user's nonblocking regression policy,
+the source-11 measured regressions above remain disclosed, and no claim of source-12 performance equality or
+absence of further regressions is made. Evidence is under `target/port-623/0012-43521c80ec/`, including the
+exact-source Go diff, full compiler results and pass-set comparison, Go/API/fourslash/workspace and lint logs,
+and generated-source hashes. The ignored reference checkout advances to this revision; the published
+`Cargo.toml` TypeScript pin remains unchanged until the full source upgrade.

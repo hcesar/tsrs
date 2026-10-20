@@ -27,6 +27,11 @@ project.program.emit();                                  // follows the project'
 api.close();
 ```
 
+`createSnapshot` and `updateSnapshot` accept `userPreferences` for language-service behavior and
+`prepareAutoImports` with the file to index in the new snapshot. Request that preparation before
+`getCompletionsAtPosition` with `includeSymbol: true` when auto-imports may be needed: the API then returns
+symbols owned by the requested snapshot. An unprepared snapshot reports a client error for that request.
+
 The code is TypeScript's, with one intentional difference: if the server process dies, the async API rejects
 every pending and later request with an error starting `API server connection lost: ` instead of leaving them
 pending forever (see [npm packaging](../npm/README.md)).

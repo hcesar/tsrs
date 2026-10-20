@@ -4002,6 +4002,20 @@ pub fn struct_fields(name: &str) -> &'static [FieldSpec] {
                 elem: None,
             },
             FieldSpec {
+                name: "userPreferences",
+                go_type: "*lsutil.UserPreferences",
+                kind: FieldKind::Object,
+                nullable: true,
+                elem: None,
+            },
+            FieldSpec {
+                name: "prepareAutoImports",
+                go_type: "*DocumentIdentifier",
+                kind: FieldKind::Doc,
+                nullable: true,
+                elem: None,
+            },
+            FieldSpec {
                 name: "fileNotifications",
                 go_type: "FileNotifications",
                 kind: FieldKind::Object,
