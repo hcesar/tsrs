@@ -2652,3 +2652,55 @@ host (`no perf_event_open on darwin/arm64`); the single-threaded peak-RSS
 runs and diagnostic comparisons still pass. The paired logs and JSON are
 under `target/port-623/0059-6ad8c56f9b/verify-optimized/` and
 `verify-large/`.
+
+## 60. `aad4c72bf2` — sync connection answers nested requests in stack order
+
+Upstream `aad4c72bf2d22e1fddb2a07d9e6f131e9b2ade44` adds a call-depth turn
+condition to `ipc.SyncConn`. A client callback can re-enter the API while an
+older nested request handler is still running; concurrent server-to-client
+calls may then be stacked. The older handler must wait until deeper calls
+finish before writing its response, and a notification handler may itself
+make a nested call. The Rust port puts `calls` and `reading` beside the
+reader/writer in `SyncIo`, uses a condition variable for `lock_turn`, and
+reserves the protocol reader for the deepest active call. Every request
+response, including timing and recovered handler errors, waits for its turn.
+An `ActiveCall` guard restores the call state and wakes waiters on success,
+error, or unwind. This is the same ordering as Go despite Rust's separate
+protocol reader and writer. No SDK source changes were needed: upstream
+changed only the Go IPC connection. The published sync SDK uses MessagePack;
+the JSON-RPC sync-connection notification path is covered at the transport
+level.
+
+The two new Rust pipe tests force a shallower handler to finish while a deeper
+call is active and check that responses arrive deepest first, and verify that
+a notification handler can call the client. Both pass. The exact-source Go
+`TestSyncConn` cases pass. Source-mode Node API tests pass 956/956, the pinned
+Node transport round trip passes 15/15, and the packed npm consumer passes
+25/25 steps. All three full compiler modes have result lists byte-identical
+to source 59 (18 Go-history, 18 canonical, 36 emit lists), without a removed
+pass, changed known nonpass, crash, or timeout: Go-history checker passes
+13,552 diagnostics and 12,862 type/symbol baselines; canonical checker
+passes 13,552 diagnostics and 12,861 type/symbol baselines; emit passes
+13,556 diagnostics, 12,862 type/symbol, 13,482 JavaScript/declaration, 149
+JavaScript-map, and 156 source-map baselines. Exact-source Fourslash passes
+4,088 of 4,558 groups, skips 470, fails none, and preserves all 4,622
+named source-59 outcomes. The full Rust workspace, 39 CLI regressions,
+WebAssembly target check, dev and release builds, warnings-denied Clippy,
+source lint, formatting, and generator check pass. Fourslash and the
+workspace/transport socket cases used the established sandbox escalation.
+The API capability table records the new nested-call guarantee; existing
+README summaries remain consistent. The ignored reference checkout advances
+to source 60; the published TypeScript pin remains at the base revision.
+
+Six alternating release-server pairs processed one million public sync
+`getServerTiming` frames each. Source 59 to source 60 median instructions
+retired were 21,035,871,909.5 to 21,061,756,554.5 (+0.123%); median wall
+time was 1.275 to 1.275 seconds; peak RSS was 8,601,600 to 8,617,984 bytes
+(+0.19%). Six alternating Node sync-client pairs of 100,000 requests each
+measured 10.245 to 10.134 microseconds per request (-1.09%) at the median.
+These are transport microbenchmarks, not the compiler project cohort or a
+measurement of contended nested callbacks. The small instruction and RSS
+increases in the framed-server run are disclosed under the user's
+nonblocking migration policy; neither indicates a material throughput loss.
+The scripts, raw pairs, and compiler/Fourslash outcome files are under
+`target/port-623/0060-aad4c72bf2/`.

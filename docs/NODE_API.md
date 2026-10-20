@@ -143,7 +143,8 @@ The transport does not depend on `tsrs_api`. It defines its own handler/conn tra
 `crates/tsrs_cli/src/api.rs` (core) adapts them. Entry points:
 
 - a sync conn running the msgpack `[type, method, payload]` tuple protocol over stdin/stdout or a pipe,
-  supporting re-entrant `call` from inside a request (filesystem callbacks), and an async JSON-RPC conn
+  supporting re-entrant `call` from inside a request (filesystem callbacks), with concurrent
+  callbacks answering nested requests in stack order, and an async JSON-RPC conn
   with concurrent request dispatch and outstanding server->client calls;
 - `RawBinary`-equivalent results written as msgpack `bin`; `getServerTiming`/`resetServerTiming`
   handled in the conn as in Go `ipc/timing.go`;

@@ -225,6 +225,163 @@ fn sync_callback_nested_request_and_errors() {
     );
 }
 
+struct OrderedRequestHandler {
+    entered: mpsc::Sender<Vec<u8>>,
+    completed: mpsc::Sender<Vec<u8>>,
+    release_a: Mutex<mpsc::Receiver<()>>,
+    release_b: Mutex<mpsc::Receiver<()>>,
+}
+
+impl Handler for OrderedRequestHandler {
+    fn handle_request(
+        &self,
+        _cx: &RequestContext,
+        method: &str,
+        params: &[u8],
+    ) -> Result<Response, ApiError> {
+        assert_eq!(method, "resolve");
+        let release = match params {
+            br#""a""# => &self.release_a,
+            br#""b""# => &self.release_b,
+            _ => panic!("unexpected nested request: {params:?}"),
+        };
+        self.entered.send(params.to_vec()).unwrap();
+        release.lock().unwrap().recv().unwrap();
+        self.completed.send(params.to_vec()).unwrap();
+        Ok(Response::Json(params.to_vec()))
+    }
+}
+
+#[test]
+fn sync_concurrent_calls_answer_nested_requests_in_stack_order() {
+    let (server_r, client_w) = std::io::pipe().unwrap();
+    let (client_r, server_w) = std::io::pipe().unwrap();
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (completed_tx, completed_rx) = mpsc::channel();
+    let (release_a_tx, release_a_rx) = mpsc::channel();
+    let (release_b_tx, release_b_rx) = mpsc::channel();
+    let conn = SyncConn::new(
+        Box::new(MessagePackReader::new(server_r)),
+        Box::new(MessagePackWriter::new(server_w)),
+        Arc::new(OrderedRequestHandler {
+            entered: entered_tx,
+            completed: completed_tx,
+            release_a: Mutex::new(release_a_rx),
+            release_b: Mutex::new(release_b_rx),
+        }),
+        ConnOptions::default(),
+    );
+    let peer = thread::spawn(move || {
+        let mut client = MsgpackClient {
+            w: MessagePackWriter::new(client_w),
+            r: MessagePackReader::new(client_r),
+        };
+        let (kind, method, params_a) = client.recv();
+        assert_eq!(
+            (kind, method.as_str(), params_a.as_slice()),
+            (MessageType::Call, "callback", &br#""a""#[..])
+        );
+        client.send(MessageType::Request, "resolve", &params_a);
+        let (kind, method, params_b) = client.recv();
+        assert_eq!(
+            (kind, method.as_str(), params_b.as_slice()),
+            (MessageType::Call, "callback", &br#""b""#[..])
+        );
+        client.send(MessageType::Request, "resolve", &params_b);
+
+        // A synchronous client waits for the most recent nested request first.
+        let first = client.recv();
+        client.send(MessageType::CallResponse, "callback", &params_b);
+        let second = client.recv();
+        client.send(MessageType::CallResponse, "callback", &params_a);
+        (first, second)
+    });
+
+    let call_a = {
+        let conn = Arc::clone(&conn);
+        thread::spawn(move || conn.call("callback", Some(br#""a""#)))
+    };
+    assert_eq!(entered_rx.recv_timeout(Duration::from_secs(5)).unwrap(), br#""a""#);
+    let call_b = {
+        let conn = Arc::clone(&conn);
+        thread::spawn(move || conn.call("callback", Some(br#""b""#)))
+    };
+    assert_eq!(entered_rx.recv_timeout(Duration::from_secs(5)).unwrap(), br#""b""#);
+
+    // Finish A's handler while B is still active. A's answer must wait for B's answer.
+    release_a_tx.send(()).unwrap();
+    assert_eq!(completed_rx.recv_timeout(Duration::from_secs(5)).unwrap(), br#""a""#);
+    thread::sleep(Duration::from_millis(50));
+    release_b_tx.send(()).unwrap();
+    assert_eq!(completed_rx.recv_timeout(Duration::from_secs(5)).unwrap(), br#""b""#);
+
+    let (first, second) = peer.join().unwrap();
+    assert_eq!(first, (MessageType::Response, "resolve".into(), br#""b""#.to_vec()));
+    assert_eq!(second, (MessageType::Response, "resolve".into(), br#""a""#.to_vec()));
+    assert_eq!(call_b.join().unwrap().unwrap(), br#""b""#);
+    assert_eq!(call_a.join().unwrap().unwrap(), br#""a""#);
+}
+
+struct CallingNotificationHandler {
+    caller: Arc<dyn Caller>,
+    result: mpsc::Sender<Result<Vec<u8>, String>>,
+}
+
+impl Handler for CallingNotificationHandler {
+    fn handle_request(
+        &self,
+        _cx: &RequestContext,
+        method: &str,
+        _params: &[u8],
+    ) -> Result<Response, ApiError> {
+        Err(ApiError::internal(format!("unexpected request: {method}")))
+    }
+
+    fn handle_notification(&self, _cx: &RequestContext, method: &str, _params: &[u8]) {
+        assert_eq!(method, "notify");
+        let result = self.caller.call("inner", None).map_err(|e| e.to_string());
+        self.result.send(result).unwrap();
+    }
+}
+
+#[test]
+fn sync_notification_handler_can_make_a_nested_call() {
+    let (server_r, client_w) = std::io::pipe().unwrap();
+    let (client_r, server_w) = std::io::pipe().unwrap();
+    let (result_tx, result_rx) = mpsc::channel();
+    let late = LateCaller::new();
+    let conn = SyncConn::new(
+        Box::new(FrameReader::new(server_r)),
+        Box::new(FrameWriter::new(server_w)),
+        Arc::new(CallingNotificationHandler {
+            caller: Arc::<LateCaller>::clone(&late),
+            result: result_tx,
+        }),
+        ConnOptions::default(),
+    );
+    late.set(conn.caller());
+    let outer = {
+        let conn = Arc::clone(&conn);
+        thread::spawn(move || conn.call("outer", None))
+    };
+    let mut client = JsonClient { w: FrameWriter::new(client_w), r: FrameReader::new(client_r) };
+    let request = client.recv();
+    assert_eq!(
+        (request["id"].as_str(), request["method"].as_str()),
+        (Some("outer"), Some("outer"))
+    );
+    client.send(r#"{"jsonrpc":"2.0","method":"notify"}"#);
+    let request = client.recv();
+    assert_eq!(
+        (request["id"].as_str(), request["method"].as_str()),
+        (Some("inner"), Some("inner"))
+    );
+    client.send(r#"{"jsonrpc":"2.0","id":"inner","result":"inner"}"#);
+    client.send(r#"{"jsonrpc":"2.0","id":"outer","result":"outer"}"#);
+    assert_eq!(result_rx.recv_timeout(Duration::from_secs(5)).unwrap().unwrap(), br#""inner""#);
+    assert_eq!(outer.join().unwrap().unwrap(), br#""outer""#);
+}
+
 #[test]
 fn sync_rejects_protocol_violations() {
     let (mut c, run, _) = start_sync();
