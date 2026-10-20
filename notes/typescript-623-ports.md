@@ -2453,3 +2453,42 @@ separate source-55 release performance batch was collected under the user's
 nonblocking migration policy; retired-instruction collection is unavailable
 on this macOS host. The measured source-11 regressions remain disclosed
 above. Evidence is under `target/port-623/0055-a501b11f64/`.
+
+## 56. `ec47d33c23` — check computed enum names despite grammar errors
+
+Upstream `ec47d33c23e464a17cdf2475632cba629bee8763` checks the
+expression in an enum member's computed name even though the computed name
+itself is a grammar error. It also removes the special case that suppressed
+reference resolution inside those names. The Rust port makes the same two
+checker changes. Before the port, eight of ten new enum fixtures failed
+their diagnostic baselines, one differed by error codes, and four existing
+`parserComputedPropertyName` variants failed the revised baselines. After
+the port, all ten new enum fixtures and all 41 parser variants match their
+exact-source diagnostics, type/symbol baselines, and JavaScript output.
+The exact upstream Go `TestLocal` runner passes all ten new fixtures and
+all five changed parser fixture files, including their diagnostic and emit
+subchecks.
+
+All three full compiler modes pass. Compared with source 55, each gains
+exactly the ten new fixtures and retains every prior passing and nonpassing
+outcome, with no new failures, crashes, or timeouts. Go-history checker
+passes 13,552 diagnostic and 12,862 type/symbol baselines; canonical
+checker passes 13,552 diagnostic and 12,861 type/symbol baselines. Emit
+passes 13,556 diagnostic, 12,862 type/symbol, 13,482 JavaScript/declaration,
+149 JavaScript-map, and 156 source-map baselines. Exact-source Fourslash
+passes 4,088 of 4,558 groups, skips 470, fails none, and preserves all
+4,622 named source-55 outcomes unchanged. The full Rust workspace, all 39
+CLI regressions, WebAssembly check, dev builds, warnings-denied Clippy,
+source lint, and formatting pass. The Fourslash and workspace socket tests
+required the previously observed sandbox escalation. The generator check
+runs after the commit because it compares its output against the whole
+working-tree diff.
+
+The compatibility table records the new counts and enum diagnostic
+behavior; neither README has a matching numerical summary to update.
+The ignored reference checkout advances to source 56; the published
+TypeScript pin remains unchanged until the full upgrade. No source-56
+release instruction-count or peak-RSS measurement was collected under the
+user's nonblocking migration policy. The measured source-11 regressions
+remain disclosed above. Evidence is under
+`target/port-623/0056-ec47d33c23/`.

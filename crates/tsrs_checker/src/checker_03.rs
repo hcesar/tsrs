@@ -1544,6 +1544,9 @@ impl Checker {
                 &[],
             );
         }
+        if is_computed_property_name(node.name().unwrap()) {
+            self.check_expression(node.name().unwrap().expression().unwrap());
+        }
         if let Some(initializer) = node.initializer() {
             self.check_expression(initializer);
         }
