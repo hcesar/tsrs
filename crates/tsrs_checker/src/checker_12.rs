@@ -501,6 +501,7 @@ impl Checker {
                 None
             }
         }));
+        tsrs_core::goslices::sort_func(&mut result, |&a, &b| compare_types(self, Some(a), Some(b)));
         result
     }
 

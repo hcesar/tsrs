@@ -1596,3 +1596,37 @@ Fourslash counts.
 No source-33 release performance measurement was collected under the user's
 nonblocking migration policy. The measured source-11 regressions remain
 disclosed above. Evidence is under `target/port-623/0033-f9f8d01292/`.
+
+## 34. `50d70a3f5f45` — stable inferred type-parameter order
+
+Upstream `50d70a3f5f453a79a4323b263165da51f656a4e3` sorts the
+`getInferTypeParameters` result with `CompareTypes` before the parameters are
+used to construct conditional type mappers. The Rust function now uses its
+existing `compare_types` comparator and Go-compatible `sort_func`, preserving
+the upstream order without changing the local symbol table. The new
+`stableTypeMapperOrdering` fixture passes for diagnostics, JavaScript,
+`.types`, and `.symbols`; its result type retains `"m"` middleware in both
+endpoint alternatives. It also passed before the Rust edit because the
+source-33 local-symbol iteration happened to produce the expected order, so
+the explicit sort is needed for algorithmic parity beyond that fixture. The
+ignored reference checkout advances to source 34; the published TypeScript
+pin and base SDK manifest remain unchanged until the full upgrade.
+
+All existing cases retain their outcomes across the twelve complete checker
+and emit pass/nonpass sets. The new fixture is added as a diagnostics,
+type/symbol, and JavaScript pass and as a map-baseline skip. Go-history checker
+passes 13,522
+diagnostics and 12,837 type/symbol baselines; canonical checker passes 13,522
+diagnostics and 12,836 type/symbol baselines. Emit passes 13,526 diagnostics,
+12,837 type/symbol and 13,452 JavaScript/declaration baselines; the 149
+JavaScript-map and 156 source-map passes are unchanged. No prior pass was lost
+and no new failure, crash, or timeout appeared. Exact-source Fourslash passes
+4,086 groups, skips 470, fails none, and all 4,620 named outcomes match
+source 33. The source-34 Go checker package, 1,113 Rust workspace tests (four
+ignored), regression projects, WASM check, warnings-denied Clippy, source
+lint, formatting, and all seven generator checks pass. Fourslash and workspace
+used the previously required Unix-socket sandbox escalation.
+
+No source-34 release performance measurement was collected under the user's
+nonblocking migration policy. The measured source-11 regressions remain
+disclosed above. Evidence is under `target/port-623/0034-50d70a3f5f/`.
