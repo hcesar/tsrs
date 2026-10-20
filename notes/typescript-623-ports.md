@@ -926,3 +926,39 @@ under the user's nonblocking regression policy; the measured source-11 regressio
 and no performance-equivalence claim is made. Evidence is under `target/port-623/0017-e8fd69fc1e/`. The ignored
 reference checkout advances to this revision; the published TypeScript pin and base SDK manifest remain
 unchanged until the full upgrade.
+
+## 18. `15dee00a1c65` — detect array and tuple serialization cycles
+
+Upstream `15dee00a1c6549a4953ab17ccac4c56d252ba4cc` routes array and tuple references through
+`visitAndTransformType` so recursive containers use the same visited-type cycle check as other serialized
+types. The Rust node builder now separates array/tuple serialization from ordinary type-reference
+serialization and canonicalizes deferred and regular container references to one type identity before
+checking for a cycle. It does not apply the shared `Array` symbol or tuple-origin depth limit to finite
+container nesting. The visited-type check runs before cache lookup, and the serialized-type cache key
+includes the current `infer` type parameters, matching the Go control flow.
+
+The new `recursiveContainerDeclarationSerialization` compiler fixture passes diagnostics, types, symbols,
+JavaScript and declaration output. Four unnameable recursive results report TS5088; named recursive array
+and tuple aliases serialize without errors, and finite 13-level tuple and array containers remain expanded.
+The changed `conditionalTypes1` and `recursiveTypeInference2` baselines also pass. The exact source-18 Go
+compiler passes those fixtures, the nine-edit incremental recursive tagged-tuple scenario, and the changed
+quick-info truncation test. The incremental case keeps the consumer's recursive `Doc` type across comment,
+union and no-change rebuilds, then reports TS2322 for an invalid number assignment even after deleting
+build info. The corresponding Rust `tsctests` replay passes byte-for-byte across all nine edits. The full
+exact-source Go Fourslash gate passes 4,075 groups, skips 472 and fails none; all
+4,603 named outcomes match source 17.
+
+All twelve full compiler passing sets retain every source-17 pass and every known nonpassing outcome.
+Go-history checker passes 13,472 diagnostic and 12,787 type/symbol baselines; canonical checker passes
+13,472 diagnostic and 12,786 type/symbol baselines. Emit passes 13,476 diagnostic, 12,787 type/symbol,
+13,402 JavaScript/declaration, 149 JavaScript-map, and 156 source-map baselines. The 37 existing
+regression projects pass. The full workspace passes 1,076 tests with four existing ignored. Native and
+WASM builds, warnings-denied Clippy, source lint, formatting and generated-source verification pass;
+regeneration leaves all 1,166 tracked crate files byte-identical. No source-18 release performance
+measurement was collected under the user's nonblocking migration policy; the source-11 regressions remain
+disclosed above, and no performance-equivalence claim is made for this port.
+
+Evidence is under `target/port-623/0018-15dee00a1c/`, including complete compiler pass-set comparisons,
+the exact-source Go oracle and incremental logs, Fourslash outcome comparison, workspace and lint logs,
+and generator hashes. The ignored reference checkout advances to this revision; the published TypeScript
+pin and base SDK manifest remain unchanged until the full source upgrade.
