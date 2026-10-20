@@ -3333,6 +3333,24 @@ impl Checker {
         }
         self.check_class_like_declaration(node);
         self.check_source_elements(node.members());
+        self.check_constructor_declared_properties(node);
         self.register_for_unused_identifiers_check(node);
+    }
+
+    // checker.go:4324
+    pub(crate) fn check_constructor_declared_properties(&mut self, node: P<Node>) {
+        if !ast::is_in_js_file(node) {
+            return;
+        }
+        let class_symbol = self.get_symbol_of_declaration(node).unwrap();
+        let class_type = self.get_declared_type_of_symbol(class_symbol);
+        for &property in self.get_properties_of_type(class_type) {
+            let (kind, constructor) = self.is_constructor_declared_this_property(property);
+            if kind == thisAssignmentDeclarationKind::Constructor
+                && constructor.is_some_and(|constructor| constructor.parent() == Some(node))
+            {
+                self.get_type_of_symbol(property);
+            }
+        }
     }
 }

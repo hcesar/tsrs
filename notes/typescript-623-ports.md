@@ -1740,3 +1740,41 @@ JavaScript pass counts are updated.
 No source-37 release performance measurement was collected under the user's
 nonblocking migration policy. The measured source-11 regressions remain
 disclosed above. Evidence is under `target/port-623/0037-ca197b7b85/`.
+
+## 38. `a1ef42b9ea70` — stabilize diagnostics for JS constructor properties
+
+Upstream `a1ef42b9ea7032fa60df127d42b4c86fd2a110ee` eagerly resolves the
+types of a JavaScript class's own constructor-declared `this` properties after
+checking its members. The same step runs for class declarations and deferred
+class expressions; inherited, typed, and method-only properties are excluded.
+The Rust checker mirrors both call sites and the constructor-parent condition.
+This makes implicit-any diagnostics on properties initialized only to
+`undefined` or `null` independent of later symbol access. The tracked
+`js-constructor-property-diagnostics` regression covers both class forms and
+an annotated property: source-37 tsrs exited without diagnostics, while the
+exact-source Go compiler and source-38 tsrs both report the same two TS7008
+diagnostics. All four variants of upstream
+`flakyDiagnosticsJsClassPropertyInitializedToUndefined` pass their diagnostic,
+type, symbol, and JavaScript baselines. The ignored reference checkout advances
+to source 38; the published TypeScript pin and base SDK manifest remain
+unchanged until the full upgrade.
+
+All twelve complete checker and emit pass/nonpass sets retain their source-37
+outcomes. The new fixture adds four passes in each applicable baseline, with no
+lost passing case, new failure, crash, or timeout. Go-history checker passes
+13,527 diagnostics and 12,841 type/symbol baselines; canonical checker passes
+13,527 diagnostics and 12,840 type/symbol baselines. Emit passes 13,531
+diagnostics, 12,841 type/symbol, 13,457 JavaScript/declaration, 149
+JavaScript-map, and 156 source-map baselines. Exact-source Fourslash passes
+4,086 groups, skips 470, fails none, and all 4,620 named outcomes match source
+37. The exact-source Go fixture, full Rust workspace (1,120 passed, four
+existing ignored), all 38 CLI regression projects, WebAssembly check, dev
+builds, warnings-denied Clippy, source lint, formatting, and generator output
+comparison pass. The Fourslash Unix-socket test needed its previously required
+sandbox escalation. The compatibility table's source revision and cited
+diagnostic, type/symbol, and JavaScript pass counts are updated; the root and
+npm README summaries contain no corresponding numbers.
+
+No source-38 release performance measurement was collected under the user's
+nonblocking migration policy. The measured source-11 regressions remain
+disclosed above. Evidence is under `target/port-623/0038-a1ef42b9ea/`.
