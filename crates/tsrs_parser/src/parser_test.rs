@@ -12,6 +12,18 @@ fn parse(source: &str) -> P<SourceFile> {
 }
 
 #[test]
+fn jsdoc_parameter_tag_has_type_annotation_node() {
+    let file = parse("/** @param {{ value: number }} options */\nfunction take(options) {}");
+    let function = file.statements().nodes()[0];
+    let jsdoc = function.jsdoc(Some(file.get()));
+    let tags = jsdoc[0].as_jsdoc().tags().unwrap();
+    let parameter = tags.nodes()[0];
+    assert_eq!(parameter.kind(), Kind::JSDocParameterTag);
+    assert!(parameter.type_node().is_some());
+    assert_eq!(tsrs_ast::get_type_annotation_node(parameter), parameter.type_node());
+}
+
+#[test]
 fn test_parse_static_source_phase_import() {
     for (source, phase, binding) in [
         ("import source a from './a.wasm';", Kind::SourceKeyword, "a"),

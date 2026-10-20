@@ -1900,6 +1900,7 @@ pub fn get_type_annotation_node(node: P<Node>) -> Option<P<Node>> {
         | Kind::RestType
         | Kind::TemplateLiteralTypeSpan
         | Kind::JSDocTypeExpression
+        | Kind::JSDocParameterTag
         | Kind::JSDocPropertyTag
         | Kind::JSDocNullableType
         | Kind::JSDocNonNullableType

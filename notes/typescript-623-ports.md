@@ -1915,3 +1915,37 @@ wall-time regression threshold and within timing noise. `bench/count.py`
 reported retired instructions unavailable on macOS/arm64 (`no
 perf_event_open`), so there is no instruction-count comparison. Evidence is under
 `target/port-623/0041-253bcd8623/`.
+
+## 42. `afd02f148639` — recognize typed JSDoc parameter tags as type annotations
+
+Upstream `afd02f14863971d7a1b424f7c5a7e6a4eb2f92a7` adds
+`JSDocParameterTag` to `ast.GetTypeAnnotationNode`. The Rust AST utility now
+returns the tag's `typeExpression` through its existing `type_node()` accessor,
+which is used by the language-service object-binding completion guard. A
+focused parser test parses a typed `@param` tag, observes the accessor return
+`None` before the port, and observes the same type-expression node as `type_node()`
+after the port. This is a direct source-equivalent change without a Rust-specific
+behavioral deviation. The ignored reference checkout advances to source 42;
+the published TypeScript pin and base SDK manifest remain unchanged until the
+full upgrade.
+
+All twelve complete compiler checker and emit pass/nonpass sets retain their
+source-41 outcomes, with no added or removed passes, failures, crashes, or
+timeouts. Go-history checker passes 13,528 diagnostics and 12,842 type/symbol
+baselines; canonical checker passes 13,528 diagnostics and 12,841 type/symbol
+baselines. Emit passes 13,532 diagnostics, 12,842 type/symbol, 13,458
+JavaScript/declaration, 149 JavaScript-map, and 156 source-map baselines.
+Exact-source Fourslash passes 4,086 groups, skips 470, fails none, and all
+4,620 named outcomes match source 41. Full Rust workspace all-targets passes
+1,122 tests with four existing ignored; all 38 CLI regression projects,
+WebAssembly check, dev builds, warnings-denied Clippy, source lint, formatting,
+and all seven generators pass. The generator rerun leaves the tracked crate
+diff and untracked crate files byte-identical. Workspace and Fourslash
+Unix-socket tests required the previously observed sandbox escalation. The
+compatibility table records the source revision and typed JSDoc completion
+context; the root and npm README summaries contain no corresponding revision
+or counts.
+
+No source-42 release performance measurement was collected under the user's
+nonblocking migration policy. The measured source-11 regressions remain
+disclosed above. Evidence is under `target/port-623/0042-afd02f1486/`.
