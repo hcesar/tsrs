@@ -2021,3 +2021,39 @@ no corresponding source revision or count.
 No source-44 release performance measurement was collected under the user's
 nonblocking migration policy. The measured source-11 regressions remain
 disclosed above. Evidence is under `target/port-623/0044-21b260b4e7/`.
+
+## 45. `c3f14c2fe8` — preserve object-literal parent during decorator metadata emit
+
+Upstream `c3f14c2fe8971440d5a8bf1432d36bb26828c7c7` visits decorated object
+literals with the literal as the current metadata parent, then restores the
+enclosing parent. Rust now follows that control flow. This prevents a method or
+accessor inside an object literal nested in a class from being treated as a
+class member while visiting decorator metadata. The new exact-source compiler
+fixture `decoratorMetadataObjectLiteralMethodNoCrash` passes its diagnostic,
+type, symbol, and JavaScript baselines. It also passed before the Rust edit:
+Rust's existing class-element guard already avoided the upstream Go crash, so
+the new code closes a source-level parent-tracking gap without a measurable
+baseline change on the fixture. The ignored reference checkout advances to
+source 45. The published TypeScript pin and base SDK manifest remain unchanged
+until the full upgrade.
+
+All twelve complete checker and emit pass/nonpass sets preserve every source-44
+pass and have no new failures, crashes, or timeouts. The new upstream fixture
+adds one pass to each applicable diagnostic, type, symbol, and JavaScript set.
+Go-history checker passes 13,532 diagnostics and 12,846 type/symbol baselines;
+canonical checker passes 13,532 diagnostics and 12,845 type/symbol baselines.
+Emit passes 13,536 diagnostics, 12,846 type/symbol, 13,462
+JavaScript/declaration, 149 JavaScript-map, and 156 source-map baselines.
+Exact-source Fourslash passes 4,087 of 4,557 groups, skips 470, fails none;
+all 4,621 named outcomes are unchanged from source 44. Full Rust workspace
+all-targets passes 1,122 tests with four existing ignored; all 38 CLI regression
+projects, WebAssembly check, dev builds, warnings-denied Clippy, source lint,
+and formatting pass. The generator rerun leaves the staged crate diff and
+untracked crate files unchanged. Workspace and Fourslash Unix-socket tests
+required the previously observed sandbox escalation. The compatibility table
+records the source revision, new pass counts, and decorator metadata behavior;
+the root and npm README summaries contain no corresponding revision or counts.
+
+No source-45 release performance measurement was collected under the user's
+nonblocking migration policy. The measured source-11 regressions remain
+disclosed above. Evidence is under `target/port-623/0045-c3f14c2fe8/`.
