@@ -1,4 +1,4 @@
-// testutil_test.go + the helpers of watcher_test.go. Go's retry wrapper re-runs a failing per-backend body up to
+// testutil_test.go + the helpers of watcher_test.go. Go's retry wrapper re-runs a failing test body up to
 // three times with scaled timeouts (macOS event delivery stalls under load); here a body returns
 // `Err(message)` where Go calls Fatal, and `run_with_retry` re-runs it. Go's `testingT.TempDir` / `Cleanup` are
 // `TestT::temp_dir` / `TestT::cleanup` (run when the attempt ends).

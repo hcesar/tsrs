@@ -1415,3 +1415,38 @@ disclosed above. Evidence is under `target/port-623/0029-d2f9dd68cf/`,
 including exact-source Go and npm runs, full compiler pass-set and
 Fourslash outcome comparisons, workspace, regression, WASM, lint and
 generator logs.
+
+## 30. `7e5d1c1c1de4` — retry Darwin FSEvents delivery tests
+
+Upstream `7e5d1c1c1de408086e2dd74cb42d5b9c6ba77461` changes only
+Go tests: nine Darwin-specific FSEvents event-delivery cases now run
+through `runWithRetry`, with fresh temporary directories and scaled
+timeouts on each attempt. Tsrs's generic watcher tests already call
+`run_with_retry` through `run_for_each_watcher`, with the same three
+attempts and 1×/5×/15× timeout scaling. None of the nine modified
+Darwin-specific Go cases has a Rust counterpart yet, so this port aligns
+the retry-helper description and records that test coverage gap; it does
+not change production behavior or claim new coverage. The ignored
+reference checkout advances to source 30. The published TypeScript pin
+and base SDK manifest remain unchanged until the full upgrade.
+
+The exact-source Go `fswatch` package passes with native FSEvents delivery
+outside the sandbox. Its first sandboxed attempt could not start FSEvents
+streams, so its failures were environmental; both logs are preserved.
+All twelve complete checker and emit pass and nonpass sets match source
+29 exactly, with no new crashes or timeouts: Go-history checker passes
+13,518 diagnostic and 12,833 type/symbol baselines; canonical checker
+passes 13,518 diagnostic and 12,832 type/symbol baselines; emit passes
+13,522 diagnostic, 12,833 type/symbol, 13,448 JavaScript/declaration,
+149 JavaScript-map and 156 source-map baselines. Exact-source Fourslash
+passes 4,083 groups, skips 472 and fails none; all 4,615 named outcomes
+match source 29. The dev CLI/testrunner and Fourslash server build,
+warnings-denied Clippy, source lint and format check pass. The full
+Rust `tsrs_fswatch` all-targets suite passes: 45 unit and three native
+macOS integration tests. The full Rust workspace and unrelated npm,
+WASM and generator checks were not rerun: their runtime and generator
+inputs are unchanged from source 29, whose complete checks passed.
+No source-30 release performance measurement was collected under the
+user's nonblocking migration policy. No production runtime code changed;
+the measured source-11 regressions remain disclosed above. Evidence is
+under `target/port-623/0030-7e5d1c1c1d/`.
