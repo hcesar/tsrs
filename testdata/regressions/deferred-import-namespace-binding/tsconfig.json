@@ -1,0 +1,1 @@
+{"compilerOptions":{"target":"es2015","module":"esnext","allowJs":true,"noEmit":true,"types":[]},"files":["a.ts","b.ts","checked.js","unchecked.js"]}

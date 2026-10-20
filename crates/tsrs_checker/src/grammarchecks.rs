@@ -3430,14 +3430,19 @@ impl Checker {
                         &[],
                     );
                 }
-                if let Some(named_bindings) = import_clause.named_bindings {
-                    if named_bindings.kind() == Kind::NamedImports {
-                        return self.grammar_error_on_node(
-                            node,
-                            &diagnostics::Named_imports_are_not_allowed_in_a_deferred_import,
-                            &[],
-                        );
-                    }
+                let Some(named_bindings) = import_clause.named_bindings else {
+                    return self.grammar_error_on_node(
+                        node,
+                        &diagnostics::A_deferred_import_must_specify_a_namespace_binding,
+                        &[],
+                    );
+                };
+                if named_bindings.kind() == Kind::NamedImports {
+                    return self.grammar_error_on_node(
+                        node,
+                        &diagnostics::Named_imports_are_not_allowed_in_a_deferred_import,
+                        &[],
+                    );
                 }
                 if !self.module_kind.supports_deferred_imports() {
                     return self.grammar_error_on_node(node, &diagnostics::Deferred_imports_are_only_supported_when_the_module_flag_is_set_to_esnext_or_preserve, &[]);

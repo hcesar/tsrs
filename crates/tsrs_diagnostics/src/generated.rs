@@ -16464,6 +16464,16 @@ pub static This_initializer_has_a_Symbol_asyncDispose_method_Did_you_mean_to_use
     reports_deprecated: false,
 };
 
+pub static A_deferred_import_must_specify_a_namespace_binding: Message = Message {
+    code: 18117,
+    category: Category::Error,
+    key: Key("A_deferred_import_must_specify_a_namespace_binding_18117"),
+    text: "A deferred import must specify a namespace binding.",
+    reports_unnecessary: false,
+    elided_in_compatibility_pyramid: false,
+    reports_deprecated: false,
+};
+
 pub static X_nodenext_if_module_is_nodenext_node16_if_module_is_node16_or_node18_otherwise_bundler: Message = Message { code: 69010, category: Category::Message, key: Key("nodenext_if_module_is_nodenext_node16_if_module_is_node16_or_node18_otherwise_bundler_69010"), text: "`nodenext` if `module` is `nodenext`; `node16` if `module` is `node16` or `node18`; otherwise, `bundler`.", reports_unnecessary: false, elided_in_compatibility_pyramid: false, reports_deprecated: false };
 
 pub static File_is_a_CommonJS_module_it_may_be_converted_to_an_ES_module: Message = Message {
@@ -19160,7 +19170,7 @@ pub static JSDoc_comment: Message = Message {
     reports_deprecated: false,
 };
 
-pub(crate) static ALL_MESSAGES: [&Message; 2221] = [
+pub(crate) static ALL_MESSAGES: [&Message; 2222] = [
     &Unterminated_string_literal,
     &Identifier_expected,
     &X_0_expected,
@@ -21112,6 +21122,7 @@ pub(crate) static ALL_MESSAGES: [&Message; 2221] = [
     &Optional_chaining_cannot_be_used_with_import_source,
     &Source_phase_imports_are_not_allowed_on_statements_that_compile_to_CommonJS_require_calls,
     &This_initializer_has_a_Symbol_asyncDispose_method_Did_you_mean_to_use_await_using,
+    &A_deferred_import_must_specify_a_namespace_binding,
     &X_nodenext_if_module_is_nodenext_node16_if_module_is_node16_or_node18_otherwise_bundler,
     &File_is_a_CommonJS_module_it_may_be_converted_to_an_ES_module,
     &This_constructor_function_may_be_converted_to_a_class_declaration,

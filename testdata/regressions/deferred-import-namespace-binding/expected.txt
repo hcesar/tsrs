@@ -1,0 +1,4 @@
+b.ts(1,8): error TS18117: A deferred import must specify a namespace binding.
+b.ts(3,8): error TS18059: Named imports are not allowed in a deferred import.
+checked.js(2,8): error TS18117: A deferred import must specify a namespace binding.
+unchecked.js(1,8): error TS18117: A deferred import must specify a namespace binding.

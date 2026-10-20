@@ -35,6 +35,7 @@ The in-progress [#623 source upgrade](https://github.com/oxc-project/tsrs/issues
 Its in-progress Node API also exposes the project checker's merged, declaration, node, and parent symbol lookups.
 The source-31 SDK adds typed paths and an `unstable/path` export.
 The source-50 SDK adds the `unstable/vscode` module loader for an explicitly selected API package.
+The source-51 compiler reports TS18117 for deferred imports without a namespace binding, including in JavaScript.
 
 <a href="https://github.com/oxc-project/tsrs/blob/main/bench/RESULTS.md">
   <picture>

@@ -108,6 +108,8 @@ initialize response to report `caseSensitivity`.
 Source commit `4529d07ab5b7` adds `unstable/vscode` with the upstream API module loader and editor SDK
 types. The loader resolves from the selected package manifest; tsrs does not ship the upstream VS Code extension
 or its initialization and restart lifecycle.
+Source commit `bea2e849e90b` makes deferred imports without namespace bindings report TS18117 in TypeScript and
+JavaScript; the published compiler pin remains at the base during the migration.
 The package exports `./schemas/tsconfig.schema.json` and `./schemas/jsconfig.schema.json`, copied from upstream.
 After bumping `[workspace.metadata.typescript]`, check out that commit as `ts-ref` and rerun it;
 `node npm/sdk/sync-upstream.mjs --check` fails if the copy drifted.

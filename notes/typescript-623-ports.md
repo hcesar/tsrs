@@ -2268,3 +2268,39 @@ No source-50 release instruction-count or peak-RSS measurement was collected
 under the user's nonblocking migration policy. The measured source-11
 regressions remain disclosed above. Evidence is under
 `target/port-623/0050-4529d07ab5/`.
+
+## 51. `bea2e849e9` — require a namespace binding in deferred imports
+
+Upstream `bea2e849e90b5ff2889f9e120e1e0fae5e17659b` parses a bare
+`import defer "module"` as a deferred import clause and reports TS18117 because
+it lacks a namespace binding. The Rust parser and checker now take the same
+path, the plain-JavaScript grammar-error set retains TS18117 even without
+`@ts-check`, and the default-import emit-helper predicate follows the Go
+change. Diagnostic 18117 is generated from the new Go catalog entry; its
+catalog-size assertion advances to 2,222. The dedicated CLI regression
+`deferred-import-namespace-binding` checks bare deferred imports in TypeScript,
+checked JavaScript, and unchecked JavaScript alongside valid namespace and
+invalid named bindings. Its diagnostics and exit status match a Go compiler
+built from this exact source commit. Before the port, both new upstream
+`importDeferInvalidDefault` variants failed diagnostics and JavaScript emit;
+afterward, both pass diagnostics, types, symbols, and emit.
+
+All three full compiler gate modes pass. Source 51 replaces one former
+`importDeferInvalidDefault` fixture with `commonjs` and `esnext` variants:
+that one-for-two rename is the sole change across complete pass/nonpass sets.
+Go-history checker passes 13,540 diagnostics and 12,850 type/symbol baselines;
+canonical checker passes 13,540 diagnostics and 12,849 type/symbol baselines.
+Emit passes 13,544 diagnostics, 12,850 type/symbol, 13,470 JavaScript,
+149 JavaScript-map, and 156 source-map baselines. Exact-source Fourslash
+passes 4,087 of 4,557 groups, skips 470, fails none, and all 4,621 named
+outcomes are unchanged from source 50. The full Rust workspace passes 1,127
+tests with four existing ignored; all 39 CLI regressions, WebAssembly check,
+dev builds, warnings-denied Clippy, source lint, formatting, and all seven
+generators pass. Fourslash and workspace Unix-socket tests required the
+previously observed sandbox escalation.
+
+The ignored reference checkout advances to source 51; the published
+TypeScript pin remains unchanged until the full upgrade. No source-51
+release instruction-count or peak-RSS measurement was collected under the
+user's nonblocking migration policy. The measured source-11 regressions
+remain disclosed above. Evidence is under `target/port-623/0051-bea2e849e9/`.

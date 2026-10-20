@@ -6,8 +6,8 @@ use crate::{Category, Key, format, format_strings, key_to_message, localize};
 
 #[test]
 fn message_count_matches_go() {
-    // `grep -c '= &Message{' diagnostics_generated.go` at source 39.
-    assert_eq!(ALL_MESSAGES.len(), 2221);
+    // `grep -c '= &Message{' diagnostics_generated.go` at source 51.
+    assert_eq!(ALL_MESSAGES.len(), 2222);
     let keys: FxHashSet<&str> = ALL_MESSAGES.iter().map(|m| m.key().as_str()).collect();
     assert_eq!(keys.len(), ALL_MESSAGES.len());
     let codes: FxHashSet<i32> = ALL_MESSAGES.iter().map(|m| m.code()).collect();
