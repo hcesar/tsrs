@@ -90,7 +90,7 @@ impl Dumper {
 
     fn symbol(&mut self, tag: &str, s: P<Symbol>) {
         let _ = write!(self.sb, " {tag}(");
-        escape(&mut self.sb, s.name.get());
+        escape(&mut self.sb, s.name());
         let _ = write!(
             self.sb,
             " {:x} {} {}",
@@ -100,7 +100,7 @@ impl Dumper {
         );
         if let Some(parent) = s.parent() {
             self.sb.push_str(" p=");
-            escape(&mut self.sb, parent.name.get());
+            escape(&mut self.sb, parent.name());
         }
         if let Some(export_symbol) = s.export_symbol() {
             let _ = write!(self.sb, " x={:x}", export_symbol.flags.get().bits());

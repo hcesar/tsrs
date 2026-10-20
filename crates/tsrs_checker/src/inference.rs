@@ -1385,7 +1385,7 @@ impl Checker {
     ) {
         let properties = self.get_properties_of_object_type(target);
         for &target_prop in properties {
-            let source_prop = self.get_property_of_type(source, target_prop.name.get());
+            let source_prop = self.get_property_of_type(source, target_prop.name());
             if let Some(source_prop) = source_prop {
                 let declarations = source_prop.declarations();
                 if !declarations.iter().any(|&d| self.is_skip_direct_inference_node(d)) {
@@ -1923,7 +1923,7 @@ impl Checker {
                 };
             let inferred_prop = self.new_symbol_ex(
                 SymbolFlags::Property | (prop.flags.get() & optional_mask),
-                prop.name.get(),
+                prop.name(),
                 check_flags,
             );
             inferred_prop.set_declarations_static(prop.declarations());
@@ -1959,7 +1959,7 @@ impl Checker {
                 links.mapped_type.set(Some(r_mapped_type));
                 links.constraint_type.set(Some(r_constraint_type));
             }
-            members.set(prop.name.get(), inferred_prop);
+            members.set(prop.name(), inferred_prop);
         }
         self.set_structured_type_members(t, Some(members), &[], &[], &index_infos);
     }
@@ -2117,7 +2117,7 @@ impl Checker {
                 literal_prop.set_declarations_static(symbol.declarations());
                 literal_prop.set_value_declaration(symbol.value_declaration());
             }
-            members.set(literal_prop.name.get(), literal_prop);
+            members.set(literal_prop.name(), literal_prop);
         }
         let mut index_infos: Vec<P<IndexInfo>> = Vec::new();
         if t.flags().intersects(TypeFlags::String) {

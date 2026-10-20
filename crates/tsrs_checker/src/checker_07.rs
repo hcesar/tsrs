@@ -2169,6 +2169,18 @@ impl Checker {
         s
     }
 
+    // checker.go:14348
+    #[cfg_attr(feature = "site-counts", track_caller)]
+    pub(crate) fn new_shared_data_symbol(&mut self, symbol: P<Symbol>) -> P<Symbol> {
+        self.symbol_count += 1;
+        crate::sitecount::hit("symbol", "");
+        let result = Symbol::new_shared_data(symbol);
+        if self.seed_mode {
+            ast::get_symbol_id(result);
+        }
+        result
+    }
+
     // checker.go:14313
     #[cfg_attr(feature = "site-counts", track_caller)]
     pub(crate) fn new_symbol_ex(

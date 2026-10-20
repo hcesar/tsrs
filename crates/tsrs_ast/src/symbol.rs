@@ -24,15 +24,18 @@ use crate::*;
 // first declaration moves it to the tail first). Both bits (`TAG_TABLES`, `TAG_VALUE_FIRST`) are the tag bits of
 // the name word (`OwnedTaggedStrCell`: pointer, length and tags in one word). `declarations` is an
 // `OwnedPSliceCell`: 40 bytes, 32 with compressed pointers (handle-sized parent, 8-byte declarations).
+// An instantiated symbol stores its source in `parent_or_tables` and a reserved zero name word
+// selects that representation; all data access goes through the source, while flags, check flags,
+// and id remain specific to the instance. This keeps the common symbol at its measured size.
 
 #[derive(Default)]
 pub struct Symbol {
     pub flags: OwnedCell<SymbolFlags>,
     pub check_flags: OwnedCell<CheckFlags>, // Non-zero only in transient symbols created by Checker
-    pub name: OwnedTaggedStrCell,
+    name: OwnedTaggedStrCell,
     declarations: OwnedPSliceCell<P<Node>>, // Go slice: shared by copies, replaced (not mutated) on append
     pub(crate) id: AtomicU32,               // Go uint64; ids above u32::MAX panic in get_symbol_id
-    parent_or_tables: OwnedCell<PKey>, // `P::key` of the parent or (with `TAG_TABLES`) of the tail; 0 = none
+    parent_or_tables: OwnedCell<PKey>, // parent, table tail, or instantiated symbol's source; 0 = none
 }
 
 #[derive(Default)]
@@ -72,6 +75,42 @@ impl Symbol {
         s
     }
 
+    /// A transient symbol with its own flags, check flags and id, sharing the source's data.
+    /// Go `newSharedDataSymbol` stores the same `symbolData` pointer on both symbols.
+    pub fn new_shared_data(source: P<Symbol>) -> P<Symbol> {
+        let data = if source.name.is_shared_marker() {
+            // SAFETY: a shared symbol stores its live data owner's key here.
+            unsafe { P::from_key(source.parent_or_tables.get()) }
+        } else {
+            source
+        };
+        let s = P::new(Symbol {
+            flags: OwnedCell::new(source.flags() | SymbolFlags::Transient),
+            check_flags: OwnedCell::new(CheckFlags::None),
+            // SAFETY: `name` is private and every Symbol data accessor resolves this marker.
+            name: unsafe { OwnedTaggedStrCell::shared_marker() },
+            parent_or_tables: OwnedCell::new(data.key()),
+            ..Default::default()
+        });
+        if tsrs_core::sharedgraph::on_seed_thread() {
+            crate::get_symbol_id(s);
+        }
+        s
+    }
+
+    #[inline]
+    fn data_owner(&self) -> &Symbol {
+        if self.name.is_shared_marker() {
+            let key = self.parent_or_tables.get();
+            assert_ne!(key, 0, "instantiated symbol has no shared data");
+            // SAFETY: `new_shared_data` stores the key of the live data owner, flattening
+            // nested instances. The arena object outlives this instance.
+            unsafe { P::<Symbol>::from_key(key) }.get()
+        } else {
+            self
+        }
+    }
+
     #[inline]
     pub fn flags(&self) -> SymbolFlags {
         self.flags.get()
@@ -86,11 +125,15 @@ impl Symbol {
     }
     #[inline]
     pub fn name(&self) -> &'static str {
-        self.name.get()
+        self.data_owner().name.get()
+    }
+    #[inline]
+    pub fn set_name(&self, name: &'static str) {
+        self.data_owner().name.set(name);
     }
     #[inline]
     pub fn declarations(&self) -> &'static [P<Node>] {
-        self.declarations.get()
+        self.data_owner().declarations.get()
     }
     /// Go `symbol.Declarations = slices.Clone(declarations)`-like: stores a copy.
     #[inline]
@@ -99,27 +142,28 @@ impl Symbol {
     }
     /// Go `symbol.Declarations = declarations` (shares the slice).
     pub fn set_declarations_static(&self, declarations: &'static [P<Node>]) {
-        let tags = self.name.tags();
+        let data = self.data_owner();
+        let tags = data.name.tags();
         if tags & TAG_VALUE_FIRST != 0 {
-            let value_declaration = self.declarations.get()[0];
+            let value_declaration = data.declarations.get()[0];
             if declarations.first() != Some(&value_declaration) {
-                self.name.set_tags(tags & !TAG_VALUE_FIRST);
-                self.tables_for_write().value_declaration.set(Some(value_declaration));
+                data.name.set_tags(tags & !TAG_VALUE_FIRST);
+                data.tables_for_write().value_declaration.set(Some(value_declaration));
             }
         }
-        self.declarations.set(declarations);
+        data.declarations.set(declarations);
     }
     /// Go `append(symbol.Declarations, declarations...)`.
     pub fn append_declarations(&self, declarations: &[P<Node>]) {
         if declarations.is_empty() {
             return;
         }
-        if self.declarations.get().is_empty() {
+        if self.declarations().is_empty() {
             self.set_declarations(declarations);
             return;
         }
-        let mut result = Vec::with_capacity(self.declarations.get().len() + declarations.len());
-        result.extend_from_slice(self.declarations.get());
+        let mut result = Vec::with_capacity(self.declarations().len() + declarations.len());
+        result.extend_from_slice(self.declarations());
         result.extend_from_slice(declarations);
         self.set_declarations_static(tsrs_core::alloc_vec(result));
     }
@@ -129,48 +173,52 @@ impl Symbol {
         reason = "indexing with a bounds check: +0.7% instructions, one checker (notes/mem-small.md)"
     )]
     pub fn value_declaration(&self) -> Option<P<Node>> {
-        if self.name.tags() & TAG_VALUE_FIRST != 0 {
-            let declarations = self.declarations.get();
+        let data = self.data_owner();
+        if data.name.tags() & TAG_VALUE_FIRST != 0 {
+            let declarations = data.declarations.get();
             debug_assert_ne!(declarations, []);
             // SAFETY: the bit is set only while the declarations are non-empty (`set_value_declaration`,
             // `set_declarations_static`).
             return Some(unsafe { *declarations.get_unchecked(0) });
         }
-        self.tables()?.value_declaration.get()
+        data.tables()?.value_declaration.get()
     }
     pub fn set_value_declaration(&self, value_declaration: Option<P<Node>>) {
-        let tags = self.name.tags();
+        let data = self.data_owner();
+        let tags = data.name.tags();
         if value_declaration.is_some()
-            && self.declarations.get().first().copied() == value_declaration
+            && data.declarations.get().first().copied() == value_declaration
         {
-            self.name.set_tags(tags | TAG_VALUE_FIRST);
-            if let Some(tables) = self.tables() {
+            data.name.set_tags(tags | TAG_VALUE_FIRST);
+            if let Some(tables) = data.tables() {
                 tables.value_declaration.set(None);
             }
             return;
         }
-        self.name.set_tags(tags & !TAG_VALUE_FIRST);
-        if value_declaration.is_some() || self.tables().is_some() {
-            self.tables_for_write().value_declaration.set(value_declaration);
+        data.name.set_tags(tags & !TAG_VALUE_FIRST);
+        if value_declaration.is_some() || data.tables().is_some() {
+            data.tables_for_write().value_declaration.set(value_declaration);
         }
     }
     #[inline]
     fn tables(&self) -> Option<P<SymbolTables>> {
+        let data = self.data_owner();
         // SAFETY: with the tag, the field holds the key of the tail made by `tables_for_write` (never freed).
-        (self.name.tags() & TAG_TABLES != 0)
-            .then(|| unsafe { P::from_key(self.parent_or_tables.get()) })
+        (data.name.tags() & TAG_TABLES != 0)
+            .then(|| unsafe { P::from_key(data.parent_or_tables.get()) })
     }
     #[inline]
     fn tables_for_write(&self) -> P<SymbolTables> {
-        if let Some(tables) = self.tables() {
+        let data = self.data_owner();
+        if let Some(tables) = data.tables() {
             tables
         } else {
             let tables = P::new(SymbolTables {
-                parent: OwnedCell::new(self.parent()),
+                parent: OwnedCell::new(data.parent()),
                 ..Default::default()
             });
-            self.parent_or_tables.set(tables.key());
-            self.name.set_tags(self.name.tags() | TAG_TABLES);
+            data.parent_or_tables.set(tables.key());
+            data.name.set_tags(data.name.tags() | TAG_TABLES);
             tables
         }
     }
@@ -219,17 +267,19 @@ impl Symbol {
     }
     #[inline]
     pub fn parent(&self) -> Option<P<Symbol>> {
-        match self.tables() {
+        let data = self.data_owner();
+        match data.tables() {
             Some(tables) => tables.parent.get(),
             // SAFETY: without the tag, the field is 0 or the key of the parent (a live symbol).
-            None => unsafe { P::from_key_opt(self.parent_or_tables.get()) },
+            None => unsafe { P::from_key_opt(data.parent_or_tables.get()) },
         }
     }
     #[inline]
     pub fn set_parent(&self, parent: Option<P<Symbol>>) {
-        match self.tables() {
+        let data = self.data_owner();
+        match data.tables() {
             Some(tables) => tables.parent.set(parent),
-            None => self.parent_or_tables.set(P::key_opt(parent)),
+            None => data.parent_or_tables.set(P::key_opt(parent)),
         }
     }
     #[inline]
@@ -245,7 +295,7 @@ impl Symbol {
 
     pub fn is_external_module(&self) -> bool {
         self.flags.get().intersects(SymbolFlags::Module)
-            && is_ambient_module_symbol_name(self.name.get())
+            && is_ambient_module_symbol_name(self.name())
     }
 
     pub fn is_static(&self) -> bool {
@@ -1098,7 +1148,7 @@ pub fn symbol_name(symbol: P<Symbol>) -> &'static str {
             return value_declaration.name().unwrap().text();
         }
     }
-    symbol.name.get()
+    symbol.name()
 }
 
 // EscapeAllInternalSymbolNames replaces internal symbol name markers with "__".
@@ -1131,6 +1181,69 @@ pub fn escape_symbol_name(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn instantiated_symbol_shares_data_but_not_identity_or_flags() {
+        let factory = NodeFactory::default();
+        let first = factory.new_identifier("first");
+        let second = factory.new_identifier("second");
+        let source = Symbol::new(SymbolFlags::Property, "original");
+        let parent = Symbol::new(SymbolFlags::Class, "parent");
+        let export = Symbol::new(SymbolFlags::Alias, "export");
+        source.set_declarations(&[first]);
+        source.set_value_declaration(Some(first));
+        source.set_parent(Some(parent));
+        source.set_export_symbol(Some(export));
+
+        let instance = Symbol::new_shared_data(source);
+        let nested = Symbol::new_shared_data(instance);
+        assert_ne!(source, instance);
+        assert_ne!(instance, nested);
+        assert_ne!(get_symbol_id(source), get_symbol_id(instance));
+        assert_ne!(get_symbol_id(instance), get_symbol_id(nested));
+        assert_eq!(instance.flags(), SymbolFlags::Property | SymbolFlags::Transient);
+        assert_eq!(instance.check_flags(), CheckFlags::None);
+        assert_eq!(instance.name(), "original");
+        assert_eq!(instance.declarations(), &[first]);
+        assert_eq!(instance.value_declaration(), Some(first));
+        assert_eq!(instance.parent(), Some(parent));
+        assert_eq!(instance.export_symbol(), Some(export));
+
+        // Lazy table creation through either symbol changes the same data.
+        assert_eq!(get_members(instance), get_members(source));
+        assert_eq!(get_exports(source), get_exports(instance));
+        let members = SymbolTable::new();
+        let exports = SymbolTable::new();
+        instance.set_members(Some(members));
+        source.set_exports(Some(exports));
+        assert_eq!(source.members(), Some(members));
+        assert_eq!(instance.exports(), Some(exports));
+
+        source.set_name("renamed");
+        instance.set_declarations(&[second]);
+        assert_eq!(instance.name(), "renamed");
+        assert_eq!(nested.name(), "renamed");
+        assert_eq!(source.declarations(), &[second]);
+        // Replacing the first declaration preserves the old value declaration in the tail.
+        assert_eq!(instance.value_declaration(), Some(first));
+        instance.set_value_declaration(Some(second));
+        assert_eq!(source.value_declaration(), Some(second));
+        instance.set_parent(None);
+        source.set_export_symbol(None);
+        assert_eq!(source.parent(), None);
+        assert_eq!(instance.export_symbol(), None);
+
+        source.set_flags(SymbolFlags::Class);
+        source.check_flags.set(CheckFlags::Readonly);
+        instance.check_flags.set(CheckFlags::None);
+        assert_eq!(instance.name(), "renamed");
+        assert_eq!(instance.declarations(), &[second]);
+        instance.check_flags.set(CheckFlags::Instantiated | CheckFlags::Late);
+        assert_eq!(source.flags(), SymbolFlags::Class);
+        assert_eq!(instance.flags(), SymbolFlags::Property | SymbolFlags::Transient);
+        assert_eq!(source.check_flags(), CheckFlags::Readonly);
+        assert_eq!(instance.check_flags(), CheckFlags::Instantiated | CheckFlags::Late);
+    }
 
     #[test]
     fn name_filter_keeps_every_key() {

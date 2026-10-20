@@ -331,6 +331,23 @@ impl OwnedTaggedStrCell {
         OwnedTaggedStrCell(Cell::new(Self::pack(value)))
     }
 
+    /// Reserved zero word for an owner whose string is stored in another object. A valid
+    /// `&str` has a non-null data pointer, even when it is empty, so `pack` cannot produce zero.
+    /// The owner must resolve the marker before calling `get`, `set`, `tags` or `set_tags`.
+    ///
+    /// # Safety
+    /// The caller must keep the marker behind accessors that resolve it before using the
+    /// ordinary string methods. In particular, `get` on the marker is invalid in release builds.
+    #[inline]
+    pub unsafe fn shared_marker() -> OwnedTaggedStrCell {
+        OwnedTaggedStrCell(Cell::new(0))
+    }
+
+    #[inline]
+    pub fn is_shared_marker(&self) -> bool {
+        self.0.get() == 0
+    }
+
     #[inline]
     fn pack(s: &'static str) -> u64 {
         let a = s.as_ptr().expose_provenance() as u64;
@@ -359,6 +376,7 @@ impl OwnedTaggedStrCell {
     )]
     pub fn get(&self) -> &'static str {
         let w = self.0.get();
+        debug_assert_ne!(w, 0, "resolve the shared string before reading it");
         let p = std::ptr::with_exposed_provenance::<u8>((w & TAGGED_ADDR) as usize);
         let len = (w >> TAGGED_LEN_SHIFT) & TAGGED_LEN_MASK;
         // SAFETY: built by `pack` from a `&'static str` of this length, or by `pack_long` (length prefix + bytes).

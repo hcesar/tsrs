@@ -2587,3 +2587,68 @@ remain disclosed above. Evidence is under
 `target/port-623/0058-c0ca4744c9/`, with Node parity summaries under
 `tools/node-api/.work/source58-oracle-parity/` and
 `tools/node-api/.work/source58-parity-refreshed/`.
+
+## 59. `6ad8c56f9b` — shared data symbols
+
+Upstream `6ad8c56f9b5a9bb910046c56059296311adc24ba` makes symbol fields
+private, routes their use through accessors, and gives instantiated symbols
+the original symbol's live data (name, declarations, value declaration,
+members, exports, parent, and export symbol). Flags, check flags, and identity
+remain independent. The Rust symbol already had accessors and a compact
+optional table tail, so the mechanical Go accessor rewrites do not require
+matching Rust churn. The port switches the checker to a shared-data
+constructor and converts remaining direct Rust name reads to `name()`.
+
+Rust keeps its 32-byte compressed/40-byte plain `Symbol` instead of adopting
+Go's separate `Symbol`/`SymbolWithData` types. An instantiated symbol stores
+its data owner's arena key in its existing `parent_or_tables` word and a
+reserved zero name word marks the shared-data representation. Nested instances
+flatten to that one owner when constructed. Data accessors resolve the owner;
+the marker is independent of mutable check flags, so even clearing
+all of an instance's check flags cannot detach its data. Ordinary symbols
+retain their prior packed name, declaration slice, and optional table tail.
+The checker still counts instantiated symbols and assigns separate IDs in
+seed mode; `clone_symbol` continues to copy its member and export tables.
+The focused Rust unit test checks live two-way sharing, lazy table creation,
+independent flags and IDs, and the check-flag overwrite case. The exact-source
+Go symbol and API symbol-response tests pass. There is no new upstream
+conformance fixture or user-visible capability change.
+
+All three full compiler modes preserve the exact source-58 passing and
+nonpassing sets, with no new failure, crash, or timeout. Go-history checker
+passes 13,552 diagnostic and 12,862 type/symbol baselines; canonical checker
+passes 13,552 diagnostic and 12,861 type/symbol baselines. Emit passes 13,556
+diagnostic, 12,862 type/symbol, 13,482 JavaScript/declaration, 149
+JavaScript-map, and 156 source-map baselines. Exact-source Fourslash passes
+4,088 of 4,558 groups, skips 470, fails none, and preserves all 4,622 named
+source-58 outcomes. The full Rust workspace, 39 CLI regressions, WebAssembly
+check, dev builds, warnings-denied Clippy, source lint, formatting, and
+generator check pass. The Fourslash and workspace socket checks used the
+previously observed sandbox escalation.
+
+The ignored reference checkout advances to source 59. The published
+TypeScript pin and compatibility summaries remain unchanged; this source
+changes internal storage without changing feature status or pass counts.
+
+Paired release runs against the source-58 binary on the same Apple M3 Max
+preserve diagnostics and exit codes in every public-project cell. Ten
+interleaved runs per binary for xstate-main and webpack, and three for the
+larger VS Code and MUI Docs projects, give these median wall-time changes:
+
+| Project | 1 checker | 4 checkers | Largest peak-RSS change |
+| --- | ---: | ---: | ---: |
+| xstate-main | +2.6% | +1.2% | +0.3% |
+| webpack | +1.4% | +1.4% | +0.1% |
+| vscode | +2.4% | +1.8% | +0.2% |
+| mui-docs | +3.9% | +0.1% | +0.1% |
+
+The two smaller projects also pass the 16-checker poisoned-arena runs. The
+one-hop data-owner lookup avoids repeated traversal of nested instances, but
+the ordinary-symbol marker check still adds work: the measured wall-time
+increase is disclosed under the user's nonblocking migration policy. Peak
+memory is effectively unchanged because Rust already used a packed symbol.
+`bench/count.py` cannot collect retired instructions on this macOS/arm64
+host (`no perf_event_open on darwin/arm64`); the single-threaded peak-RSS
+runs and diagnostic comparisons still pass. The paired logs and JSON are
+under `target/port-623/0059-6ad8c56f9b/verify-optimized/` and
+`verify-large/`.

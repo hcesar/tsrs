@@ -2054,7 +2054,7 @@ pub fn new_checker(program: &'static dyn Program) -> Box<Checker> {
     c.unknown_symbol = c.new_symbol(SymbolFlags::Property, "unknown");
     c.global_this_symbol = c.new_symbol_ex(SymbolFlags::Module, "globalThis", CheckFlags::Readonly);
     c.global_this_symbol.set_exports(Some(c.globals));
-    c.globals.set(c.global_this_symbol.name.get(), c.global_this_symbol);
+    c.globals.set(c.global_this_symbol.name(), c.global_this_symbol);
     c.name_resolver = c.create_name_resolver();
     c.name_resolver_for_suggestion = c.create_name_resolver_for_suggestion();
     c.any_type = c.new_intrinsic_type(TypeFlags::Any, "any");

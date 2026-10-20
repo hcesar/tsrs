@@ -219,7 +219,7 @@ impl<H: 'static> NameResolver<H> {
                                 let local_symbol = get_local_symbol_for_export_default(res);
                                 if let Some(local_symbol) = local_symbol {
                                     if res.flags.get().intersects(meaning)
-                                        && local_symbol.name.get() == name
+                                        && local_symbol.name() == name
                                     {
                                         break 'loop_;
                                     }
@@ -303,7 +303,7 @@ impl<H: 'static> NameResolver<H> {
                                     } else {
                                         "isolatedModules"
                                     };
-                                let qualified = format!("{}.{}", enum_symbol.name.get(), name);
+                                let qualified = format!("{}.{}", enum_symbol.name(), name);
                                 self.error(
                                     host,
                                     original_location,
