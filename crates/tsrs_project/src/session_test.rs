@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use tsrs_core::ScriptKind;
 use tsrs_core::context::Context;
@@ -1801,4 +1802,30 @@ fn did_change_watched_files_change_program_file_not_in_tsconfig_root_files() {
             "workspaceDir={workspace_dir}"
         );
     }
+}
+
+// session_test.go:1746 TestSessionCloseDoesNotBlockOnIdleCacheCleanTimer
+#[test]
+fn close_does_not_block_on_idle_cache_clean_timer() {
+    let files = &[
+        ("/home/projects/TS/p1/tsconfig.json", r#"{ "compilerOptions": { "noLib": true } }"#),
+        ("/home/projects/TS/p1/src/index.ts", "export const x = 1;"),
+    ];
+    let (session, _) = setup(files);
+
+    // Opening the file schedules the 30-second idle cache clean.
+    session.did_open_file(
+        &ctx(),
+        uri("file:///home/projects/TS/p1/src/index.ts"),
+        1,
+        file(files, "/home/projects/TS/p1/src/index.ts"),
+        lsproto::LanguageKind::TypeScript,
+    );
+
+    let start = Instant::now();
+    session.close();
+    assert!(
+        start.elapsed() < Duration::from_secs(5),
+        "Close waited for the idle cache clean timer"
+    );
 }

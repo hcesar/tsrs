@@ -1661,3 +1661,42 @@ nonblocking migration policy. This commit changes documentation only and
 leaves production code and shipped locale data untouched. The measured
 source-11 regressions remain disclosed above. Evidence is under
 `target/port-623/0035-6b3da828d7/`.
+
+## 36. `bcd7c422559d` — retain the idle cache clean timer for session shutdown
+
+Upstream `bcd7c422559da26b7e60a46a41cf5503a360d106` stores the newly
+scheduled idle cache clean timer on `Session` so `cancelIdleCacheClean` and
+`closeIdleCacheClean` can stop it. Without that handle, closing a session may
+wait for the full 30-second delay. tsrs already stores the timer in
+`idle_cache_clean.timer` from the source-22 session port. Cancellation removes
+and stops that handle; close also waits for any callback already in flight. The
+matching Rust regression opens a file to schedule the timer and verifies that
+`Session::close` returns within five seconds. This source commit needs no
+production change and does not change any user-visible capability. The ignored
+reference checkout advances to source 36; the published TypeScript pin and
+base SDK manifest remain unchanged until the full upgrade.
+
+All twelve complete checker and emit pass/nonpass sets match source 35 exactly,
+with no lost passes, new failures, crashes or timeouts. Go-history checker
+passes 13,522 diagnostics and 12,837 type/symbol baselines; canonical checker
+passes 13,522 diagnostics and 12,836 type/symbol baselines. Emit passes 13,526
+diagnostics, 12,837 type/symbol, 13,452 JavaScript/declaration, 149
+JavaScript-map and 156 source-map baselines. The exact upstream Go timer
+regression, the full exact-source Go project package, and its Rust counterpart
+pass, as do all 37 CLI regression projects.
+
+Exact-source Fourslash passes 4,086 groups, skips 470, fails none, and all
+4,620 named outcomes match source 35. The full Rust workspace passes 1,114
+tests with four existing ignored, including the new timer case. The first
+sandboxed workspace run could not bind a Unix socket; an escalated run made
+that case pass but overlapped the 14-worker emit gate and saw one overflow in
+the FSEvents all-core stress test. Both the isolated stress test and the
+serial, escalated full workspace pass. The dev CLI/testrunner and fresh
+Fourslash server builds, warnings-denied Clippy, source lint, formatting and
+generator integrity pass.
+
+No source-36 release performance measurement was collected under the user's
+nonblocking migration policy. This port changes a test and documentation only;
+the source-22 production implementation is untouched. The measured source-11
+regressions remain disclosed above. Evidence is under
+`target/port-623/0036-bcd7c42255/`.
