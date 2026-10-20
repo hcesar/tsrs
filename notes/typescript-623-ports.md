@@ -2374,3 +2374,40 @@ TypeScript pin remains unchanged until the full upgrade. No source-53
 release instruction-count or peak-RSS measurement was collected under the
 user's nonblocking migration policy. The measured source-11 regressions
 remain disclosed above. Evidence is under `target/port-623/0053-0bd74f77b2/`.
+
+## 54. `9055b58852` — refresh the inferred project after project-tree loading
+
+Upstream `9055b588528600681abb8d95b3f1f39ef1707e4a` cleans the inferred
+project after configured project trees are loaded, then updates its program
+when it exists. The Rust port mirrors both steps in
+`ProjectCollectionBuilder::did_request_project_trees`. The exact upstream
+`TestWorkspaceSymbolNewInferredProject` fails against the pre-port Rust
+server: after editing `a.ts` so it no longer imports open `e.ts`,
+`workspace/symbol` cannot find `e` in the new inferred project. That first
+assertion stops the pre-port test before its later crash case. With the port,
+the same test passes both the symbol lookup and the subsequent request after
+opening `b.ts`, which exercises the configured project's fast path. The
+upstream Fourslash test is run unchanged through the Go subprocess runner;
+there is no Rust-only test translation or protocol change.
+
+All three full compiler modes have exactly the source-53 pass and nonpass
+sets, with no removed passes, new failures, crashes, or timeouts. Go-history
+checker passes 13,541 diagnostics and 12,851 type/symbol baselines;
+canonical checker passes 13,541 diagnostics and 12,850 type/symbol baselines.
+Emit passes 13,545 diagnostics, 12,851 type/symbol, 13,471 JavaScript,
+149 JavaScript-map, and 156 source-map baselines. Exact-source Fourslash
+passes 4,088 of 4,558 groups, skips 470, fails none, and adds only the new
+upstream test to the 4,621 prior named outcomes; all prior outcomes are
+unchanged. The full Rust workspace passes with four existing ignored tests;
+all 39 CLI regressions, WebAssembly check, dev builds, warnings-denied
+Clippy, source lint, and formatting pass. Fourslash and workspace socket
+tests used the previously observed sandbox escalation.
+
+The compatibility and language-server pages record the new Fourslash count
+and closed workspace-symbol gap; the root and npm README summaries have no
+matching count or capability distinction. The ignored reference checkout
+advances to source 54; the published TypeScript pin remains unchanged until
+the full upgrade. No source-54 release instruction-count or peak-RSS
+measurement was collected under the user's nonblocking migration policy.
+The measured source-11 regressions remain disclosed above. Evidence is under
+`target/port-623/0054-9055b58852/`.

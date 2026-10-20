@@ -1055,6 +1055,13 @@ impl ProjectCollectionBuilder {
             }
         }
 
+        // Updated configured projects may have moved open files in or out of the inferred project.
+        // Callers iterate over all language service projects, so the inferred one needs a program too.
+        self.cleanup_inferred_project(logger);
+        if self.inferred_project.value().is_some() {
+            self.update_program(&projectEntry::Inferred, logger);
+        }
+
         if !logger.is_nil() {
             logger.log(&format!(
                 "Completed project tree request for {:?} in {:?}",
