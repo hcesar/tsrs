@@ -1985,3 +1985,39 @@ summaries contain no corresponding revision or counts.
 No source-43 release performance measurement was collected under the user's
 nonblocking migration policy. The measured source-11 regressions remain
 disclosed above. Evidence is under `target/port-623/0043-1a78786ca7/`.
+
+## 44. `21b260b4e7` — exclude top-level imports from document symbols
+
+Upstream `21b260b4e7e5123727f33d506fa686fecc258b1a` stops the document-symbol
+visitor before descending into an import or import-equals declaration directly
+under a source file. Rust adds the equivalent guard after collecting attached
+JSDoc tags, so top-level imports disappear from outlines while their JSDoc
+typedef and callback symbols remain. The new exact-source upstream Fourslash
+case failed before the change with five extra import symbols and passed after
+it; all three existing navigation baselines changed upstream by this commit
+also pass against the new Go snapshots. This is a direct source-equivalent
+change without a Rust-specific behavioral deviation. The ignored reference
+checkout advances to source 44. The published TypeScript pin and base SDK
+manifest remain unchanged until the full upgrade.
+
+All twelve complete checker and emit pass/nonpass sets are unchanged from
+source 43, with no removed passes, new failures, crashes, or timeouts.
+Go-history checker passes 13,531 diagnostics and 12,845 type/symbol baselines;
+canonical checker passes 13,531 diagnostics and 12,844 type/symbol baselines.
+Emit passes 13,535 diagnostics, 12,845 type/symbol, 13,461
+JavaScript/declaration, 149 JavaScript-map, and 156 source-map baselines.
+Exact-source Fourslash passes 4,087 of 4,557 groups, skips 470, fails none;
+the only addition among its 4,621 named outcomes is the new upstream case,
+and no existing outcome changes. Full Rust workspace all-targets passes
+1,122 tests with four existing ignored; all 38 CLI regression projects,
+WebAssembly check, dev builds, warnings-denied Clippy, source lint,
+formatting, and all seven generators pass. The generator rerun leaves the
+tracked crate diff and untracked crate files byte-identical. Workspace and
+Fourslash Unix-socket tests required the previously observed sandbox
+escalation. The compatibility table and LSP guide record the new Fourslash
+count and document-symbol behavior; the root and npm README summaries contain
+no corresponding source revision or count.
+
+No source-44 release performance measurement was collected under the user's
+nonblocking migration policy. The measured source-11 regressions remain
+disclosed above. Evidence is under `target/port-623/0044-21b260b4e7/`.

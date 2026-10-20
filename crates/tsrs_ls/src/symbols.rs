@@ -213,6 +213,11 @@ impl DocumentSymbolsVisitor<'_> {
                 }
             }
         }
+        if node.parent().is_some_and(|parent| parent.kind() == Kind::SourceFile)
+            && ast::is_import_or_import_equals_declaration(node)
+        {
+            return false;
+        }
         match node.kind() {
             Kind::ClassDeclaration
             | Kind::ClassExpression
