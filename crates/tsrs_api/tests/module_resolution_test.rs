@@ -98,12 +98,66 @@ struct FakeConn {
 impl ClientConn for FakeConn {
     fn call(&self, method: &str, params: &str) -> ApiResult<String> {
         self.calls.lock().unwrap().push((method.to_string(), params.to_string()));
-        if params.contains("\"moduleName\":\"cb\"") {
+        if params.contains("\"moduleName\":\"cb\"") || params.contains("\"moduleName\":\"./c.ts\"")
+        {
             Ok(format!("{{\"resolvedFileName\":{}}}", quote(&self.target)))
         } else {
             Ok("null".to_string())
         }
     }
+}
+
+#[test]
+fn custom_module_resolutions_skip_disk_layout_import_diagnostics() {
+    let dir = TempDir::new("custom_module_resolution_rewrite");
+    let root = dir.write(
+        "src/a.ts",
+        "import { b } from './b.ts'; import { c } from './c.ts'; export const a = b + c;",
+    );
+    let static_target = dir.write("src/b.ts", "export const b = 1;");
+    let callback_target = dir.write("src/c.ts", "export const c = 2;");
+    let s = session(&dir.dir(), false);
+    let conn =
+        Arc::new(FakeConn { target: callback_target.clone(), calls: Mutex::new(Vec::new()) });
+    s.set_connection(Arc::<FakeConn>::clone(&conn));
+
+    let compiler_options = format!(
+        r#"{{"noLib":true,"module":199,"moduleResolution":99,"rewriteRelativeImportExtensions":true,"outDir":{}}}"#,
+        quote(&dir.path("out"))
+    );
+    let resolver = call(
+        &s,
+        "createModuleResolver",
+        &format!(
+            r#"{{"compilerOptions":{compiler_options},"moduleResolutions":{{"fallback":"resolve","entries":[{{"moduleName":"./b.ts","result":{{"resolvedFileName":{}}}}}]}},"resolveModuleNameCallback":"resolveCb"}}"#,
+            quote(&static_target)
+        ),
+    );
+    let response = call(
+        &s,
+        "createSnapshot",
+        &format!(
+            r#"{{"createPrograms":[{{"rootFiles":[{},{},{}],"compilerOptions":{compiler_options},"options":{{"moduleResolver":{}}}}}]}}"#,
+            quote(&root),
+            quote(&static_target),
+            quote(&callback_target),
+            json::marshal(&resolver).unwrap()
+        ),
+    );
+    let snapshot = json::marshal(get(&response, "snapshot")).unwrap();
+    let project = str_of(get(&response, "operation.createdPrograms.0"));
+    let diagnostics = call(
+        &s,
+        "getSemanticDiagnostics",
+        &format!(
+            r#"{{"snapshot":{snapshot},"project":{},"files":[{}]}}"#,
+            quote(project),
+            quote(&root)
+        ),
+    );
+    assert_eq!(diagnostics, Value::Array(vec![]), "{}", json::marshal(&diagnostics).unwrap());
+    let calls = conn.calls.lock().unwrap();
+    assert!(calls.iter().any(|(_, p)| p.contains("\"moduleName\":\"./c.ts\"")));
 }
 
 #[test]

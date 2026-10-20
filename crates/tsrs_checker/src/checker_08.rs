@@ -369,7 +369,7 @@ impl Checker {
                 );
             }
 
-            if error_node.is_some() {
+            if error_node.is_some() && !resolved_module.is_custom_resolution {
                 if resolved_module.resolved_using_ts_extension
                     && tspath::is_declaration_file_name(module_reference)
                 {

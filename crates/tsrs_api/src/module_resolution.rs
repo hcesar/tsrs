@@ -307,6 +307,7 @@ fn static_resolution_to_resolved_module(v: &Value, cwd: &str) -> ApiResult<P<Res
     r.extension = tspath::try_get_extension_from_path(&resolved_file_name);
     r.resolved_file_name = alloc_str(&resolved_file_name);
     r.original_path = alloc_str(&original_path);
+    r.is_custom_resolution = true;
     Ok(P::new(r))
 }
 

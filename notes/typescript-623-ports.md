@@ -2097,3 +2097,38 @@ nonblocking migration policy. There is no production logic change in Rust;
 the source edit corrects a comment and the new test guards existing behavior.
 The measured source-11 regressions remain disclosed above. Evidence is under
 `target/port-623/0046-09d4966578/`.
+
+## 47. `d61a7d2359` — skip disk-layout import diagnostics for custom API resolutions
+
+Upstream `d61a7d235906e78be9b111de0ba060e28e67ecfa` marks a static or
+callback module resolution as custom and skips checker diagnostics that assume
+the import's path follows the on-disk resolution layout. Rust adds the same
+internal `ResolvedModule` flag in the shared API conversion and guards the
+corresponding checker branch. The new Rust API regression covers both a static
+entry and a callback with `rewriteRelativeImportExtensions`: before the port
+it reported two spurious TS2876 diagnostics, one for each import; afterward it
+reports none. The exact upstream Go API test passes. The marker is internal,
+as in Go, and does not change the `resolveModuleName` response. There is no
+Rust-specific behavior or callback deviation in this port. The ignored
+reference checkout advances to source 47. The published TypeScript pin and
+base SDK manifest remain unchanged until the full upgrade.
+
+All twelve complete checker and emit pass/nonpass sets are identical to
+source 46: no removed passes, new failures, crashes, or timeouts. Go-history
+checker passes 13,532 diagnostics and 12,846 type/symbol baselines; canonical
+checker passes 13,532 diagnostics and 12,845 type/symbol baselines. Emit passes
+13,536 diagnostics, 12,846 type/symbol, 13,462 JavaScript/declaration, 149
+JavaScript-map, and 156 source-map baselines. Exact-source Fourslash passes
+4,087 of 4,557 groups, skips 470, fails none; all 4,621 named outcomes are
+unchanged from source 46. The full Rust workspace all-targets passes 1,124
+tests with four existing ignored; all 38 CLI regression projects, WebAssembly
+check, dev builds, warnings-denied Clippy, source lint, formatting, and all
+seven generators pass. The generator rerun leaves the staged crate diff and
+untracked crate files unchanged. Workspace and Fourslash Unix-socket tests
+required the previously observed sandbox escalation. The capability table
+and Node API guide record the new custom-resolution behavior; the root and
+npm README summaries contain no corresponding revision or count.
+
+No source-47 release performance measurement was collected under the user's
+nonblocking migration policy. The measured source-11 regressions remain
+disclosed above. Evidence is under `target/port-623/0047-d61a7d2359/`.

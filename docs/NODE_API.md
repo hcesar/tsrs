@@ -207,7 +207,7 @@ existing core `getSymbolOfDeclaration` instead retrieves a binder symbol from a 
 | 14 | `buildReferences` | core | supported | tsrs_cli api::tests |
 | 15 | `cleanBuild` | core | supported | tsrs_cli api::tests |
 | 16 | `cleanReferences` | core | partial | ported Go clean(onlyReferences); no dedicated test |
-| 17 | `createModuleResolver` | core | supported | module_resolution_test (default, static entries, callback) |
+| 17 | `createModuleResolver` | core | supported | module_resolution_test (default, static entries, callback; custom resolutions skip disk-layout import diagnostics under `rewriteRelativeImportExtensions`) |
 | 18 | `releaseModuleResolver` | core | supported | module_resolution_test |
 | 19 | `resolveModuleName` | core | supported | module_resolution_test (standalone, snapshot-scoped callback); inProgressSnapshot path exercised only via callbacks during program build |
 | 20 | `parseCommandLine` | core | supported | config_test |
