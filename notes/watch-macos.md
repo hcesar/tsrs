@@ -48,7 +48,7 @@ it (debounce, cycle start, status line) adds under 1 ms.
 | chmod / setup writes started cycles | FSEvents delivers ~12 ms late, metadata changes report the file | events for files unchanged since parsed are dropped | `watch_macos.rs` |
 | 1 wakeup a second while idle | `run_loop`'s 1 s wait timeout | no timeout; `stop` notifies under the lock | `watch_macos.rs` (proc_pid_rusage) |
 | A new directory beside the project ran a cycle | any directory under any watch counted | only wildcard matches, lookup paths and node_modules count | `watch_macos.rs` (both modes) |
-| kqueue: past 256 files, edits silently missed | Rust keeps the shell's 256-descriptor soft limit (Go raises it) | raise it like Go; out of descriptors is an error naming `ulimit -n` | `kqueue_macos.rs` |
+| kqueue: past 256 files, edits silently missed | Rust keeps the shell's 256-descriptor soft limit (Go raises it) | raise it like Go; child descriptor exhaustion is an error naming `ulimit -n`; opening the watch root already reports its path and OS error | `kqueue_macos.rs` accepts either root or child exhaustion wording, since map order decides which fails first |
 | A watch error printed nothing at all | the output is buffered and only the status line flushed it | the report goes out after the error | `watch_macos.rs` |
 | `-b --watch` repeat edit 578 ms, detected 121 ms | wildcard reload every cycle, 10k realpaths per cycle, every file reread | skip the reload for edits, cache realpaths, reuse files by mtime | `watchcheck.py`, `savepatterns.py`, tsctests |
 | A batch to 284 callbacks took 133-301 ms under the locks (stalled new watches 49 ms) | per-callback snapshot and case-folded rebase of every event | index by parent directory, outside the locks | `watcher_test.rs` (differential) |

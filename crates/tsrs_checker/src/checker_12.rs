@@ -254,7 +254,11 @@ impl Checker {
                 min_type_argument_count,
                 ast::is_in_js_file(symbol.value_declaration()),
             );
-            let mapper = new_type_mapper(type_parameters, alloc_vec(filled));
+            let filled = match filled {
+                std::borrow::Cow::Borrowed(args) => alloc_slice(args),
+                std::borrow::Cow::Owned(args) => alloc_vec(args),
+            };
+            let mapper = new_type_mapper(type_parameters, filled);
             let result = self.instantiate_type_with_alias(t, Some(mapper), alias);
             // tsrs-only: not cached when the instantiation reported TS2590 (`too_complex_since`).
             if !self.too_complex_since(too_complex_before) {

@@ -540,6 +540,7 @@ impl Checker {
             min_type_argument_count,
             is_java_script_implicit_any,
         )
+        .into_owned()
     }
 
     // exports.go:358

@@ -42,8 +42,8 @@ fn kill(pid: u32) {
     let _ = Command::new("kill").args(["-9", &pid.to_string()]).stderr(Stdio::null()).status();
 }
 
-// cmd/tsc/sys_unix_test.go:20 (The launcher prints the descendant's pid as `pid:<n>`: libtest writes its own lines to
-// the same stdout first, where Go's test binary is silent.)
+// cmd/tsc/sys_unix_test.go:20 (The launcher prints the descendant's pid as `pid:<n>`: libtest writes its own output to
+// the same stdout first, including a same-line test-name prefix when run serially, where Go's test binary is silent.)
 #[test]
 fn test_child_process_close_does_not_wait_for_launcher_descendants() {
     match std::env::args().next_back().as_deref() {
@@ -69,7 +69,7 @@ fn test_child_process_close_does_not_wait_for_launcher_descendants() {
     let mut descendant_pid = None;
     let mut line = String::new();
     while stdout.read_line(&mut line).unwrap() > 0 {
-        if let Some(pid) = line.strip_prefix("pid:") {
+        if let Some((_, pid)) = line.split_once("pid:") {
             descendant_pid = Some(pid.trim().parse::<u32>().unwrap());
             break;
         }

@@ -631,19 +631,20 @@ pub struct InferenceInfo {
 
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(
-    std::mem::size_of::<InferenceInfo>() == if tsrs_core::COMPRESSED_PTRS { 28 } else { 48 }
+    std::mem::size_of::<InferenceInfo>() == if tsrs_core::COMPRESSED_PTRS { 24 } else { 48 }
 );
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(std::mem::size_of::<InferenceInfo>() == 28);
+const _: () = assert!(std::mem::size_of::<InferenceInfo>() == 24);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum InferencePriorityRepr {
     Circularity,
-    // Store bits + 1 so zero remains the niche for `Circularity` and the wrapper stays four bytes.
-    Bits(std::num::NonZeroU32),
+    // Store (bits << 1) | 1 so zero remains the niche for `Circularity` and finite OR operates
+    // directly on the encoding. The constants and their OR combinations use only bits 0..=11.
+    Bits(std::num::NonZeroU16),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, Eq, Debug)]
 pub struct InferencePriority(InferencePriorityRepr);
 
 #[expect(non_upper_case_globals, reason = "names match the upstream inference priorities")]
@@ -665,27 +666,38 @@ impl InferencePriority {
     pub const AlwaysStrict: Self = Self::from_bits(1 << 10); // Always use strict rules for contravariant inferences
     pub const MaxValue: Self = Self::from_bits(1 << 11); // Seed for inference priority tracking
 
-    const fn from_bits(bits: u32) -> Self {
-        // SAFETY: every priority bit is below `MaxValue`, so adding one cannot overflow or produce zero.
-        Self(InferencePriorityRepr::Bits(unsafe { std::num::NonZeroU32::new_unchecked(bits + 1) }))
+    const fn from_bits(bits: u16) -> Self {
+        assert!(bits <= u16::MAX >> 1, "inference priority exceeds u16 storage");
+        Self(InferencePriorityRepr::Bits(
+            std::num::NonZeroU16::new((bits << 1) | 1)
+                .expect("encoded inference priority is nonzero"),
+        ))
     }
 
-    const fn bits(self) -> Option<u32> {
+    const fn bits(self) -> Option<u16> {
         match self.0 {
             InferencePriorityRepr::Circularity => None,
-            InferencePriorityRepr::Bits(bits) => Some(bits.get() - 1),
+            InferencePriorityRepr::Bits(bits) => Some(bits.get() >> 1),
+        }
+    }
+
+    // Circularity sorts first; each finite priority keeps its order in the odd encoding.
+    // This safe match also gives equality a single value to compare instead of separate variants.
+    #[inline]
+    const fn order_key(self) -> u16 {
+        match self.0 {
+            InferencePriorityRepr::Circularity => 0,
+            InferencePriorityRepr::Bits(bits) => bits.get(),
         }
     }
 
     pub fn intersects(self, other: Self) -> bool {
-        match (self.bits(), other.bits()) {
-            (Some(left), Some(right)) => left & right != 0,
-            _ => false,
-        }
+        // The low bit marks finite values, not a flag. Circularity's zero key intersects nothing.
+        self.order_key() & other.order_key() & !1 != 0
     }
 
     pub(crate) fn memo_bits(self) -> u32 {
-        self.bits().unwrap_or(u32::MAX)
+        self.bits().map_or(u32::MAX, u32::from)
     }
 }
 
@@ -695,16 +707,26 @@ impl Default for InferencePriority {
     }
 }
 
-const _: () = assert!(std::mem::size_of::<InferencePriority>() == 4);
+const _: () = assert!(std::mem::size_of::<InferencePriority>() == 2);
+
+impl PartialEq for InferencePriority {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.order_key() == other.order_key()
+    }
+}
+
+impl std::hash::Hash for InferencePriority {
+    #[inline]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&self.0, state);
+    }
+}
 
 impl Ord for InferencePriority {
+    #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        match (self.bits(), other.bits()) {
-            (None, None) => std::cmp::Ordering::Equal,
-            (None, Some(_)) => std::cmp::Ordering::Less,
-            (Some(_), None) => std::cmp::Ordering::Greater,
-            (Some(left), Some(right)) => left.cmp(&right),
-        }
+        self.order_key().cmp(&other.order_key())
     }
 }
 
@@ -718,9 +740,54 @@ impl std::ops::BitOr for InferencePriority {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self::Output {
-        match (self.bits(), rhs.bits()) {
-            (Some(left), Some(right)) => Self::from_bits(left | right),
+        match (self.0, rhs.0) {
+            (InferencePriorityRepr::Bits(left), InferencePriorityRepr::Bits(right)) => {
+                Self(InferencePriorityRepr::Bits(left | right))
+            }
             _ => Self::Circularity,
+        }
+    }
+}
+
+#[cfg(test)]
+mod inference_priority_tests {
+    use super::InferencePriority;
+
+    #[test]
+    fn reachable_priorities_match_integer_semantics() {
+        // Circularity keeps its sentinel behavior; finite flags follow the integer operations below.
+        let circularity = InferencePriority::Circularity;
+        assert_eq!(InferencePriority::default().memo_bits(), 0);
+        assert_eq!(circularity.memo_bits(), u32::MAX);
+        assert_eq!(circularity.cmp(&circularity), std::cmp::Ordering::Equal);
+        assert_eq!(circularity.min(circularity), circularity);
+        assert_eq!(circularity | circularity, circularity);
+        assert!(!circularity.intersects(circularity));
+        assert_eq!(InferencePriority::from_bits(0x7fff).memo_bits(), 0x7fff);
+        for bits in [0x8000, u16::MAX] {
+            assert!(std::panic::catch_unwind(|| InferencePriority::from_bits(bits)).is_err());
+        }
+        // All OR combinations of the twelve public flag bits, including MaxValue.
+        for left_bits in 0..4096u16 {
+            let left = InferencePriority::from_bits(left_bits);
+            assert_eq!(left.memo_bits(), u32::from(left_bits));
+            assert_eq!(circularity.cmp(&left), (-1i32).cmp(&i32::from(left_bits)));
+            assert_eq!(left.cmp(&circularity), i32::from(left_bits).cmp(&-1));
+            assert_ne!(left, circularity);
+            assert_eq!(left.min(circularity), circularity);
+            assert_eq!(circularity.min(left), circularity);
+            assert_eq!(left | circularity, circularity);
+            assert_eq!(circularity | left, circularity);
+            assert!(!left.intersects(circularity));
+            assert!(!circularity.intersects(left));
+            for right_bits in 0..4096u16 {
+                let right = InferencePriority::from_bits(right_bits);
+                assert_eq!((left | right).memo_bits(), u32::from(left_bits | right_bits));
+                assert_eq!(left.cmp(&right), i32::from(left_bits).cmp(&i32::from(right_bits)));
+                assert_eq!(left == right, left_bits == right_bits);
+                assert_eq!(left.min(right).memo_bits(), u32::from(left_bits.min(right_bits)));
+                assert_eq!(left.intersects(right), left_bits & right_bits != 0);
+            }
         }
     }
 }

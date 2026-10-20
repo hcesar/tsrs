@@ -1517,13 +1517,19 @@ impl Checker {
                 // apply JSX.IntrinsicClassAttributes<hostClassType, ...>
                 let min_type_argument_count =
                     checker::Checker::get_min_type_argument_count(&type_params);
+                let host_type_arguments = [host_class_type];
                 let inferred_args = self.fill_missing_type_arguments(
-                    &[host_class_type],
+                    &host_type_arguments,
                     &type_params,
                     min_type_argument_count,
                     ast::is_in_js_file(context),
                 );
-                let mapper = new_type_mapper(alloc_vec(type_params), alloc_vec(inferred_args));
+                let type_params = alloc_vec(type_params);
+                let inferred_args = match inferred_args {
+                    std::borrow::Cow::Borrowed(args) => alloc_slice(args),
+                    std::borrow::Cow::Owned(args) => alloc_vec(args),
+                };
+                let mapper = new_type_mapper(type_params, inferred_args);
                 self.instantiate_type(intrinsic_class_attribs, Some(mapper))
             } else {
                 intrinsic_class_attribs

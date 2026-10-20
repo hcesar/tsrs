@@ -121,6 +121,14 @@ fn running_out_of_descriptors_is_an_error() {
     let dir = temp_dir("exhausted", 200);
     let (_seen, w) = watch(&dir, dir.join("f0.ts"));
     let err = w.err().expect("watching 200 files with 64 descriptors succeeded");
-    assert!(err.message().contains("ulimit -n"), "{}", err.message());
+    assert!(err.is_errno(libc::EMFILE) || err.is_errno(libc::ENFILE), "{}", err.message());
+    // Map order decides whether the root or a child exhausts the descriptors first. The root already reports
+    // an error; the child error adds advice because otherwise a failed child watch would be silently skipped.
+    assert!(
+        err.message().contains("ulimit -n")
+            || err.message().starts_with(&format!("error watching {}: ", dir.display())),
+        "{}",
+        err.message()
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }

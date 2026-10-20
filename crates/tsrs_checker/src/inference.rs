@@ -21,7 +21,16 @@ impl Checker {
 
     // inference.go:41
     pub(crate) fn put_inference_state(&mut self, n: P<InferenceState>) {
-        n.visited.clear_scratch();
+        {
+            let mut visited = n.visited.borrow_mut();
+            let len = visited.len();
+            // Keep the pooled scratch-map policy: avoid clearing a formerly large table on every use.
+            if visited.capacity() > 64 && visited.capacity() > 4 * len {
+                *visited = FxHashMap::with_capacity_and_hasher(len, rustc_hash::FxBuildHasher);
+            } else {
+                visited.clear();
+            }
+        }
         n.inferences.borrow_mut().clear();
         n.original_source.set(None);
         n.original_target.set(None);
@@ -85,26 +94,7 @@ impl Checker {
                 if !source_alias.type_arguments().is_empty()
                     || !target_alias.type_arguments().is_empty()
                 {
-                    // Source and target are types originating in the same generic type alias declaration.
-                    // Simply infer from source type arguments to target type arguments, with defaults applied.
-                    let alias_symbol = source_alias.symbol().unwrap();
-                    let params = self.type_alias_links.get(alias_symbol).type_parameters.get();
-                    let min_params = Self::get_min_type_argument_count(params);
-                    let node_is_in_js_file = ast::is_in_js_file(alias_symbol.value_declaration());
-                    let source_types = self.fill_missing_type_arguments(
-                        source_alias.type_arguments(),
-                        params,
-                        min_params,
-                        node_is_in_js_file,
-                    );
-                    let target_types = self.fill_missing_type_arguments(
-                        target_alias.type_arguments(),
-                        params,
-                        min_params,
-                        node_is_in_js_file,
-                    );
-                    let variances = self.get_alias_variances(alias_symbol);
-                    self.infer_from_type_arguments(n, &source_types, &target_types, &variances);
+                    self.invoke_once(n, source, target, Self::infer_from_alias_type_arguments);
                 }
                 // And if there weren't any type arguments, there's no reason to run inference as the types must be the same.
                 return;
@@ -302,15 +292,7 @@ impl Checker {
                 && target.as_type_reference().node.get().is_some())
         {
             // If source and target are references to the same generic type, infer from type arguments
-            let source_type_arguments = self.get_type_arguments(source);
-            let target_type_arguments = self.get_type_arguments(target);
-            let variances = self.get_variances(source.as_type_reference().target.get().unwrap());
-            self.infer_from_type_arguments(
-                n,
-                source_type_arguments,
-                target_type_arguments,
-                &variances,
-            );
+            self.invoke_once(n, source, target, Self::infer_from_reference_type_arguments);
         } else if source.flags().intersects(TypeFlags::Index)
             && target.flags().intersects(TypeFlags::Index)
         {
@@ -411,7 +393,52 @@ impl Checker {
         }
     }
 
-    // inference.go:284
+    // inference.go:280
+    pub(crate) fn infer_from_alias_type_arguments(
+        &mut self,
+        n: P<InferenceState>,
+        source: P<Type>,
+        target: P<Type>,
+    ) {
+        // Source and target are types originating in the same generic type alias declaration.
+        // Simply infer from source type arguments to target type arguments, with defaults applied.
+        let source_alias = source.alias().unwrap();
+        let target_alias = target.alias().unwrap();
+        let alias_symbol = source_alias.symbol().unwrap();
+        let params = self.type_alias_links.get(alias_symbol).type_parameters.get();
+        let min_params = Self::get_min_type_argument_count(params);
+        let node_is_in_js_file = ast::is_in_js_file(alias_symbol.value_declaration());
+        let source_types = self.fill_missing_type_arguments(
+            source_alias.type_arguments(),
+            params,
+            min_params,
+            node_is_in_js_file,
+        );
+        let target_types = self.fill_missing_type_arguments(
+            target_alias.type_arguments(),
+            params,
+            min_params,
+            node_is_in_js_file,
+        );
+        let variances = self.get_alias_variances(alias_symbol);
+        self.infer_from_type_arguments(n, &source_types, &target_types, variances);
+    }
+
+    // inference.go:292
+    #[inline]
+    pub(crate) fn infer_from_reference_type_arguments(
+        &mut self,
+        n: P<InferenceState>,
+        source: P<Type>,
+        target: P<Type>,
+    ) {
+        let source_type_arguments = self.get_type_arguments(source);
+        let target_type_arguments = self.get_type_arguments(target);
+        let variances = self.get_variances(source.as_type_reference().target.get().unwrap());
+        self.infer_from_type_arguments(n, source_type_arguments, target_type_arguments, variances);
+    }
+
+    // inference.go:296
     pub(crate) fn infer_from_type_arguments(
         &mut self,
         n: P<InferenceState>,
@@ -507,15 +534,28 @@ impl Checker {
         target: P<Type>,
         mut action: impl FnMut(&mut Checker, P<InferenceState>, P<Type>, P<Type>),
     ) {
-        let key = InferenceKey { s: source.id, t: target.id };
-        if let Some(status) = n.visited.get(&key) {
+        let key = InferenceKey {
+            source: source.id,
+            target: target.id,
+            priority: n.priority.get(),
+            contravariant: n.contravariant.get(),
+            bivariant: n.bivariant.get(),
+        };
+        // End the map borrow before the action can recursively visit this inference state.
+        let status = {
+            let mut visited = n.visited.borrow_mut();
+            match visited.entry(key) {
+                std::collections::hash_map::Entry::Occupied(entry) => Some(*entry.get()),
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(InferencePriority::Circularity);
+                    None
+                }
+            }
+        };
+        if let Some(status) = status {
             n.inference_priority.set(min_priority(n.inference_priority.get(), status));
             return;
         }
-        if n.visited.is_nil() {
-            n.visited.make();
-        }
-        n.visited.set(key, InferencePriority::Circularity);
         let save_inference_priority = n.inference_priority.get();
         n.inference_priority.set(InferencePriority::MaxValue);
         // We stop inferring and report a circularity if we encounter duplicate recursion identities on both
@@ -523,12 +563,18 @@ impl Checker {
         let save_expanding_flags = n.expanding_flags.get();
         n.source_stack.borrow_mut().push(source);
         n.target_stack.borrow_mut().push(target);
-        // The stack borrows are shared and isDeeplyNestedType never re-enters inference on this state.
-        if self.is_deeply_nested_type(source, &n.source_stack.borrow(), 2) {
-            n.expanding_flags.set(n.expanding_flags.get() | ExpandingFlags::Source);
+        // Shared stack borrows: the nesting walk never re-enters inference on this state.
+        {
+            let source_stack = n.source_stack.borrow();
+            if source_stack.len() >= 2 && self.is_deeply_nested_type(source, &source_stack, 2) {
+                n.expanding_flags.set(n.expanding_flags.get() | ExpandingFlags::Source);
+            }
         }
-        if self.is_deeply_nested_type(target, &n.target_stack.borrow(), 2) {
-            n.expanding_flags.set(n.expanding_flags.get() | ExpandingFlags::Target);
+        {
+            let target_stack = n.target_stack.borrow();
+            if target_stack.len() >= 2 && self.is_deeply_nested_type(target, &target_stack, 2) {
+                n.expanding_flags.set(n.expanding_flags.get() | ExpandingFlags::Target);
+            }
         }
         if n.expanding_flags.get() != ExpandingFlags::Both {
             action(self, n, source, target);
@@ -538,7 +584,12 @@ impl Checker {
         n.target_stack.borrow_mut().pop();
         n.source_stack.borrow_mut().pop();
         n.expanding_flags.set(save_expanding_flags);
-        n.visited.set(key, n.inference_priority.get());
+        // The action can resize the table, but cannot remove this invocation's circularity entry.
+        *n.visited
+            .borrow_mut()
+            .get_mut(&key)
+            .expect("inference visit remains present during its action") =
+            n.inference_priority.get();
         n.inference_priority.set(min_priority(n.inference_priority.get(), save_inference_priority));
     }
 
@@ -1060,15 +1111,7 @@ impl Checker {
                 || self.is_array_type(source) && self.is_array_type(target))
         {
             // If source and target are references to the same generic type, infer from type arguments
-            let source_type_arguments = self.get_type_arguments(source);
-            let target_type_arguments = self.get_type_arguments(target);
-            let variances = self.get_variances(source.target().unwrap());
-            self.infer_from_type_arguments(
-                n,
-                source_type_arguments,
-                target_type_arguments,
-                &variances,
-            );
+            self.infer_from_reference_type_arguments(n, source, target);
             return;
         }
         if self.is_generic_mapped_type(source) && self.is_generic_mapped_type(target) {
@@ -2436,7 +2479,7 @@ impl Checker {
     ) -> P<Type> {
         // Extract all object and array literal types and replace them with a single widened and normalized type.
         let inference_candidates = inference.candidates.to_vec();
-        let candidates = self.union_object_and_array_literal_candidates(&inference_candidates);
+        let mut candidates = self.union_object_and_array_literal_candidates(inference_candidates);
         // We widen inferred literal types if
         // all inferences were made to top-level occurrences of the type parameter, and
         // the type parameter has no constraint or its constraint includes no primitive or literal types, and
@@ -2448,13 +2491,16 @@ impl Checker {
             && inference.top_level.get()
             && (inference.is_fixed.get()
                 || !self.is_type_parameter_at_top_level_in_return_type(signature, type_parameter));
-        let base_candidates: Vec<P<Type>> = if primitive_constraint {
-            candidates.iter().map(|&t| self.get_regular_type_of_literal_type(t)).collect()
+        if primitive_constraint {
+            for t in &mut candidates {
+                *t = self.get_regular_type_of_literal_type(*t);
+            }
         } else if widen_literal_types {
-            candidates.iter().map(|&t| self.get_widened_literal_type(t)).collect()
-        } else {
-            candidates
-        };
+            for t in &mut candidates {
+                *t = self.get_widened_literal_type(*t);
+            }
+        }
+        let base_candidates = candidates;
         // If all inferences were made from a position that implies a combined result, infer a union type.
         // Otherwise, infer a common supertype.
         let unwidened_type = if inference
@@ -2482,9 +2528,11 @@ impl Checker {
     }
 
     // inference.go:1470
+    // Consume the caller's private snapshot so unchanged candidates reuse its buffer. A rewrite releases only
+    // that scratch Vec earlier; its copied handles do not own the types.
     pub(crate) fn union_object_and_array_literal_candidates(
         &mut self,
-        candidates: &[P<Type>],
+        candidates: Vec<P<Type>>,
     ) -> Vec<P<Type>> {
         if candidates.len() > 1 {
             let object_literals: Vec<P<Type>> = candidates
@@ -2508,7 +2556,7 @@ impl Checker {
                 return non_literal_types;
             }
         }
-        candidates.to_vec()
+        candidates
     }
 
     // inference.go:1482

@@ -1739,6 +1739,11 @@ fn intersection_recursion_keys(c: &mut Checker, target: P<Type>) -> &'static [u6
     if let Some(&keys) = c.intersection_recursion_ids.get(&target) {
         return keys;
     }
+    create_intersection_recursion_keys(c, target)
+}
+
+#[inline(never)]
+fn create_intersection_recursion_keys(c: &mut Checker, target: P<Type>) -> &'static [u64] {
     let mut keys = Vec::new();
     collect_intersection_recursion_keys(c, target, &mut keys);
     let keys = alloc_slice(&keys);
@@ -2762,19 +2767,19 @@ impl Checker {
             || t.flags().intersects(TypeFlags::StringMapping)
     }
     // relater.go:1317
-    pub(crate) fn get_variances(&mut self, t: P<Type>) -> Vec<VarianceFlags> {
+    pub(crate) fn get_variances(&mut self, t: P<Type>) -> &'static [VarianceFlags] {
         // Arrays and tuples are known to be covariant, no need to spend time computing this.
         if t == self.global_array_type
             || t == self.global_readonly_array_type
             || t.object_flags().intersects(ObjectFlags::Tuple)
         {
-            return self.array_variances.to_vec();
+            return self.array_variances;
         }
         self.get_variances_worker(t.symbol().unwrap(), t.as_interface_type().type_parameters())
     }
 
     // relater.go:1325
-    pub(crate) fn get_alias_variances(&mut self, symbol: P<Symbol>) -> Vec<VarianceFlags> {
+    pub(crate) fn get_alias_variances(&mut self, symbol: P<Symbol>) -> &'static [VarianceFlags] {
         let type_parameters = self.type_alias_links.get(symbol).type_parameters.get();
         self.get_variances_worker(symbol, type_parameters)
     }
@@ -2789,7 +2794,7 @@ impl Checker {
         &mut self,
         symbol: P<Symbol>,
         type_parameters: &'static [P<Type>],
-    ) -> Vec<VarianceFlags> {
+    ) -> &'static [VarianceFlags] {
         let links = self.variance_links.get(symbol);
         let variances_len = |links: P<VarianceLinks>| {
             links.variances.get().map_or(0, <[types::VarianceFlags]>::len)
@@ -2903,7 +2908,8 @@ impl Checker {
                 }
             }
         }
-        links.variances.get().unwrap().to_vec()
+        // The immutable arena slice remains valid if a later resolution replaces the link descriptor.
+        links.variances.get().unwrap()
     }
 
     // relater.go:1437

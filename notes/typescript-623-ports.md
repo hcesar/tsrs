@@ -8,34 +8,41 @@ corresponding commit before starting the next subagent. Start at `b85298b6a81f77
 
 Each entry must retain every passing checker baseline in both histories and pass the emit baselines, workspace
 checks, Clippy, source checks, and generated-code verification. Run the affected subsystem's additional gates.
-Performance compares release binaries on `vscode`, `webpack`, `Compiler-Unions`, and `t3code-server`, single-threaded
-and default: one warmup and ten alternating before/after pairs per cell. Compare median instructions retired, wall
-time, and peak RSS. Fix confirmed performance regressions or other gate failures in the corresponding commit,
-document the cause and fix in its commit message, and revalidate before advancing. Keep all measurement artifacts.
-Measurements use macOS `/usr/bin/time -l` for instructions and RSS, and a monotonic high-resolution clock around the
-command for wall time. For a no-op port, byte-identical compiler binaries and runtime assets establish no
-performance regression without timing the same executable twice. Reuse other completed checks only when their
-inputs are demonstrably unchanged; compare complete passing sets rather than totals alone.
+Entries 1–10 used paired performance comparisons on `vscode`, `webpack`, `Compiler-Unions`, and `t3code-server`.
+The initial entry 11 investigation expanded the planned cohort to the six TypeScript benchmark projects plus
+`t3code-server`, in single-threaded and default modes. The user subsequently instructed us to continue the
+migration without a performance-regression gate. From entry 11 onward, correctness remains mandatory; disclose
+instruction, wall-time, and peak-RSS measurements when available, including confirmed regressions, but do not
+withhold a correctness-valid corresponding commit for a performance result or an unmeasured cohort cell. Keep
+measurement artifacts. For no-op ports, byte-identical compiler binaries and runtime assets establish that their
+performance is unchanged. Reuse completed correctness checks only when their inputs are demonstrably unchanged;
+compare complete passing sets rather than totals alone.
 
 After the identical-binary control in entry 2 also failed the original zero-tolerance median rule, the user
 instructed removal of that blocking rule and continuation without human guidance. Routine migration work requires
-no further human approval. The replacement measurement policy is `paired-sign-test-v1`:
+no further human approval. The historical replacement measurement policy, also used for focused entry 11
+diagnoses, was `paired-sign-test-v1`; it is no longer a landing gate from entry 11:
 
-- Retain all three raw before/after medians and every pair in the initial eight cells.
+- For a measured cohort, retain all three raw before/after medians and every pair in each measured cell (eight
+  in the original cohort; fourteen in the extended cohort).
 - For each metric, compute paired relative changes and the exact one-sided sign-test probability
   `P[Binomial(n_non_tied, 0.5) >= positive_pairs]`, excluding exactly equal pairs.
 - A positive raw median change screens for confirmation when that probability is at most 0.10.
 - Run exactly one independent ten-pair confirmation batch per screened cell against the same preceding binary,
   reversing the initial pair order. Evaluate every screened metric in that cell.
-- A reproducible regression requires positive raw median changes in both batches and a pooled paired sign-test
-  probability at most 0.01. Diagnose and repair confirmed regressions faithfully, retaining the failed evidence.
-  Do not repeat unchanged candidates until a favorable batch appears.
+- A reproducible regression has positive raw median changes in both batches and a pooled paired sign-test
+  probability at most 0.01. Retain and disclose that evidence. Do not repeat unchanged candidates until a
+  favorable batch appears.
 - Otherwise report **no detected regression**, not proof of exact equality. Keep old strict-rule records unchanged;
   new verdicts identify their input files by SHA-256. Binary/runtime identity still suffices for a no-op port.
 
-The reusable local evaluator and confirmation collector are `target/port-623/noise_gate.py`; the local manifest
-records the current policy and superseded rule. Evaluator sanity checks cover identical samples, consistent
-increases, exact binomial tails, excluded ties and mixed samples.
+The reusable local evaluator and confirmation collector are `target/port-623/noise_gate.py`; its local manifest
+records the earlier measurement rules. Evaluator sanity checks cover identical samples, consistent
+increases, exact binomial tails, excluded ties and mixed samples. The explicit cohort
+`typescript-six-plus-t3-v1` requires all fourteen cells; legacy reports retain their eight-cell requirement.
+The cohort extension preserves the equations and thresholds and reproduces the earlier accepted and rejected
+verdicts unchanged. Its evaluator rejects missing, duplicate, unknown and mismatched cells when that cohort is
+requested; running it is not required to land entries 11 onward.
 
 Prerequisite `55e77eaf` isolates the macOS watch fixtures and replaces the OS-dependent event-drop stress test with
 deterministic callback injection. No compiler behavior changes. Workspace: 1,064 passed, four existing ignored;
@@ -666,3 +673,36 @@ Performance is unchanged by compiler/runtime identity, without another timing ru
 runtime assets unchanged. Source 7's instruction, wall-time and RSS measurements remain the applicable
 record. The patch, scope review, input/tree identities, inherited result hashes and fresh checks are under
 `target/port-623/0010-5f5dee5b61/`.
+
+## 11. `c8e9b7d25926` — cache inference from type arguments
+
+Upstream `c8e9b7d259268e30605ed14910cb8d118929ed63` puts same-alias and same-reference type-argument
+inference under `invokeOnce` and extends the visited key with inference priority, contravariance and bivariance.
+The Rust port mirrors those branches and their recursion state. Its owned, pooled visited map ends its borrow before
+recursive inference and updates the original key afterward; the full key retains separate states that the old
+two-TypeId key would conflate. Rust-specific repairs keep priority in a checked two-byte encoding, reuse borrowed
+variance slices and candidate buffers, and avoid a nesting walk for stacks shorter than two. The added
+`inference-type-argument-variance` regression checks the upstream correlated-union TS2345 diagnostic against Go,
+the dev CLI and the frozen release CLI.
+
+The exact candidate-20 compiler rerun retains all twelve complete passing sets and all 66 known nonpassing
+artifacts from entry 10. Go-history checking passes 13,463 diagnostics and all 12,784 type/symbol baselines;
+canonical history has the same diagnostic passes and 12,783 type/symbol passes, with its known differences
+unchanged. Emit passes 13,467 diagnostics, 13,397 JavaScript outputs, 149 JS maps and 156 source maps. Workspace
+tests pass 1,067 with four ignored, all 37 regressions pass, and fourslash has 4,074 passing groups, 472 skipped,
+and 4,130 passing events. Twenty-seven memo/deep-shadow runs preserve output and exit status. Native and WASM
+checks, warnings-denied Clippy, source lint, formatting, and generator verification pass; all 1,168 generated
+crate files remain unchanged. The serial-workspace fixtures were repaired to parse libtest's same-line child PID
+prefix and accept either root or child kqueue descriptor exhaustion, which depends on map order. The initial
+sandboxed workspace and fourslash runs could not bind local Unix sockets; their preserved failures were followed
+by passing runs with socket access. The full current-source evidence and input proofs are under
+`target/port-623/0011-c8e9b7d259/candidate-20/`.
+
+Performance is disclosed under the user's entry-11 nonblocking policy. Against entry 10's byte-identical
+accepted compiler, the frozen candidate-20 release (`3edc24074ab2ce687196eb816f114115c6292f3d27bf06a5e918fdfaee07a1dd`)
+has a confirmed `webpack` single-threaded peak-RSS increase of **90,112 bytes** in each ten-pair batch
+(20/20 paired increases; `candidate-20/formal-webpack-rss/run/results.json`). `t3code-server` single-threaded
+instructions retired increase **0.182604%** in the initial ten pairs and **0.178883%** in the reversed
+confirmation (19/20 paired increases; `diagnosis/c20-formal-t3/run/results.json`). The full fourteen-cell
+performance cohort was not an entry-11 acceptance requirement after the user's policy change. These measured
+regressions are retained in the record; they do not change the correctness verdict or hold the corresponding port.
