@@ -17,6 +17,7 @@ The package also ships TypeScript 7's programmatic API, copied from microsoft/Ty
 | `tsrs/unstable/ast` (`/is`, `/factory`, `/utils`, `/scanner`, `/visitor`, `/clone`) | AST types, guards, factory and traversal |
 | `tsrs/unstable/fs`, `/proto` | filesystem callbacks/request filesystems, protocol types |
 | `tsrs/unstable/path` | strongly typed path constructors and helpers |
+| `tsrs/unstable/vscode` | `createTypeScriptModuleLoader` and upstream editor SDK types; tsrs does not bundle the VS Code extension |
 
 ```js
 import { API } from "tsrs/unstable/sync";
@@ -47,6 +48,11 @@ identifiers must contain a non-empty file name or URI.
 The code is TypeScript's, with one intentional difference: if the server process dies, the async API rejects
 every pending and later request with an error starting `API server connection lost: ` instead of leaving them
 pending forever (see [npm packaging](../npm/README.md)).
+
+The source-50 module loader accepts full `typescript/unstable/*` specifiers and resolves them through the
+selected package manifest. Passing a `tsrs` installation's `package.json` loads `tsrs/unstable/*` from that
+installation. This is a package-side helper; tsrs does not supply the upstream VS Code extension's SDK event,
+API-pipe lifecycle, or in-place-upgrade restart handling.
 
 These entry points are unstable upstream and here. The API is served by the `tsrs` binary (`tsrs --api`), whose
 coverage of the protocol is still incomplete; [the method inventory](../npm/sdk/METHODS.md) tracks the published

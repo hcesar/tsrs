@@ -2216,3 +2216,55 @@ does not change. No source-49 release instruction-count or peak-RSS measurement
 was collected under the user's nonblocking migration policy. The measured
 source-11 regressions remain disclosed above. Evidence is under
 `target/port-623/0049-91521cf229/`.
+
+## 50. `4529d07ab5` — expose API client modules for editor integrations
+
+Upstream `4529d07ab5b7a2d2bbe0ef8b25edbed9f35b7b7f` adds a runtime
+`unstable/vscode` API module loader to the TypeScript package and connects it
+to its bundled VS Code extension's selected-SDK lifecycle. The Rust compiler
+and Go test corpus do not change. The tsrs npm SDK copies upstream
+`src/vscode/extensionApi.ts`, `moduleLoader.ts`, and `protocol.generated.ts`
+byte for byte and exports `tsrs/unstable/vscode`. The loader takes the
+selected package's manifest, resolves its real path and package name, checks
+the full `typescript/unstable/*` specifier, and loads the module through that
+package's own exports. It works with a selected `tsrs` package as well as
+with a selected TypeScript package. Focused Node tests cover selected-package
+isolation, module identity, export enforcement, invalid specifiers, and a
+manifest without a name. The packed-package smoke test imports both API
+clients through the loader, and its consumer type-checks the loader's public
+declarations. This adds an SDK capability; the compatibility table, root
+README, npm README, and Node API guide are updated.
+
+tsrs does not bundle the upstream VS Code extension or build VSIX packages.
+The upstream extension's selected-SDK event, API-pipe lifecycle, package
+upgrade detection, restart prompt, client state handling, and VSIX packaging
+therefore have no tsrs runtime counterpart. Its `ExtensionAPI` and
+`TypeScriptSDK` interfaces are exported as upstream declaration types, but
+no tsrs extension implements them. The loader itself does not guard Node's
+module cache against an in-place package upgrade; upstream performs that
+guard in its extension, which restarts the extension host when necessary.
+The ignored reference checkout advances to source 50; the published
+TypeScript pin and base SDK manifest remain unchanged until the full upgrade.
+
+All twelve complete checker and emit pass/nonpass sets are identical to
+source 49: no removed passes, new failures, crashes, or timeouts. Go-history
+checker passes 13,539 diagnostics and 12,849 type/symbol baselines;
+canonical checker passes 13,539 diagnostics and 12,848 type/symbol
+baselines. Emit passes 13,543 diagnostics, 12,849 type/symbol, 13,469
+JavaScript/declaration, 149 JavaScript-map, and 156 source-map baselines.
+Exact-source Fourslash passes 4,087 of 4,557 groups, skips 470, fails none;
+all 4,621 named outcomes are unchanged from source 49. The npm source suite
+passes 956 tests, including the three new module-loader tests; the packed
+package smoke test passes 25 steps, including selected-package module
+loading and a declaration type-check. The full Rust workspace all-targets
+passes 1,127 tests with four existing ignored; all 38 CLI regression projects,
+WebAssembly check, dev builds,
+warnings-denied Clippy, source lint, formatting, and all seven generators
+pass. Workspace and Fourslash Unix-socket checks required the previously
+observed sandbox escalation.
+
+The Rust compiler and its bundled libraries do not change in source 50.
+No source-50 release instruction-count or peak-RSS measurement was collected
+under the user's nonblocking migration policy. The measured source-11
+regressions remain disclosed above. Evidence is under
+`target/port-623/0050-4529d07ab5/`.

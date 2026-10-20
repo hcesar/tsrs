@@ -40,6 +40,10 @@
             "types": "./lib/version.d.cts",
             "default": "./lib/version.cjs"
         },
+        "./unstable/vscode": {
+            "@typescript/source": "./src/vscode/extensionApi.ts",
+            "default": "./dist/vscode/extensionApi.js"
+        },
         "./unstable/sync": {
             "@typescript/source": "./src/api/sync/api.ts",
             "default": "./dist/api/sync/api.js"

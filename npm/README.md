@@ -105,6 +105,9 @@ Source commit `d2f9dd68cfff` adds the project checker's merged-symbol and parent
 async SDKs, including generator forms. These changes are not in published packages until the source pin advances.
 Source commit `ed4807212c28` adds the `unstable/path` export and typed paths, and changes the API's
 initialize response to report `caseSensitivity`.
+Source commit `4529d07ab5b7` adds `unstable/vscode` with the upstream API module loader and editor SDK
+types. The loader resolves from the selected package manifest; tsrs does not ship the upstream VS Code extension
+or its initialization and restart lifecycle.
 The package exports `./schemas/tsconfig.schema.json` and `./schemas/jsconfig.schema.json`, copied from upstream.
 After bumping `[workspace.metadata.typescript]`, check out that commit as `ts-ref` and rerun it;
 `node npm/sdk/sync-upstream.mjs --check` fails if the copy drifted.

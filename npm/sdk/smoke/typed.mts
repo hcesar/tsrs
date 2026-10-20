@@ -6,6 +6,7 @@ import { type Node, type SourceFile, SyntaxKind } from "tsrs/unstable/ast";
 import { isIdentifier } from "tsrs/unstable/ast/is";
 import { createFileSystem, type FileSystemCallbacks } from "tsrs/unstable/fs";
 import { API, type APIOptions, type Diagnostic, type Snapshot } from "tsrs/unstable/sync";
+import { createTypeScriptModuleLoader, type TypeScriptModuleLoader } from "tsrs/unstable/vscode";
 
 declare const callbacks: FileSystemCallbacks;
 const options: APIOptions = { cwd: "/", tsserverPath: "/path/to/tsrs", fs: callbacks };
@@ -19,5 +20,7 @@ const isId: boolean = first !== undefined && isIdentifier(first);
 const kind: SyntaxKind = SyntaxKind.Identifier;
 const asyncApi = new AsyncAPI({ cwd: "/" });
 const closed: Promise<void> = asyncApi.close();
+const moduleLoader: TypeScriptModuleLoader = createTypeScriptModuleLoader("/path/to/tsrs/package.json");
+const loadedAsync: Promise<typeof import("tsrs/unstable/async")> = moduleLoader.importModule("typescript/unstable/async");
 const strings: string[] = [version, typescriptCommit];
-export { closed, requestFileSystem, diagnostics, isId, kind, strings };
+export { closed, requestFileSystem, diagnostics, isId, kind, loadedAsync, strings };

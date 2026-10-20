@@ -17,6 +17,7 @@ const sync = await import("tsrs/unstable/sync");
 const asyncApi = await import("tsrs/unstable/async");
 const { SyntaxKind } = await import("tsrs/unstable/ast");
 const { createFileSystemWithLib, serverFS } = await import("tsrs/unstable/fs");
+const { createTypeScriptModuleLoader } = await import("tsrs/unstable/vscode");
 
 const base = path.resolve(process.argv[2] ?? "project");
 const only = process.argv[3]; // optional: "sync" or "async"
@@ -309,6 +310,12 @@ async function crashAndClose(dir, config, main) {
         assert.ok(code === 0 || code === "SIGTERM", `sync server after close(): ${code}`);
     });
 }
+
+await step("selected package: API module loader", async () => {
+    const loader = createTypeScriptModuleLoader(require.resolve("tsrs/package.json"));
+    assert.equal(await loader.importModule("typescript/unstable/async"), asyncApi);
+    assert.equal(await loader.importModule("typescript/unstable/sync"), sync);
+});
 
 if (only !== "async") await runVariant("sync", sync.API);
 if (only !== "sync") await runVariant("async", asyncApi.API);
