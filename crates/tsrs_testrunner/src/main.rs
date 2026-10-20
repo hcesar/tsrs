@@ -4,6 +4,7 @@ static GLOBAL: mimalloc_safe::MiMalloc = mimalloc_safe::MiMalloc;
 mod baseline;
 mod compile;
 mod compiler_runner;
+mod compiler_test_filter;
 mod diagnosticwriter;
 mod emit_harness;
 mod harnessutil;
@@ -180,8 +181,16 @@ impl Selection {
         let re = self.filter.as_deref().and_then(|f| Regex::new(f).ok());
         let mut items = Vec::new();
         for suite in &self.suites {
+            let file_filter = compiler_test_filter::CompilerTestFileFilter::new(
+                suite,
+                self.filter.as_deref(),
+                self.list.as_ref(),
+            );
             for path in compiler_runner::enumerate_test_files(suite) {
                 let basename = tspath::get_base_file_name(&path);
+                if !file_filter.includes(&basename) {
+                    continue;
+                }
                 let expanded = match compiler_runner::expand_test_file(suite, &path, table) {
                     Ok(v) => v,
                     Err(e) => {

@@ -2172,3 +2172,47 @@ corresponding source revision or count.
 No source-48 release performance measurement was collected under the user's
 nonblocking migration policy. The measured source-11 regressions remain
 disclosed above. Evidence is under `target/port-623/0048-54f05ae22a/`.
+
+## 49. `91521cf229` — prefilter compiler test files before reading them
+
+Upstream `91521cf2299d54a40d46fcf500130d273ddfc947` adds a conservative
+Go `test.run` filename filter before opening and expanding compiler fixtures.
+The Rust runner now makes the corresponding early decision for its own
+selection interface: a plain mixed-case `--filter` can reject an unrelated
+filename because configuration descriptions are lowercase, and `--list`
+can reject filenames with no matching stem or configuration prefix. Rust
+`--filter` also accepts arbitrary substring or regex matches over a different
+test ID shape, so lowercase, regex, escaped, and other ambiguous patterns
+continue to read the file. This is the intentional runner-specific adaptation;
+it preserves the selected test set rather than copying the Go heuristic onto
+incompatible CLI syntax. The upstream Go filter test and three focused Rust
+unit tests pass. Against the actual fixture corpus, source-48 and source-49
+runner binaries select byte-identical IDs for the full 15,278-variant list,
+eight filter/list cases, and the 2,000-case WebAssembly sample list. The
+ignored reference checkout advances to source 49; the published TypeScript
+pin and base SDK manifest remain unchanged until the full upgrade.
+
+All twelve complete checker and emit pass/nonpass sets are identical to
+source 48: no removed passes, new failures, crashes, or timeouts. Go-history
+checker passes 13,539 diagnostics and 12,849 type/symbol baselines; canonical
+checker passes 13,539 diagnostics and 12,848 type/symbol baselines. Emit passes
+13,543 diagnostics, 12,849 type/symbol, 13,469 JavaScript/declaration, 149
+JavaScript-map, and 156 source-map baselines. Exact-source Fourslash passes
+4,087 of 4,557 groups, skips 470, fails none; all 4,621 named outcomes are
+unchanged from source 48. The full Rust workspace all-targets passes 1,127
+tests with four existing ignored; all 38 CLI regression projects, WebAssembly
+check, dev builds, warnings-denied Clippy, source lint, formatting, and all
+seven generators pass. Workspace and Fourslash Unix-socket checks required
+the previously observed sandbox escalation. No user-visible capability or
+conformance count changed, so the compatibility table and README summaries
+remain current.
+
+For the dev runner's `list --suite all`, ten warm paired timing samples give
+0.3162 -> 0.0316 s for `--filter flakyDiagnostic` and 0.2937 -> 0.0314 s for
+the two-ID `--list`; unfiltered listing is 0.3204 -> 0.3146 s and the
+lowercase fallback is 0.2904 -> 0.2918 s. The 2,000-case list selects the
+same IDs in 0.2881 -> 0.0710 s (five warm samples). Production compiler code
+does not change. No source-49 release instruction-count or peak-RSS measurement
+was collected under the user's nonblocking migration policy. The measured
+source-11 regressions remain disclosed above. Evidence is under
+`target/port-623/0049-91521cf229/`.
