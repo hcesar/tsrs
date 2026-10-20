@@ -927,9 +927,13 @@ impl classFieldsTransformer {
         }
 
         // leave invalid code untransformed
-        let info = self.access_private_identifier(node.name().unwrap());
+        let info = self.get_private_identifier(
+            self.get_private_identifier_environment(),
+            node.name().unwrap(),
+        );
         assert!(info.is_some(), "Undeclared private name for property declaration.");
-        if !info.unwrap().is_valid {
+        let info = info.unwrap();
+        if info.kind == PrivateIdentifierKind::Untransformed || !info.is_valid {
             return Some(node);
         }
 
@@ -1212,12 +1216,15 @@ impl classFieldsTransformer {
     pub(crate) fn transform_private_field_initializer(&self, mut node: P<Node>) -> Option<P<Node>> {
         if self.should_transform_class_element_to_weak_map(node) {
             // If we are transforming private elements into WeakMap/WeakSet, we should elide the node.
-            let info = self.access_private_identifier(node.name().unwrap());
+            let info = self.get_private_identifier(
+                self.get_private_identifier_environment(),
+                node.name().unwrap(),
+            );
             assert!(info.is_some(), "Undeclared private name for property declaration.");
             let info = info.unwrap();
 
             // Leave invalid code untransformed
-            if !info.is_valid {
+            if info.kind == PrivateIdentifierKind::Untransformed || !info.is_valid {
                 return Some(node);
             }
 

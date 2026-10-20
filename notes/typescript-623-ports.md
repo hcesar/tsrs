@@ -2304,3 +2304,38 @@ TypeScript pin remains unchanged until the full upgrade. No source-51
 release instruction-count or peak-RSS measurement was collected under the
 user's nonblocking migration policy. The measured source-11 regressions
 remain disclosed above. Evidence is under `target/port-623/0051-bea2e849e9/`.
+
+## 52. `0ba5d992db` — preserve duplicate private declarations during decorated-class emit
+
+Upstream `0ba5d992db957fa444c3049e51243a056d3a9276` changes two
+class-field declaration transforms to resolve a private name in the current
+class environment, then leave a declaration unchanged when its private-name
+entry is `Untransformed` or invalid. The Rust port mirrors those two lookups
+and guards. The expression-use lookup still searches enclosing classes and
+intentionally hides `Untransformed` entries; using it at declaration sites
+caused a panic on the upstream fixture's ES2022 variant. Before this port,
+that variant crashed at “Undeclared private name for property declaration”;
+the ES2015 and ESNext variants passed. Afterward, all three pass diagnostics
+and JavaScript emit. A Go compiler built from this exact commit and the Rust
+CLI produce byte-identical emitted JavaScript, identical 12 diagnostics, and
+the same exit code for each target. The compatibility table records this
+closed emit gap; the root and npm README capability summaries do not change.
+
+All three full compiler modes have exactly the source-51 pass/nonpass sets:
+no removed passes, new failures, crashes, or timeouts. Go-history checker
+passes 13,540 diagnostics and 12,850 type/symbol baselines; canonical checker
+passes 13,540 diagnostics and 12,849 type/symbol baselines. Emit passes
+13,544 diagnostics, 12,850 type/symbol, 13,470 JavaScript, 149 JavaScript-map,
+and 156 source-map baselines. Exact-source Fourslash passes 4,087 of 4,557
+groups, skips 470, fails none, and all 4,621 named outcomes are unchanged.
+The full Rust workspace passes 1,127 tests with four existing ignored; all
+39 CLI regressions, WebAssembly check, dev builds, warnings-denied Clippy,
+source lint, formatting, and all seven generators pass. Fourslash and
+workspace Unix-socket tests required the previously observed sandbox
+escalation.
+
+The ignored reference checkout advances to source 52; the published
+TypeScript pin remains unchanged until the full upgrade. No source-52
+release instruction-count or peak-RSS measurement was collected under the
+user's nonblocking migration policy. The measured source-11 regressions
+remain disclosed above. Evidence is under `target/port-623/0052-0ba5d992db/`.
