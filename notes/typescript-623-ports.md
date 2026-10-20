@@ -1778,3 +1778,46 @@ npm README summaries contain no corresponding numbers.
 No source-38 release performance measurement was collected under the user's
 nonblocking migration policy. The measured source-11 regressions remain
 disclosed above. Evidence is under `target/port-623/0038-a1ef42b9ea/`.
+
+## 39. `fc636a691f1d` — await async API disposal and suggest `await using`
+
+Upstream `fc636a691f1dbdbc9ba678911891a9e85ec283bf` makes async
+`Snapshot`, `Program`, and `BuildOrchestrator` expose
+`[Symbol.asyncDispose](): Promise<void>` and return the `dispose()` Promise.
+The corresponding npm SDK methods now match upstream byte for byte, while
+their sync counterparts call synchronous `dispose()` directly. The two
+upstream API test files are ported with only the established npm package-name
+substitution; their `await using` and `using` cases run against the tsrs
+server. The Rust checker also mirrors the upstream `using` assignment check:
+when the initializer lacks `[Symbol.dispose]` but is assignable to
+`AsyncDisposable | null | undefined`, it appends TS18116 suggesting
+`await using`. The English catalog is regenerated from this source revision;
+its exact-count test advances from 2,220 to 2,221 messages. The ignored
+reference checkout advances to source 39. The published TypeScript pin and
+base SDK manifest remain unchanged until the full upgrade.
+
+The new `usingAsyncDisposable` fixture exposed the missing suggestion before
+the change and passes after it; the exact-source Go fixture passes. All twelve
+complete checker and emit pass/nonpass sets retain their source-38 outcomes
+with no removed passes or changed nonpassing cases. The one new fixture adds
+one diagnostics, type, symbol, and JavaScript pass in each applicable mode.
+Go-history checker passes 13,528 diagnostics and 12,842 type/symbol baselines;
+canonical checker passes 13,528 diagnostics and 12,841 type/symbol baselines.
+Emit passes 13,532 diagnostics, 12,842 type/symbol, 13,458
+JavaScript/declaration, 149 JavaScript-map, and 156 source-map baselines.
+Exact-source Fourslash passes 4,086 groups, skips 470, fails none, and all
+4,620 named outcomes match source 38. The changed sync/async npm API files
+pass 721/721 tests, and the complete npm SDK suite passes 953/953. Full Rust
+workspace all-targets passes 1,120 tests with four existing ignored; all 38
+CLI regression projects, WebAssembly check, dev and npm SDK builds, SDK
+source-condition typecheck, warnings-denied
+Clippy, source lint, formatting, and seven generators pass. The generator
+rerun leaves the tracked crate diff and untracked-file list byte-identical.
+Fourslash and workspace Unix-socket tests required the previously observed
+sandbox escalation. The capability table and Node API documentation record
+the updated counts and async disposal behavior; no root or npm README
+summary cites these counts.
+
+No source-39 release performance measurement was collected under the user's
+nonblocking migration policy. The measured source-11 regressions remain
+disclosed above. Evidence is under `target/port-623/0039-fc636a691f/`.

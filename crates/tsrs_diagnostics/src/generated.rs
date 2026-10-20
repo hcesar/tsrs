@@ -16451,6 +16451,19 @@ pub static Optional_chaining_cannot_be_used_with_import_source: Message = Messag
 
 pub static Source_phase_imports_are_not_allowed_on_statements_that_compile_to_CommonJS_require_calls: Message = Message { code: 18115, category: Category::Error, key: Key("Source_phase_imports_are_not_allowed_on_statements_that_compile_to_CommonJS_require_calls_18115"), text: "Source phase imports are not allowed on statements that compile to CommonJS 'require' calls.", reports_unnecessary: false, elided_in_compatibility_pyramid: false, reports_deprecated: false };
 
+pub static This_initializer_has_a_Symbol_asyncDispose_method_Did_you_mean_to_use_await_using:
+    Message = Message {
+    code: 18116,
+    category: Category::Error,
+    key: Key(
+        "This_initializer_has_a_Symbol_asyncDispose_method_Did_you_mean_to_use_await_using_18116",
+    ),
+    text: "This initializer has a '[Symbol.asyncDispose]()' method. Did you mean to use 'await using'?",
+    reports_unnecessary: false,
+    elided_in_compatibility_pyramid: false,
+    reports_deprecated: false,
+};
+
 pub static X_nodenext_if_module_is_nodenext_node16_if_module_is_node16_or_node18_otherwise_bundler: Message = Message { code: 69010, category: Category::Message, key: Key("nodenext_if_module_is_nodenext_node16_if_module_is_node16_or_node18_otherwise_bundler_69010"), text: "`nodenext` if `module` is `nodenext`; `node16` if `module` is `node16` or `node18`; otherwise, `bundler`.", reports_unnecessary: false, elided_in_compatibility_pyramid: false, reports_deprecated: false };
 
 pub static File_is_a_CommonJS_module_it_may_be_converted_to_an_ES_module: Message = Message {
@@ -19147,7 +19160,7 @@ pub static JSDoc_comment: Message = Message {
     reports_deprecated: false,
 };
 
-pub(crate) static ALL_MESSAGES: [&Message; 2220] = [
+pub(crate) static ALL_MESSAGES: [&Message; 2221] = [
     &Unterminated_string_literal,
     &Identifier_expected,
     &X_0_expected,
@@ -21098,6 +21111,7 @@ pub(crate) static ALL_MESSAGES: [&Message; 2220] = [
     &Source_phase_imports_are_only_supported_when_the_module_option_is_set_to_esnext_nodenext_or_preserve,
     &Optional_chaining_cannot_be_used_with_import_source,
     &Source_phase_imports_are_not_allowed_on_statements_that_compile_to_CommonJS_require_calls,
+    &This_initializer_has_a_Symbol_asyncDispose_method_Did_you_mean_to_use_await_using,
     &X_nodenext_if_module_is_nodenext_node16_if_module_is_node16_or_node18_otherwise_bundler,
     &File_is_a_CommonJS_module_it_may_be_converted_to_an_ES_module,
     &This_constructor_function_may_be_converted_to_a_class_declaration,

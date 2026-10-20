@@ -51,15 +51,17 @@ pending forever (see [npm packaging](../npm/README.md)).
 These entry points are unstable upstream and here. The API is served by the `tsrs` binary (`tsrs --api`), whose
 coverage of the protocol is still incomplete; [the method inventory](../npm/sdk/METHODS.md) tracks the published
 base per method, and the coverage matrix below tracks the incremental port.
-TypeScript consumers need `esnext.disposable` (or a newer lib) for the declarations' `Symbol.dispose` members.
-The JS API runs on the package's minimum Node (16.20; checked on 16.20, 18, 20, 22 and 24). Where Node has no
-`Symbol.dispose` (before 18.18/20.4), call `close()` / `dispose()` instead of `using`.
+TypeScript consumers need `esnext.disposable` (or a newer lib) for the declarations' `Symbol.dispose` and
+`Symbol.asyncDispose` members. The async `Snapshot`, `Program`, and `BuildOrchestrator` use
+`Symbol.asyncDispose`, so `await using` waits for the returned cleanup Promise. The JS API runs on the package's
+minimum Node (16.20; checked on 16.20, 18, 20, 22 and 24). Where Node lacks the disposal symbols, call
+`close()` / `dispose()` explicitly.
 
 ## Implementation and status
 
 Port of the TypeScript 7 native API, with the workspace `Cargo.toml` still pinned at the base
 `b85298b6a81f772d080b0455de0ca9d744cd6fd6` while the commit-by-commit migration includes API changes
-through `ed4807212c28c90777c1d7ef2bf8e47af5d08519`: server side `tsc/internal/api` + `tsc/internal/ipc`, client
+through `fc636a691f1dbdbc9ba678911891a9e85ec283bf`: server side `tsc/internal/api` + `tsc/internal/ipc`, client
 side `packages/typescript/src/{api,ast}` exported as `unstable/sync` and `unstable/async`. The wire
 format, method names, params and response schemas follow the ported Go revision; tsrs does not define its own
 protocol or a one-shot CLI wrapper, and it is not compatible with TS5 `createProgram` objects.
