@@ -1949,3 +1949,39 @@ or counts.
 No source-42 release performance measurement was collected under the user's
 nonblocking migration policy. The measured source-11 regressions remain
 disclosed above. Evidence is under `target/port-623/0042-afd02f1486/`.
+
+## 43. `1a78786ca7` — ignore import-type qualifier names while marking emit references
+
+Upstream `1a78786ca751559170857893fe3e01eba7c69997` excludes the
+qualified names in `typeof import()` types from the emit resolver's
+alias-reference walk. Rust applies the same guard in `mark_linked_references`
+using its existing `is_import_type_qualifier_part` helper. Before the change,
+the three new upstream compiler fixtures showed one incorrectly retained
+import and two extra missing-name diagnostics added during emit; afterward,
+all three pass their diagnostic, type, symbol, and JavaScript baselines. This
+is a direct source-equivalent change without a Rust-specific behavioral
+deviation. The ignored reference checkout advances to source 43. The
+published TypeScript pin and base SDK manifest remain unchanged until the
+full upgrade.
+
+All twelve complete checker and emit pass/nonpass sets retain their source-42
+outcomes, with exactly the three new upstream cases added to each applicable
+passing set and no removed passes, new failures, crashes, or timeouts.
+Go-history checker passes 13,531 diagnostics and 12,845 type/symbol baselines;
+canonical checker passes 13,531 diagnostics and 12,844 type/symbol baselines.
+Emit passes 13,535 diagnostics, 12,845 type/symbol, 13,461
+JavaScript/declaration, 149 JavaScript-map, and 156 source-map baselines.
+Exact-source Fourslash passes 4,086 groups, skips 470, fails none, and all
+4,620 named outcomes match source 42. Full Rust workspace all-targets passes
+1,122 tests with four existing ignored; all 38 CLI regression projects,
+WebAssembly check, dev builds, warnings-denied Clippy, source lint,
+formatting, and all seven generators pass. The generator rerun leaves the
+tracked crate diff and untracked crate files byte-identical. Workspace and
+Fourslash Unix-socket tests required the previously observed sandbox
+escalation. The compatibility table records the source revision, new pass
+counts, stable diagnostics, and import elision; the root and npm README
+summaries contain no corresponding revision or counts.
+
+No source-43 release performance measurement was collected under the user's
+nonblocking migration policy. The measured source-11 regressions remain
+disclosed above. Evidence is under `target/port-623/0043-1a78786ca7/`.
