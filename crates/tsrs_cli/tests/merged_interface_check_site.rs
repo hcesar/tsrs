@@ -1,10 +1,7 @@
-// A global interface declared in several files whose merged checks fail: Go runs them once per checker, at the first
-// declaration the checker visits, so the files that report TS2320 / TS2430 depend on which files share a checker
-// (tsgo-ref on merged-interface-check-site: a.ts only at 1-2 checkers, a.ts and b.ts at 3-4, all four files at 8). By
-// default tsrs reports them where tsgo does at its default four checkers, whatever its own checker count and assignment,
-// and still reports each file's index-constraint errors (merged-interface-extends-site: TS2411 in c.ts and d.ts, which
-// do not report the TS2430). expected.txt is tsgo-ref's default output; `--checkerAssignment go` keeps Go's behaviour
-// (notes/fix-history-dependent-diagnostics.md).
+// A global interface declared in several files whose merged checks fail: Go reports TS2320 / TS2430 once, at the
+// first declaration in the merged symbol, regardless of which checker visits it first or how files are assigned.
+// Property index-constraint errors still belong to their own files (merged-interface-extends-site: TS2411 in b.ts,
+// c.ts and d.ts). expected.txt is source15 tsgo-ref output; default and Go checker assignments agree.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -37,8 +34,8 @@ fn run_in(dir: &Path, args: &[&str]) -> String {
     String::from_utf8(out.stdout).unwrap()
 }
 
-// Adding an unrelated module changes the virtual check slots. Reusing the unchanged interface files' diagnostics
-// used to retain a TS2320 that a clean build suppressed, and could also retain an empty cache where an error appears.
+// Adding an unrelated module changes virtual check slots without changing diagnostic ownership. Reordering the
+// declaring roots changes the first declaration, so incremental caches must move the diagnostic with it.
 #[test]
 fn incremental_merged_interface_sites_match_clean_builds() {
     for mode in [&["--singleThreaded"][..], &["--checkers", "4"][..]] {
@@ -53,6 +50,7 @@ fn incremental_merged_interface_sites_match_clean_builds() {
         }
         let roots = r#""bases.ts","a.ts","b.ts","c.ts","d.d.ts""#;
         let extra_first = format!(r#""extra.ts",{roots}"#);
+        let reversed_declarations = r#""bases.ts","b.ts","a.ts","c.ts","d.d.ts","extra.ts""#;
         let config = |files: &str| {
             std::fs::write(dir.join("tsconfig.json"), format!(r#"{{"compilerOptions":{{"strict":true,"noEmit":true,"incremental":true,"target":"es2020","types":[],"skipDefaultLibCheck":true}},"files":[{files}]}}"#)).unwrap();
         };
@@ -73,13 +71,14 @@ fn incremental_merged_interface_sites_match_clean_builds() {
         config(&extra_first);
         let added = run_in(&dir, mode);
         let added_clean = clean();
-        assert_ne!(initial, added_clean, "fixture must change reporting sites");
+        assert_eq!(initial, added_clean, "an unrelated root must not move the diagnostic");
         assert_eq!(added, added_clean, "adding unrelated module: {mode:?}");
-        // The same files and contents can move the reporting site when their root order changes.
-        config(&format!(r#"{roots},"extra.ts""#));
+        // The same files and contents move the reporting site when the first declaring root changes.
+        config(reversed_declarations);
         let reordered = run_in(&dir, mode);
         let reordered_clean = clean();
-        assert_ne!(added_clean, reordered_clean, "root order must change reporting sites");
+        assert_ne!(added_clean, reordered_clean, "declaring root order must move the diagnostic");
+        assert!(reordered_clean.starts_with("b.ts(1,11): error TS2320"));
         assert_eq!(reordered, reordered_clean, "reordering roots: {mode:?}");
         config(&extra_first);
         assert_eq!(run_in(&dir, mode), clean(), "restoring root order: {mode:?}");
@@ -123,7 +122,7 @@ fn incremental_merged_interface_sites_follow_history_changes() {
         );
     };
     let initial = run_in(&dir, &default);
-    assert_eq!(initial.lines().filter(|line| line.contains("TS2320")).count(), 2);
+    assert_eq!(initial.lines().filter(|line| line.contains("TS2320")).count(), 1);
     let default_info = std::fs::read_to_string(&info).unwrap();
     unchanged(&default, &initial);
     let switched = run_in(&dir, &go);
@@ -134,7 +133,7 @@ fn incremental_merged_interface_sites_follow_history_changes() {
     );
     std::fs::remove_file(&info).unwrap();
     let fresh_go = run_in(&dir, &go);
-    assert_eq!(fresh_go.lines().filter(|line| line.contains("TS2320")).count(), 4);
+    assert_eq!(fresh_go.lines().filter(|line| line.contains("TS2320")).count(), 1);
     assert_eq!(switched, fresh_go, "default-to-Go must preserve the full ordered diagnostics");
     assert_eq!(std::fs::read_to_string(&info).unwrap(), go_info);
     unchanged(&go, &fresh_go);
@@ -166,14 +165,14 @@ fn incremental_merged_interface_sites_follow_history_changes() {
         );
         unchanged(&go, &fresh_go);
     }
-    assert_eq!(run_in(&dir, &default), initial, "Go-to-default must refresh the reporting sites");
+    assert_eq!(run_in(&dir, &default), initial, "Go-to-default must refresh the cache policy");
     assert_eq!(std::fs::read_to_string(&info).unwrap(), default_info);
     unchanged(&default, &initial);
     std::fs::remove_dir_all(dir).unwrap();
 }
 
 // Package exports can change the resolved import multigraph without changing source text, root order or the
-// deduplicated reference sets in build info. Cached TS2320 presence and absence must follow the new report slots.
+// deduplicated reference sets in build info. The first declaration must remain the report site across assignments.
 #[test]
 fn incremental_merged_interface_sites_follow_package_export_aliases() {
     for mode in [
@@ -245,10 +244,13 @@ fn incremental_merged_interface_sites_follow_package_export_aliases() {
         package("b");
         let changed = run_in(&dir, mode);
         let fresh = clean();
-        assert_eq!(fresh.lines().filter(|line| line.contains("TS2320")).count(), 2);
-        assert_eq!(changed, fresh, "alias a -> b must discard cached absence: {mode:?}");
+        assert_eq!(fresh.lines().filter(|line| line.contains("TS2320")).count(), 1);
+        assert_eq!(
+            changed, fresh,
+            "alias a -> b must preserve first-declaration ownership: {mode:?}"
+        );
         package("a");
-        assert_eq!(run_in(&dir, mode), clean(), "alias b -> a must discard cached error: {mode:?}");
+        assert_eq!(run_in(&dir, mode), clean(), "alias b -> a must preserve ownership: {mode:?}");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }
@@ -279,7 +281,7 @@ fn merged_interface_reports_where_tsgo_does() {
             "{name} go at 4 checkers"
         );
     }
-    // Go's history at one checker: only the first declaration reports, as tsgo-ref does.
+    // Go's history reports the first declaration at every checker count, as tsgo-ref does.
     let go_one =
         run("merged-interface-check-site", &["--checkers", "1", "--checkerAssignment", "go"]);
     assert_eq!(
@@ -290,5 +292,5 @@ fn merged_interface_reports_where_tsgo_does() {
     );
     let go_eight =
         run("merged-interface-check-site", &["--checkers", "8", "--checkerAssignment", "go"]);
-    assert_eq!(go_eight.lines().filter(|l| l.contains("TS2320")).count(), 4);
+    assert_eq!(go_eight.lines().filter(|l| l.contains("TS2320")).count(), 1);
 }

@@ -9,10 +9,10 @@ use tsrs_incremental::{
     new_build_info_reader_with_canonical_diagnostics, new_program, read_build_info_program,
 };
 
-// In-memory and loaded incremental caches must reuse unchanged interfaces, but not stale report sites after
-// an export alias change. This uses the real OS filesystem, resolver, binder, checkers and build-info writer.
+// In-memory and loaded incremental caches must reuse unchanged interfaces while preserving first-declaration
+// ownership across export alias and cache-policy changes. This uses the real filesystem and build-info writer.
 #[test]
-fn in_memory_interface_diagnostics_require_unchanged_report_slots() {
+fn in_memory_interface_diagnostics_preserve_first_declaration_across_cache_policies() {
     let dir = std::env::temp_dir().join(format!("tsrs-in-memory-merged-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("node_modules/p")).unwrap();
     let dir = dir.canonicalize().unwrap();
@@ -119,6 +119,12 @@ fn in_memory_interface_diagnostics_require_unchanged_report_slots() {
         1,
         "{expected:#?}"
     );
+    assert!(
+        expected.iter().any(|diagnostic| {
+            diagnostic.0 == 2320 && diagnostic.1.ends_with("/node_modules/p/a.ts")
+        }),
+        "{expected:#?}"
+    );
     let same = new_program(
         initial.get_program(),
         Some(initial),
@@ -206,7 +212,7 @@ fn in_memory_interface_diagnostics_require_unchanged_report_slots() {
     assert_eq!(
         state(changed, "e.ts"),
         SemanticDiagnosticsState::NotCached,
-        "changed report slots must invalidate cached absence"
+        "changed checker assignment must invalidate the interface cache"
     );
     assert_eq!(
         state(changed, "f.ts"),
@@ -214,19 +220,25 @@ fn in_memory_interface_diagnostics_require_unchanged_report_slots() {
         "non-interface diagnostics remain reusable"
     );
     let fresh = sites(build(None));
-    assert_eq!(fresh.iter().filter(|diagnostic| diagnostic.0 == 2320).count(), 2, "{fresh:#?}");
+    assert_eq!(fresh.iter().filter(|diagnostic| diagnostic.0 == 2320).count(), 1, "{fresh:#?}");
+    assert!(
+        fresh.iter().any(|diagnostic| {
+            diagnostic.0 == 2320 && diagnostic.1.ends_with("/node_modules/p/a.ts")
+        }),
+        "{fresh:#?}"
+    );
     assert_eq!(sites(changed), fresh);
     package("a");
     let reversed = build(Some(changed));
     assert_eq!(
         state(reversed, "e.ts"),
         SemanticDiagnosticsState::NotCached,
-        "changed report slots must invalidate cached errors"
+        "restored checker assignment must invalidate the interface cache"
     );
     assert_eq!(sites(reversed), sites(build(None)));
 
     let api_expected = sites(create_with_policy(None, false, false));
-    assert_eq!(api_expected.iter().filter(|diagnostic| diagnostic.0 == 2320).count(), 2);
+    assert_eq!(api_expected.iter().filter(|diagnostic| diagnostic.0 == 2320).count(), 1);
     let api = create_with_policy(Some(unchanged), false, false);
     assert_eq!(
         state(api, "e.ts"),
@@ -250,7 +262,7 @@ fn in_memory_interface_diagnostics_require_unchanged_report_slots() {
     assert_eq!(
         state(canonical, "e.ts"),
         SemanticDiagnosticsState::NotCached,
-        "canonical policy must invalidate API cached errors in memory"
+        "canonical policy must invalidate the API interface cache in memory"
     );
     assert_eq!(state(canonical, "f.ts"), SemanticDiagnosticsState::Reused);
     assert_eq!(sites(canonical), expected);
@@ -354,7 +366,7 @@ fn in_memory_interface_diagnostics_require_unchanged_report_slots() {
     assert_eq!(writes.load(Ordering::Relaxed), go_writes + 1);
 
     // An in-memory edit (a watch cycle) refreshes interface caches only when the changed file declares an interface,
-    // before or after the edit: only that can move a merged interface's report site.
+    // before or after the edit: only that can change merged-interface diagnostics.
     let f = dir.join("f.ts");
     let f_text = std::fs::read_to_string(&f).unwrap();
     let mut previous = build(None);

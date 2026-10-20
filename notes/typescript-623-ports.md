@@ -817,3 +817,36 @@ No source-14 release performance measurements were collected under the user's no
 The measured source-11 regressions remain disclosed above; no source-14 performance-equivalence claim is made.
 Evidence is under `target/port-623/0014-02c1c9a6ab/`. The ignored reference checkout advances to this revision;
 the published TypeScript pin remains unchanged until the full source upgrade.
+
+## 15. `237b14a5d98f` — stabilize merged-declaration diagnostic ownership
+
+Upstream `237b14a5d98f8e8f748ff36002fdd99786230d90` anchors merged-interface TS2320 and TS2430
+diagnostics to the symbol's first interface declaration even when a checker first visits another declaration.
+The Rust checker now uses that anchor in both Go-history and canonical modes. Canonical mode retains its per-file
+execution for index-constraint checks; the earlier virtual four-checker rule no longer chooses the interface
+diagnostic site. The enum const-consistency check compares against the first enum declaration. The merged-export
+check now runs once per symbol per checker when there are at least two declarations, regardless of which
+declaration kind a checker visits first. Existing merged-interface regression expectations are updated from the
+exact source-15 Go compiler. The older diagnostic-history investigation has a supersession note.
+
+The exact-source Go `TestLocal` oracle passes all six newly added interface fixture variants and four existing
+merged/enum fixtures. Rust passes the new `mergedInterfaceAugmentationDiagnostics`,
+`mergedInterfaceInheritanceDiagnostics`, and four `mergedInterfaceDefaultLibraryDiagnostics` configurations.
+Full Go-history and canonical checker runs each retain all source-14 passes and add these six diagnostic cases;
+Go history has 13,471 diagnostic and 12,786 type/symbol passes, canonical history 13,471 diagnostic and 12,785
+type/symbol passes. The full emit run retains all previous passes and adds the same six diagnostic cases plus
+two JavaScript cases: 13,475 diagnostics, 12,786 type/symbols, 13,401 JavaScript/declaration outputs, 149 JS maps,
+and 156 source maps. No previously nonpassing set changes and there are no new crashes or timeouts.
+
+The exact-source Go CLI produces identical ordered diagnostics for both updated public regression fixtures at
+one, four, and eight checkers; reversing the first two declaring roots moves the sole TS2320 to the new first
+declaration. The Rust CLI, API, and incremental tests now assert that ownership while retaining the per-file
+index-constraint and cache-reuse checks. All 37 regression projects pass. The full workspace passes 1,072 tests
+with four existing ignored. The full source-15 Go Fourslash gate passes 4,075 groups with 472 skipped and zero
+failures, retaining all 4,603 named source-14 outcomes (4,131 passes and 472 skips). The native dev build, WASM
+check, warnings-denied Clippy, source lint, formatting, and diff checks pass. Regeneration with all seven
+generators leaves every one of the 1,168 tracked crate files byte-identical to its pre-generation snapshot.
+No source-15 release performance measurement was collected under the user's nonblocking regression policy. The
+confirmed source-11 regressions remain disclosed above, and no performance-equivalence claim is made for this port.
+Evidence is under `target/port-623/0015-237b14a5d9/`. The ignored reference checkout advances to this revision;
+the published TypeScript pin remains unchanged until the full source upgrade.

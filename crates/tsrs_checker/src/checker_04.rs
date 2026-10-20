@@ -1010,8 +1010,7 @@ impl Checker {
             }
             symbol
         };
-        // Run the check only for the first declaration in the list.
-        if get_declaration_of_kind(symbol, node.kind()) != Some(node) {
+        if symbol.declarations().len() < 2 || !self.merged_exports_checked.add_if_absent(symbol) {
             return;
         }
         let mut exported_declaration_spaces = DeclarationSpaces::None;
