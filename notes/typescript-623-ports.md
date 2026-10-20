@@ -2747,3 +2747,49 @@ catalogs are not read by the Rust compiler, and this port changes no Rust
 runtime path, but no numerical performance-equality claim follows. The
 measured source-11 regressions remain disclosed above. Evidence is under
 `target/port-623/0061-fff11d8a7c/`.
+
+## 62. `2d8450f9b5` — add ESNext iterator methods
+
+Upstream `2d8450f9b54a2a9688a1823a57102402d6862ef5` adds
+`lib.esnext.iterator.d.ts`, references it from `lib.esnext.d.ts`, and remaps
+`--lib esnext.iterator` from the ES2026 iterator library to the new file.
+The Rust bundle copies both declarations byte for byte and regenerates its
+embedded-file and library-name lists. The ordered option map follows the Go
+option order, with `esnext.typedarrays` before `esnext.iterator`. The new
+library exposes `IteratorObject.chunks`, `join`, and `includes`, plus the
+`Iterator.zip` and `zipKeyed` overloads. The npm `tsconfig` and `jsconfig`
+schemas are copied exactly from source 62; `UPSTREAM.json` records their
+hashes and the source revision, and the full 192-file SDK sync check passes.
+Go's `TestProgram` covers the expanded ESNext library list and passes at
+this revision; Rust's bundled-file test checks the generated list and source
+contents. Existing `--help` and `--generateTrace` gaps are unchanged, though
+upstream help and trace baselines now mention the new library.
+
+All six new variants from `iteratorChunks`, `iteratorConstructorAugmentation`,
+`iteratorIncludes`, `iteratorJoin`, and `iteratorZip` pass diagnostics, type,
+symbol, and JavaScript baselines. The existing `builtinIterator` and
+`using`/`await using` symbol baselines changed upstream to name the new
+library; they continue to pass. All 18 Go-history, 18 canonical, and 36 emit
+pass/nonpass result lists retain every source-61 outcome. The only new pass
+entries are the six fixtures; their JavaScript-map and source-map entries
+are skips because upstream provides no such baselines. Go-history and
+canonical checker diagnostics pass 13,558 baselines; Go-history type/symbol
+passes 12,868, canonical 12,867. Emit passes 13,562 diagnostics, 12,868
+type/symbol, 13,488 JavaScript/declaration, 149 JavaScript-map, and 156
+source-map baselines. Exact-source Fourslash passes 4,088 of 4,558 groups,
+skips 470, fails none, and preserves all 4,622 named source-61 outcomes.
+
+The full Rust workspace, 39 CLI regressions, WebAssembly target check,
+warnings-denied Clippy, source lint, formatting, generated-code freshness,
+SDK sync check, and exact-source Go program test pass. Fourslash and the
+workspace transport socket test used the established sandbox escalation
+after local Unix-socket binds were denied. The compatibility table and
+README summaries record the new library; the ignored `ts-ref` checkout
+advances to source 62, while the published TypeScript pin stays at the base
+revision until the full upgrade.
+
+No release instruction-count, wall-time, or peak-RSS comparison was collected
+for source 62 under the user's nonblocking migration policy. The new
+`esnext` library can affect projects that select it, so no numerical
+performance-equality claim follows. The measured source-11 regressions
+remain disclosed above. Evidence is under `target/port-623/0062-2d8450f9b5/`.

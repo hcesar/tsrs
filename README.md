@@ -36,6 +36,7 @@ Its in-progress Node API also exposes the project checker's merged, declaration,
 The source-31 SDK adds typed paths; source 58 promotes the SDK exports to `tsrs/path`, `tsrs/sync`,
 `tsrs/async`, `tsrs/ast`, and `tsrs/vscode` for an explicitly selected API package.
 The source-51 compiler reports TS18117 for deferred imports without a namespace binding, including in JavaScript.
+Source 62 adds the ESNext iterator typings for `chunks`, `join`, `includes`, `zip`, and `zipKeyed`; the published pin is unchanged during the upgrade.
 
 <a href="https://github.com/oxc-project/tsrs/blob/main/bench/RESULTS.md">
   <picture>

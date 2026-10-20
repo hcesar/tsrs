@@ -211,12 +211,12 @@ pub static LIB_MAP: LazyLock<OrderedMap<&'static str, CompilerOptionsValue>> =
             ),
             ("esnext.error", CompilerOptionsValue::String("lib.es2026.error.d.ts".to_string())),
             (
-                "esnext.iterator",
-                CompilerOptionsValue::String("lib.es2026.iterator.d.ts".to_string()),
-            ),
-            (
                 "esnext.typedarrays",
                 CompilerOptionsValue::String("lib.es2026.typedarrays.d.ts".to_string()),
+            ),
+            (
+                "esnext.iterator",
+                CompilerOptionsValue::String("lib.esnext.iterator.d.ts".to_string()),
             ),
             ("esnext.promise", CompilerOptionsValue::String("lib.esnext.promise.d.ts".to_string())),
             // ESNext By-feature options
