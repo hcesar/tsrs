@@ -1,7 +1,7 @@
 use std::collections::hash_map::Entry;
 use std::rc::Rc;
 
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use tsrs_ast as ast;
 use tsrs_ast::*;
 use tsrs_core::*;
@@ -1709,6 +1709,23 @@ impl Checker {
         }
         if symbol == self.get_merged_symbol(symbol_from_symbol_table) {
             like_symbols = true;
+        }
+        if !like_symbols {
+            if let Some(mut resolved_alias_symbol) =
+                resolved_alias_symbol.filter(|symbol| symbol.flags().intersects(SymbolFlags::Alias))
+            {
+                let mut seen_aliases = FxHashSet::default();
+                while resolved_alias_symbol.flags().intersects(SymbolFlags::Alias)
+                    && seen_aliases.insert(resolved_alias_symbol)
+                {
+                    let target = self.resolve_alias(resolved_alias_symbol);
+                    resolved_alias_symbol = self.get_merged_symbol(target);
+                    if symbol == resolved_alias_symbol {
+                        like_symbols = true;
+                        break;
+                    }
+                }
+            }
         }
         if !like_symbols {
             return false;

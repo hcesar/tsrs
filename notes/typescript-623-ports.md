@@ -962,3 +962,39 @@ Evidence is under `target/port-623/0018-15dee00a1c/`, including complete compile
 the exact-source Go oracle and incremental logs, Fourslash outcome comparison, workspace and lint logs,
 and generator hashes. The ignored reference checkout advances to this revision; the published TypeScript
 pin and base SDK manifest remain unchanged until the full source upgrade.
+
+## 19. `af36d532b012` — follow merged export-alias chains for declaration visibility
+
+Upstream `af36d532b0120413a8b6d2157a7f5be7f8d61f03` extends `isAccessible` when a direct
+symbol match fails: it follows a still-aliased `resolvedAliasSymbol` through `resolveAlias` and
+`getMergedSymbol`, comparing each target with the requested merged symbol. The Rust checker mirrors
+that loop and uses a set of seen symbol identities to stop circular alias chains. Its ordinary
+qualification and external-module checks still run after a match. This preserves accessible class
+types through `export =` with separate type exports and through merged re-export aliases, including
+classes with private members.
+
+The exact source-19 Go testrunner passes all five new compiler cases across 13 module configurations
+and all seven existing cases whose type or symbol baselines changed. Rust matches diagnostics,
+`.types`, `.symbols`, and JavaScript/declaration output on the same 13 new configurations. The
+circular merged-alias case intentionally reports two TS2484 conflicts; the two-merged-alias case
+reports TS2484 for `Factory` in each module mode. The changed existing baselines also pass in the
+full suite.
+
+All twelve full compiler passing sets retain every source-18 pass and every known nonpassing
+outcome. Go-history checker passes 13,485 diagnostic and 12,800 type/symbol baselines; canonical
+checker passes 13,485 diagnostic and 12,799 type/symbol baselines. Emit passes 13,489 diagnostic,
+12,800 type/symbol, 13,415 JavaScript/declaration, 149 JavaScript-map, and 156 source-map baselines.
+The full exact-source Go Fourslash gate passes 4,075 groups, skips 472, and fails none; all 4,603
+named outcomes match source 18. All 37 regression projects pass. The workspace has 1,076 passing
+tests and four existing ignored tests. Native and WASM builds, warnings-denied Clippy, source lint,
+formatting, and generated-source verification pass; regeneration leaves all 1,166 tracked crate
+files byte-identical. Initial sandboxed Fourslash and workspace runs could not bind local Unix
+sockets; complete reruns with socket access passed.
+
+No source-19 release performance measurement was collected under the user's nonblocking migration
+policy; the source-11 measured regressions remain disclosed above, and no performance-equivalence
+claim is made for this port. Evidence is under `target/port-623/0019-af36d532b0/`, including the
+compiler pass-set and Fourslash outcome comparisons, exact-source Go oracle, workspace and regression
+logs, build and lint logs, and generator hashes. The ignored reference checkout advances to this
+revision; the published TypeScript pin and base SDK manifest remain unchanged until the full source
+upgrade.
