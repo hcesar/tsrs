@@ -1247,3 +1247,40 @@ disclosed above; no performance-equivalence claim is made for this port.
 Evidence is under `target/port-623/0025-a4b1410230/`, including exact-source
 library hashes, full compiler pass-set and Fourslash outcome comparisons,
 workspace, npm, regression, lint, WASM and generator logs.
+
+## 26. `efbf3b506754` — VS Code JSX auto-insert in content-mapped files
+
+Upstream `efbf3b5067547539c9cf8331d51943543c8bc91a` changes only the
+TypeScript VS Code extension: it moves the JSX auto-insert provider into the
+selector-scoped registrations so content-mapped extensions are included, and
+it disposes a conditional-registration listener when that selector changes.
+tsrs ships the language server but not that VS Code client. Its existing
+`_vs_onAutoInsert` request implementation is unchanged, and language-server
+content mappers remain unported. There is therefore no tsrs production code
+to change for this upstream client commit; JSX auto-insert in content-mapped
+files remains unavailable through tsrs. The existing compatibility table
+already records that language-server content-mapper gap. The ignored
+reference checkout advances to source 26, while the published TypeScript
+pin and base SDK manifest remain unchanged until the full source upgrade.
+
+All twelve full checker and emit pass and nonpass sets match source 25
+exactly, with no crashes or timeouts. Go-history checker passes 13,518
+diagnostic and 12,833 type/symbol baselines; canonical checker passes 13,518
+diagnostic and 12,832 type/symbol baselines. Emit passes 13,522 diagnostic,
+12,833 type/symbol, 13,448 JavaScript/declaration, 149 JavaScript-map and
+156 source-map baselines. The exact-source Fourslash gate passes 4,083 groups,
+skips 472 and fails none; all 4,615 named outcomes match source 25. The dev
+build, warnings-denied Clippy, source lint and formatting pass. The Rust
+workspace and generators were not rerun because this port changes no Rust,
+npm or generator input; source 25's full workspace and generator checks passed.
+
+The first Fourslash attempt could not bind a local Unix socket in the sandbox.
+An initial socket-enabled run used the gate helper's default Cargo.toml pin
+(the unchanged published base), rather than source 26, and encountered that
+older reference's known quick-info mismatch. The final run used a fresh
+source-26 snapshot and the rebuilt server, and passed. No source-26 release
+performance measurement was collected under the user's nonblocking migration
+policy; no runtime code changes in this port. The measured source-11
+regressions remain disclosed above. Evidence is under
+`target/port-623/0026-efbf3b5067/`, including the exact-source snapshot
+stamp, full compiler pass-set comparison and Fourslash outcome comparison.
