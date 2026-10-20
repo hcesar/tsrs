@@ -2492,3 +2492,40 @@ release instruction-count or peak-RSS measurement was collected under the
 user's nonblocking migration policy. The measured source-11 regressions
 remain disclosed above. Evidence is under
 `target/port-623/0056-ec47d33c23/`.
+
+## 57. `fed0bf2414` — attach hover documentation to its function
+
+Upstream `fed0bf24149fb1ed36039212648bafdafc1ea10e` moves the
+`getDocumentationForSymbol` docstring from above the
+`documentationLocationMapper` type to the function it describes. The Rust
+port makes the same comment move in `hover.rs` and updates the Go line
+references for the mapper type and method. Rust groups the method in the
+`LanguageService` implementation before the type alias, so their order
+differs from Go; the docstring now directly precedes the corresponding Rust
+function. No executable logic or public capability changes.
+
+The exact upstream diff changes only `tsc/internal/ls/hover.go`; removing
+whole-line comments gives byte-identical source before and after. The Rust
+diff likewise changes only `hover.rs`, whose noncomment lines are
+byte-identical. No compiler or Fourslash fixture, baseline, generated asset,
+or runtime input changed. Thus the source-56 full compiler conformance sets
+and exact-source Fourslash outcomes apply without rerunning those unchanged
+inputs: Go-history checker 13,552 diagnostics and 12,862 type/symbol
+baselines; canonical checker 13,552 diagnostics and 12,861 type/symbol
+baselines; emit 13,556 diagnostics, 12,862 type/symbol, 13,482
+JavaScript/declaration, 149 JavaScript-map, and 156 source-map baselines;
+Fourslash 4,088 passing groups of 4,558, 470 skipped, no failures, and all
+4,622 named outcomes unchanged. The source-56 full pass/nonpass comparisons
+had no lost passes, new failures, crashes, or timeouts. The identity hashes
+and both patches are retained in `identity.json`, `upstream.patch`, and
+`rust.patch` under the source-57 evidence directory.
+
+The dev CLI, test-runner and Fourslash-server builds, 80 language-server
+unit tests, all 39 CLI regressions, WebAssembly check, warnings-denied
+Clippy, source lint, formatting, and generator check pass. The ignored
+reference checkout advances to source 57; the published TypeScript pin
+remains unchanged until the full upgrade. No source-57 release
+instruction-count or peak-RSS measurement was collected under the user's
+nonblocking migration policy. Because only comments changed, no runtime
+performance change is expected. The measured source-11 regressions remain
+disclosed above. Evidence is under `target/port-623/0057-fed0bf2414/`.

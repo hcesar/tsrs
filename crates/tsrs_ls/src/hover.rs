@@ -300,7 +300,7 @@ impl LanguageService {
         (quick_info, documentation, vs_documentation, quick_info_runs)
     }
 
-    // hover.go:206
+    // hover.go:202
     pub(crate) fn documentation_location_mapper(
         &self,
         feature: Feature,
@@ -311,15 +311,15 @@ impl LanguageService {
     }
 }
 
-// getDocumentationForSymbol tries each documentation source in turn (call-signature documentation,
-// declaration JSDoc, root-symbol JSDoc, alias target JSDoc) and returns the first non-empty result,
-// formatted for contentFormat. commentOnly restricts the result to the JSDoc summary, excluding the
-// @tag section.
-// hover.go:204
+// hover.go:200
 pub(crate) type DocumentationLocationMapper<'a> =
     &'a dyn Fn(P<SourceFile>, TextRange) -> (lsproto::Location, Fidelity);
 
 // hover.go:212
+// getDocumentationForSymbol tries each documentation source in turn (call-signature documentation,
+// declaration JSDoc, root-symbol JSDoc, alias target JSDoc) and returns the first non-empty result,
+// formatted for contentFormat. commentOnly restricts the result to the JSDoc summary, excluding the
+// @tag section.
 fn get_documentation_for_symbol(
     get_mapped_location: DocumentationLocationMapper,
     c: &mut Checker,
