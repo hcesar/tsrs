@@ -1128,3 +1128,36 @@ migration policy. The measured source-11 regressions remain disclosed above; no 
 equivalence claim is made for this port. Full gate logs, passing-set comparisons, exact-source
 Go oracle and Fourslash results, and generator integrity evidence are under
 `target/port-623/0022-59f5b0233f/`.
+
+## 23. `09b1db061731` — elide erased named imports beside a default import
+
+Upstream `09b1db0617311f3b39f165bb3480c0ce2f718b27` changes the type eraser under
+`verbatimModuleSyntax`: when every named import was type-only and was erased, a remaining
+default import keeps the import declaration, so the generated empty `{}` is omitted. A
+source-written `{}` stays in the output; a named list that retains a value import is also
+unchanged. The Rust transformer mirrors the Go import-clause branch. The exact new upstream
+`verbatimModuleSyntaxDefaultImportTypeOnlyNamed` fixture passes the Go reference's nine
+baseline/structural checks and matches tsrs diagnostics, `.types`, `.symbols`, and emitted
+JavaScript. In particular, its `A1`, `A5`, and `A6` cases become plain default imports,
+while `import A4, {} from "./a"` retains its braces.
+
+All twelve full compiler passing sets retain every source-22 pass and known nonpassing
+outcome, adding only the new fixture where its baseline exists. Go-history checker passes
+13,487 diagnostic and 12,802 type/symbol baselines; canonical checker passes 13,487
+diagnostic and 12,801 type/symbol baselines. Emit passes 13,491 diagnostic, 12,802
+type/symbol, 13,417 JavaScript/declaration, 149 JavaScript-map, and 156 source-map
+baselines. No new crash or timeout occurred. The exact-source Fourslash gate passes 4,075
+groups, skips 472, and fails none; all 4,603 named outcomes match source 22. The full
+workspace passes 1,103 tests with four existing ignored tests, and all 37 regression
+projects pass. The dev build, WASM target check, warnings-denied Clippy, source lint and
+formatting pass. All seven generators plus formatting leave all 1,169 tracked crate
+files byte-identical. The initial sandboxed workspace run could not create local Unix
+sockets; the complete rerun with socket access passed.
+
+No source-23 release performance measurement was collected under the user's nonblocking
+migration policy. The measured source-11 regressions remain disclosed above; no
+performance-equivalence claim is made for this port. Evidence is under
+`target/port-623/0023-09b1db0617/`, including exact-source Go output, full compiler
+pass-set and Fourslash outcome comparisons, workspace, lint, and generator logs. The ignored
+reference checkout advances to source 23; the published TypeScript pin and base SDK
+manifest remain unchanged until the full source upgrade.
