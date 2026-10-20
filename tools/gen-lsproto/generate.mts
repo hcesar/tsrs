@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Generates crates/tsrs_lsproto/src/lsp_generated.rs from the LSP meta model (docs/LSP.md, "Protocol types
-// and JSON"). Port of ts-ref/tsc/internal/lsp/lsproto/_generate/generate.mts: the model processing (custom
+// and JSON"). Port of ts-ref/tools/scripts/lsp/generate.mts: the model processing (custom
 // structures, enumerations, requests and notifications, model patches, inheritance flattening, notebook
 // removal, type resolution, union naming, discriminator and presence dispatch selection) is Go's, verbatim;
 // only the Go emitter is replaced by a Rust emitter.

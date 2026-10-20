@@ -1323,3 +1323,48 @@ regressions remain disclosed above. Evidence is under
 `target/port-623/0027-dca8e236a2/`, including source-tree and binary
 identity, dependency resolution, complete compiler pass-set and Fourslash
 outcome comparisons, and build and lint logs.
+
+## 28. `0ad3777160ac` — VS Code LSP response middleware
+
+Upstream `0ad3777160acc032a2063da0cb0edd02be8b23a9` adds
+`registerLspMiddleware` to its VS Code extension API. The new client-side
+registry transforms language-feature responses after the server replies,
+with ordered callbacks, cloned values, cancellation and error fallback, and
+registrations that survive server restarts. It also exports type-only
+`@typescript/typescript/unstable/vscode` declarations and moves the LSP
+protocol generator from `tsc/internal/lsp/lsproto/_generate/` to
+`tools/scripts/lsp/`. The generated Go protocol bindings, Go compiler and
+LSP-server behavior, and conformance fixtures are unchanged.
+
+tsrs ships an LSP server, not a VS Code extension. Users can point the
+upstream TypeScript extension at tsrs, so that extension's middleware can
+operate on tsrs responses without a server change. tsrs has no extension
+registration API to implement, and adding a `tsrs/unstable/vscode` export
+would claim support for a client it does not provide. The corresponding
+tsrs changes update the Rust protocol generator's two moved-source
+attributions, the LSP guide, and the compatibility table's explicit
+extension-API status. The ignored reference checkout advances to source
+28; the published TypeScript pin and base SDK remain unchanged.
+
+All twelve complete checker and emit pass and nonpass sets match source
+27 exactly, with no crashes or timeouts. Go-history checker passes 13,518
+diagnostic and 12,833 type/symbol baselines; canonical checker passes
+13,518 diagnostic and 12,832 type/symbol baselines. Emit passes 13,522
+diagnostic, 12,833 type/symbol, 13,448 JavaScript/declaration, 149
+JavaScript-map and 156 source-map baselines. The exact-source Fourslash
+gate passes 4,083 groups, skips 472 and fails none; all 4,615 named
+outcomes match source 27. The LSP protocol generator is byte-identical
+after formatting, and the generated-Go-to-Rust check finds all 3,686
+names. The dev build, warnings-denied Clippy, source lint and formatting
+pass. The full Rust workspace, npm API suite and unrelated generators
+were not rerun: their runtime and generator inputs are unchanged from
+source 27, whose preceding full checks passed.
+
+No source-28 release performance measurement was collected under the
+user's nonblocking migration policy. The rebuilt dev compiler, test
+runner and Fourslash server binaries have the same SHA-256 hashes as
+source 27; no runtime code changed. The measured source-11 regressions
+remain disclosed above. Evidence is under
+`target/port-623/0028-0ad3777160/`, including upstream source-tree and
+binary identity, complete compiler pass-set and Fourslash outcome
+comparisons, LSP generator identity, build and lint logs.

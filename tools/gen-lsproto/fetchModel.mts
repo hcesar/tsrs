@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// Port of ts-ref/tsc/internal/lsp/lsproto/_generate/fetchModel.mts.
+// Port of ts-ref/tools/scripts/lsp/fetchModel.mts.
 // Usage: node tools/gen-lsproto/fetchModel.mts
 // Writes metaModel.json and metaModelSchema.mts next to this file (both are committed so that
 // generate.mts runs offline).
