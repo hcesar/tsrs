@@ -10,7 +10,8 @@
 //   TSRS_CODEC_TSC=/tmp/tsgo/tsc TSRS_CODEC_ORACLE=/tmp/tsoracle/node_modules/typescript \
 //     node crates/tsrs_api_codec/gen/oracle.mjs
 //
-// The script refuses to run unless ts-ref is checked out at the pin and TSRS_CODEC_TSC is set, and records the
+// The script refuses to run unless ts-ref is checked out at the pin (or TSRS_CODEC_COMMIT during an in-progress
+// source upgrade) and TSRS_CODEC_TSC is set, and records the
 // source SHA, the Go version and the server executable's sha256 in tests/golden/manifest.json.
 //
 // For every fixture it asks the server to `createSourceFile` (parse + bind through the server's parse cache,
@@ -35,7 +36,7 @@ if (!tsc) {
     process.exit(2);
 }
 const repoRoot = path.resolve(crateRoot, "../..");
-const pin = fs.readFileSync(path.join(repoRoot, "Cargo.toml"), "utf8").match(/^commit = "([0-9a-f]{40})"/m)[1];
+const pin = process.env.TSRS_CODEC_COMMIT ?? fs.readFileSync(path.join(repoRoot, "Cargo.toml"), "utf8").match(/^commit = "([0-9a-f]{40})"/m)[1];
 const refHead = execFileSync("git", ["-C", path.join(repoRoot, "ts-ref"), "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 const refDirty = execFileSync("git", ["-C", path.join(repoRoot, "ts-ref"), "status", "--porcelain", "--", "tsc"], { encoding: "utf8" }).trim();
 if (refHead !== pin || refDirty) {

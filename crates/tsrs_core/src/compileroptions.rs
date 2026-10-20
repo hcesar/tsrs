@@ -497,6 +497,14 @@ impl ModuleKind {
             || self == ModuleKind::ESNext
     }
 
+    pub fn supports_deferred_imports(self) -> bool {
+        self == ModuleKind::ESNext || self == ModuleKind::Preserve
+    }
+
+    pub fn supports_source_phase_imports(self) -> bool {
+        self == ModuleKind::ESNext || self == ModuleKind::NodeNext || self == ModuleKind::Preserve
+    }
+
     /// Go stringer: the constant name, or `ModuleKind(<n>)`.
     pub fn string(self) -> std::borrow::Cow<'static, str> {
         match self.name() {

@@ -113,9 +113,8 @@ impl Session {
                 "moduleSpecifier must have a SourceFile ancestor or sourceFile must be provided",
             )
         })?;
-        let mode = program.get_mode_for_usage_location(file, node);
         Ok(program
-            .get_resolved_module(file, node.text(), mode)
+            .get_resolved_module_from_module_specifier(file, node)
             .map_or(Value::Null, |r| resolved_module_response(&r)))
     }
 

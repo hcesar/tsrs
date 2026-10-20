@@ -1016,6 +1016,7 @@ pub(crate) fn node_common_data(node: P<Node>) -> Result<u32, EncodeError> {
             let phase_modifier_idx: u32 = match n.phase_modifier() {
                 Kind::TypeKeyword => 1,
                 Kind::DeferKeyword => 2,
+                Kind::SourceKeyword => 3,
                 _ => 0,
             };
             phase_modifier_idx << 24
@@ -1325,7 +1326,8 @@ impl Decoder<'_> {
             | Kind::GlobalKeyword
             | Kind::OverrideKeyword
             | Kind::OfKeyword
-            | Kind::DeferKeyword => f.new_token(kind),
+            | Kind::DeferKeyword
+            | Kind::SourceKeyword => f.new_token(kind),
             Kind::QualifiedName => {
                 let mut it = ChildIter::new(child_indices);
                 let left = from_node(self.node_at_opt(it.next_if(mask, 0)))?;
@@ -2537,6 +2539,7 @@ impl Decoder<'_> {
                 let phase_modifier = match common_data & 3 {
                     1 => Kind::TypeKeyword,
                     2 => Kind::DeferKeyword,
+                    3 => Kind::SourceKeyword,
                     _ => Kind::Unknown,
                 };
                 let mut it = ChildIter::new(child_indices);

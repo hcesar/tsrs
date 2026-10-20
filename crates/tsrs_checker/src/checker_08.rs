@@ -189,6 +189,9 @@ impl Checker {
     ) -> Option<P<Symbol>> {
         if let Some(module_reference_expression) = module_reference_expression {
             if ast::is_string_literal_like(module_reference_expression) {
+                if module_reference_expression.parent().is_some_and(ast::is_source_phase_import) {
+                    return None;
+                }
                 return self.resolve_external_module(
                     location,
                     module_reference_expression.text(),

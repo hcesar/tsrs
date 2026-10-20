@@ -21640,6 +21640,7 @@ pub fn is_token(node: P<Node>) -> bool {
             | Kind::OverrideKeyword
             | Kind::OfKeyword
             | Kind::DeferKeyword
+            | Kind::SourceKeyword
     )
 }
 
@@ -22555,7 +22556,7 @@ pub fn is_jsdoc_node_kind(kind: Kind) -> bool {
 }
 
 pub fn is_import_phase_modifier_kind(kind: Kind) -> bool {
-    matches!(kind, Kind::TypeKeyword | Kind::DeferKeyword)
+    matches!(kind, Kind::TypeKeyword | Kind::DeferKeyword | Kind::SourceKeyword)
 }
 
 pub fn is_postfix_unary_operator(kind: Kind) -> bool {

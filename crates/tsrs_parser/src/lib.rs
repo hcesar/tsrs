@@ -14,3 +14,6 @@ pub use parser_1::{
 };
 pub use types::ParseFlags;
 pub use utilities::get_jsdoc_comment_ranges;
+
+#[cfg(test)]
+mod parser_test;

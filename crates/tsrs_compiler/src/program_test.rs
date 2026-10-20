@@ -32,6 +32,62 @@ fn host_for(files: &[(&str, &str)]) -> Arc<dyn CompilerHost> {
     new_compiler_host("/", fs, "", None, None, None)
 }
 
+// program_test.go: TestImportSourceProgram
+#[test]
+fn source_phase_imports_do_not_resolve_or_keep_stale_programs() {
+    for (source, evaluation) in [
+        ("import source a from \"./a.js\";", "import { a as value } from \"./a.js\";"),
+        ("import.source(\"./a.js\");", "import(\"./a.js\");"),
+    ] {
+        let config_file =
+            r#"{"compilerOptions":{"module":"esnext","noLib":true},"files":["index.ts"]}"#;
+        let content =
+            format!("{source} import source b from \"missing\"; import.source(\"other\");");
+        let files = [
+            ("/src/tsconfig.json", config_file),
+            ("/src/index.ts", content.as_str()),
+            ("/src/a.ts", "export const a = 1;"),
+        ];
+        let config = config_for(&files);
+        let program = new_program(ProgramOptions::new(config, host_for(&files)));
+        assert!(program.get_source_file("/src/a.ts").is_none());
+        let file = program.get_source_file("/src/index.ts").unwrap();
+        assert!(
+            program
+                .get_resolved_modules()
+                .get(file.path())
+                .is_none_or(rustc_hash::FxHashMap::is_empty)
+        );
+        assert!(program.get_unresolved_imports().is_empty());
+        assert!(program.unresolved_package_names().is_empty());
+
+        let edited = format!("{evaluation}{}", content.strip_prefix(source).unwrap());
+        let edited_files = [files[0], ("/src/index.ts", edited.as_str()), files[2]];
+        let (updated, _, reused) = program.update_program(
+            &Path::from("/src/index.ts"),
+            host_for(&edited_files),
+            None,
+            None,
+        );
+        assert!(!reused);
+        assert!(updated.get_source_file("/src/a.ts").is_some());
+        let updated_file = updated.get_source_file("/src/index.ts").unwrap();
+        for &specifier in updated_file.imports() {
+            let resolved =
+                updated.get_resolved_module_from_module_specifier(updated_file, specifier);
+            assert_eq!(
+                resolved.is_some_and(|module| module.is_resolved()),
+                !specifier.parent().is_some_and(tsrs_ast::is_source_phase_import)
+            );
+        }
+
+        let (restored, _, reused) =
+            updated.update_program(&Path::from("/src/index.ts"), host_for(&files), None, None);
+        assert!(!reused);
+        assert!(restored.get_source_file("/src/a.ts").is_none());
+    }
+}
+
 fn config_for(files: &[(&str, &str)]) -> P<tsoptions::ParsedCommandLine> {
     let fs: Arc<dyn FS> = Arc::new(vfstest::from_map(files.iter().map(|&(k, v)| (k, v)), true));
     let host: &'static parseConfigHost = Box::leak(Box::new(parseConfigHost { fs }));

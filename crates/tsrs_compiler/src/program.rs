@@ -934,6 +934,8 @@ impl Program {
                 equal_module_specifiers(n1, n2)
                     && self.get_mode_for_usage_location(file1, n1)
                         == self.get_mode_for_usage_location(file2, n2)
+                    && n1.parent().is_some_and(ast::is_source_phase_import)
+                        == n2.parent().is_some_and(ast::is_source_phase_import)
             })
             && equal_func(
                 file1.module_augmentations(),
@@ -1257,6 +1259,9 @@ impl Program {
             ast::is_string_literal_like(module_specifier),
             "moduleSpecifier must be a StringLiteralLike"
         );
+        if module_specifier.parent().is_some_and(ast::is_source_phase_import) {
+            return None;
+        }
         let mode = self.get_mode_for_usage_location(file, module_specifier);
         self.get_resolved_module(file, module_specifier.text(), mode)
     }
@@ -3277,7 +3282,9 @@ impl Program {
                     continue;
                 }
                 'imports: for &imp in file.imports() {
-                    if tspath::is_external_module_name_relative(imp.text()) {
+                    if imp.parent().is_some_and(ast::is_source_phase_import)
+                        || tspath::is_external_module_name_relative(imp.text())
+                    {
                         continue;
                     }
                     if self.resolved_modules.contains_key(file.path()) {
@@ -3864,6 +3871,7 @@ fn plain_js_errors() -> &'static FxHashSet<i32> {
             &diagnostics::A_return_statement_cannot_be_used_inside_a_class_static_block,
             &diagnostics::A_set_accessor_cannot_have_rest_parameter,
             &diagnostics::A_set_accessor_must_have_exactly_one_parameter,
+            &diagnostics::A_source_phase_import_must_specify_a_local_binding,
             &diagnostics::An_export_declaration_can_only_be_used_at_the_top_level_of_a_module,
             &diagnostics::An_export_declaration_cannot_have_modifiers,
             &diagnostics::An_import_declaration_can_only_be_used_at_the_top_level_of_a_module,
@@ -3887,11 +3895,15 @@ fn plain_js_errors() -> &'static FxHashSet<i32> {
             &diagnostics::Jump_target_cannot_cross_function_boundary,
             &diagnostics::Line_terminator_not_permitted_before_arrow,
             &diagnostics::Modifiers_cannot_appear_here,
+            &diagnostics::Named_and_namespace_imports_are_not_allowed_in_a_source_phase_import,
             &diagnostics::Only_a_single_variable_declaration_is_allowed_in_a_for_in_statement,
             &diagnostics::Only_a_single_variable_declaration_is_allowed_in_a_for_of_statement,
+            &diagnostics::Optional_chaining_cannot_be_used_with_import_source,
             &diagnostics::Private_identifiers_are_not_allowed_outside_class_bodies,
             &diagnostics::Private_identifiers_are_only_allowed_in_class_bodies_and_may_only_be_used_as_part_of_a_class_member_declaration_property_access_or_on_the_left_hand_side_of_an_in_expression,
             &diagnostics::Property_0_is_not_accessible_outside_class_1_because_it_has_a_private_identifier,
+            &diagnostics::Source_phase_imports_are_not_allowed_on_statements_that_compile_to_CommonJS_require_calls,
+            &diagnostics::Source_phase_imports_are_only_supported_when_the_module_option_is_set_to_esnext_nodenext_or_preserve,
             &diagnostics::Tagged_template_expressions_are_not_permitted_in_an_optional_chain,
             &diagnostics::The_left_hand_side_of_a_for_of_statement_may_not_be_async,
             &diagnostics::The_variable_declaration_of_a_for_in_statement_cannot_have_an_initializer,
@@ -3900,6 +3912,7 @@ fn plain_js_errors() -> &'static FxHashSet<i32> {
             &diagnostics::Variable_declaration_list_cannot_be_empty,
             &diagnostics::X_0_and_1_operations_cannot_be_mixed_without_parentheses,
             &diagnostics::X_0_expected,
+            &diagnostics::X_0_is_not_a_valid_meta_property_for_keyword_import_Did_you_mean_meta_defer_or_source,
             &diagnostics::X_0_is_not_a_valid_meta_property_for_keyword_1_Did_you_mean_2,
             &diagnostics::X_0_list_cannot_be_empty,
             &diagnostics::X_0_modifier_already_seen,

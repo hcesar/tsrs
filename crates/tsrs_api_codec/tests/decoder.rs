@@ -91,6 +91,21 @@ fn decoded_tree_shape() {
 }
 
 #[test]
+fn decode_source_phase_import() {
+    let (_region, file) =
+        parse_like_server("source-phase.ts", "import source a from \"./a.wasm\";");
+    let (encoded, _) = encode_source_file(file.get()).unwrap();
+    let decoded = decode_source_file(&encoded).unwrap();
+    let clause = decoded.root().as_source_file().statements.nodes()[0]
+        .as_import_declaration()
+        .import_clause
+        .unwrap()
+        .as_import_clause();
+    assert_eq!(clause.phase_modifier(), Kind::SourceKeyword);
+    assert_eq!(clause.name().unwrap().text(), "a");
+}
+
+#[test]
 fn decode_non_source_file_node() {
     // A subtree encoding (Go EncodeNode / client encodeNode): the root keeps its own kind.
     let (_region, file) =

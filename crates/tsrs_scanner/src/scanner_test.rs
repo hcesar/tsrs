@@ -5,6 +5,17 @@ use crate::Scanner;
 use crate::utilities::normalize_jsdoc_type_source_text;
 
 #[test]
+fn test_scan_source_keyword() {
+    let mut scanner = Scanner::new();
+    scanner.set_text("source sourceValue");
+    assert_eq!(scanner.scan(), Kind::SourceKeyword);
+    assert_eq!(crate::token_to_string(Kind::SourceKeyword), "source");
+    assert_eq!(crate::string_to_token("source"), Kind::SourceKeyword);
+    assert_eq!(scanner.scan(), Kind::Identifier);
+    assert_eq!(scanner.token_value(), "sourceValue");
+}
+
+#[test]
 fn test_scan_string_preserves_lone_surrogates() {
     let mut s = Scanner::new();
     s.set_text(r#""🦀퟿\ud800\ud801🦀""#);

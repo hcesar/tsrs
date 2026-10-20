@@ -99,7 +99,8 @@ package (`packages/typescript` in microsoft/TypeScript) at the pinned commit, co
 (byte for byte, except a few listed test edits; `npm/tsrs/UPSTREAM.json` holds the commit and sha256 of every file).
 During the [#623 commit-by-commit migration](../notes/typescript-623-ports.md), changed SDK files advance at each
 corresponding source commit; the published `Cargo.toml` pin and `UPSTREAM.json` manifest remain at the base until
-the full upgrade is complete.
+the full upgrade is complete. The in-progress source tree supports `import source` and `import.source()` as of
+source commit `2f9fd09a104e`.
 The package exports `./schemas/tsconfig.schema.json` and `./schemas/jsconfig.schema.json`, copied from upstream.
 After bumping `[workspace.metadata.typescript]`, check out that commit as `ts-ref` and rerun it;
 `node npm/sdk/sync-upstream.mjs --check` fails if the copy drifted.

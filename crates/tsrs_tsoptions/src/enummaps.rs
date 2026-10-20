@@ -231,6 +231,10 @@ pub static LIB_MAP: LazyLock<OrderedMap<&'static str, CompilerOptionsValue>> =
             ),
             ("esnext.intl", CompilerOptionsValue::String("lib.esnext.intl.d.ts".to_string())),
             (
+                "esnext.modulesource",
+                CompilerOptionsValue::String("lib.esnext.modulesource.d.ts".to_string()),
+            ),
+            (
                 "esnext.sharedmemory",
                 CompilerOptionsValue::String("lib.esnext.sharedmemory.d.ts".to_string()),
             ),

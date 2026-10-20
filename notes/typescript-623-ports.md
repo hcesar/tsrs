@@ -1161,3 +1161,52 @@ performance-equivalence claim is made for this port. Evidence is under
 pass-set and Fourslash outcome comparisons, workspace, lint, and generator logs. The ignored
 reference checkout advances to source 23; the published TypeScript pin and base SDK
 manifest remain unchanged until the full source upgrade.
+
+## 24. `2f9fd09a104e` — source-phase imports
+
+Upstream `2f9fd09a104ef14268944a0aeb9cdc4d80abb6a6` adds static
+`import source binding from "module"` and dynamic `import.source("module")`.
+The Rust port follows its `SourceKeyword` scanner/parser/AST additions, grammar
+and TS18111–TS18115 diagnostics, `AbstractModuleSource` and
+`Promise<AbstractModuleSource>` types, source-phase module-resolution elision,
+program-reuse and package-name rules, printing and CommonJS transform behavior,
+and language-service auto-import, organization and source-definition behavior.
+The `esnext` library now includes `lib.esnext.modulesource.d.ts`, and the
+`esnext.modulesource` option selects that file. The npm AST, syntax-kind,
+encoder and schema changes were copied from the matching upstream revision.
+
+All 31 new `importSource` conformance variants pass diagnostics, `.types`,
+`.symbols` and JavaScript emit. The three full compiler gates retain every
+source-23 pass and known nonpass, with no crashes or timeouts. Go-history and
+canonical checker diagnostic passes rise to 13,518; Go-history type and symbol
+passes rise to 12,833, canonical to 12,832. Emit has 13,522 diagnostic, 12,833
+type and symbol, 13,448 JavaScript/declaration, 149 JavaScript-map and 156
+source-map passes. The exact-source Go parser, scanner, compiler and API
+encoder suites pass. A Rust program test verifies source-phase specifiers never
+resolve or retain files, while changing their phase prevents stale program
+reuse. Parser, scanner, printer and codec focused tests pass.
+
+The exact-source Fourslash gate passes 4,083 groups, skips 472 and fails none;
+all 4,615 named outcomes match or add to source 23 (12 new passes, no changed
+or lost outcomes). The full Rust workspace passes 1,106 tests with four
+existing ignored tests; all 37 regression projects pass. The npm API suite
+passes 935 tests, including the new sync and async source-phase cases. The
+native dev build, WASM target check, warnings-denied Clippy, source lint and
+formatting pass. The seven generators are run and checked for idempotence.
+
+The new `SourceKeyword` shifts numeric `SyntaxKind` values in the API wire
+format. The source-23 binary codec goldens could no longer decode under the
+source-24 enum, and the static Go API-shape fixture likewise contained old
+kind numbers. Both sets of fixtures were regenerated from the exact source-24
+Go server and updated local JavaScript client; codec byte parity, print
+parity and all decoder tests now pass. The `AbstractModuleSource` conformance
+errors in the first focused run exposed a missing `esnext.modulesource` option
+mapping, which was added before the full gate. The published TypeScript pin
+and base SDK manifest remain unchanged until the whole source upgrade.
+
+No source-24 release performance measurement was collected under the user's
+nonblocking migration policy. The measured source-11 regressions remain
+disclosed above; no performance-equivalence claim is made for this port.
+Evidence is under `target/port-623/0024-2f9fd09a10/`, including pass-set and
+Fourslash outcome comparisons, exact-source Go and codec goldens, workspace,
+regression, npm, lint and generator logs.

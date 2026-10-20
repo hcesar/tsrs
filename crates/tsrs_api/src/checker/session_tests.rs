@@ -1,6 +1,6 @@
 // Integrated regression tests through core's real `Session` (codec node handles, source-file
 // descriptors and leases, transport-independent request dispatch), compared with responses recorded
-// from the pinned Go session (testdata/go_probe/go_shapes_b85298b6.jsonl, see regen.sh).
+// from the source-phase-import Go session (testdata/go_probe/go_shapes_2f9fd09a.jsonl).
 //
 // Compared as JSON values after one normalization: ids that are per-process or per-checker counters
 // (type / signature / symbol ids, source-file node ids) are renamed per line in order of first
@@ -22,7 +22,7 @@ const MAIN: &str = include_str!("testdata/go_probe/fixture/main.ts");
 const TYPES: &str = include_str!("testdata/go_probe/fixture/types.d.ts");
 const TSCONFIG: &str = include_str!("testdata/go_probe/fixture/tsconfig.json");
 const OTHER: &str = include_str!("testdata/go_probe/fixture/other.ts");
-const GO_SHAPES: &str = include_str!("testdata/go_probe/go_shapes_b85298b6.jsonl");
+const GO_SHAPES: &str = include_str!("testdata/go_probe/go_shapes_2f9fd09a.jsonl");
 
 const ID_KEYS: &[&str] = &[
     "id",
@@ -828,7 +828,7 @@ fn shapes() -> Vec<(String, Value)> {
 }
 
 #[test]
-fn session_responses_match_pinned_go() {
+fn session_responses_match_source24_go() {
     let ours: FxHashMap<String, Value> = shapes().into_iter().collect();
     if let Ok(out) = std::env::var("TSRS_CHECKER_SHAPES_OUT") {
         let mut text = String::new();

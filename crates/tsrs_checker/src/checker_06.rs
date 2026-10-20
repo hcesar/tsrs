@@ -201,12 +201,13 @@ impl Checker {
                 return self.check_new_target_meta_property(node);
             }
             Kind::ImportKeyword => {
-                if node.name().unwrap().text() == "defer" {
-                    assert!(
-                        !ast::is_call_expression(node.parent().unwrap())
-                            || node.parent().unwrap().expression() != Some(node),
-                        "Trying to get the type of `import.defer` in `import.defer(...)`"
-                    );
+                if ast::is_import_phase_meta_property(node) {
+                    if ast::is_call_expression(node.parent().unwrap()) {
+                        assert!(
+                            node.parent().unwrap().expression() != Some(node),
+                            "Trying to get the type of a phase import meta-property in its call"
+                        );
+                    }
                     return self.error_type;
                 }
                 return self.check_import_meta_property(node);

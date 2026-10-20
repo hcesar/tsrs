@@ -1,9 +1,10 @@
 # tsrs_api_codec
 
-Binary AST codec of the TypeScript native API (`--api`): a Rust port of the pinned
-`microsoft/TypeScript` `tsc/internal/api/encoder` package (commit in the workspace `Cargo.toml`,
-`b85298b6a81f772d080b0455de0ca9d744cd6fd6`). It produces exactly the bytes the pinned Go server sends for
-`getSourceFile` / `createSourceFile` / `typeToTypeNode` / …, which the pinned JavaScript client
+Binary AST codec of the TypeScript native API (`--api`): a Rust port of
+`microsoft/TypeScript` `tsc/internal/api/encoder`. The in-progress #623 upgrade tracks source commit
+`2f9fd09a104ef14268944a0aeb9cdc4d80abb6a6`; the published workspace pin remains
+`b85298b6a81f772d080b0455de0ca9d744cd6fd6`. It produces exactly the bytes the reference Go server sends for
+`getSourceFile` / `createSourceFile` / `typeToTypeNode` / …, which the reference JavaScript client
 (`packages/typescript/src/api/node`, `RemoteSourceFile`/`RemoteNode`) decodes lazily, and decodes the bytes the
 client sends back (`printNode`, `formatNode`-style requests). It does not define a new format.
 
@@ -11,7 +12,7 @@ Derived from TypeScript (Apache-2.0, Copyright (c) Microsoft Corporation); see t
 
 ## API
 
-| Rust | Pinned Go |
+| Rust | Reference Go |
 | --- | --- |
 | `encode_source_file(&'static SourceFile) -> (Vec<u8>, NodeIndexTable)` | `EncodeSourceFile` |
 | `encode_node(P<Node>, Option<&'static SourceFile>) -> (Vec<u8>, NodeIndexTable)` | `EncodeNode` |
@@ -33,7 +34,7 @@ the codec never extends their lifetime. `DecodedNode::root()` is valid only whil
 
 `node crates/tsrs_api_codec/gen/gen-codec.ts` regenerates `src/generated.rs` and `COVERAGE.generated.md` from
 `ts-ref/tools/scripts/tsc/ast.json` through `tools/gen-ast/schema.ts` (the same inputs as `tsrs_ast`), porting the
-classification of the pinned `tools/scripts/tsc/generate-encoder.ts` (data type, children masks in visitor
+classification of the reference `tools/scripts/tsc/generate-encoder.ts` (data type, children masks in visitor
 order, 6-bit commonData layout incl. SyntaxKind-union indices, string/extended data, decoder factories with
 kind-alias deconfliction). `--check` fails if the checked-in files are stale. The traversal is tsrs_ast's
 port of Go's `NodeVisitor.VisitEachChild` with the encoder's `VisitNodes`/`VisitModifiers` hooks plus
@@ -42,35 +43,38 @@ port of Go's `NodeVisitor.VisitEachChild` with the encoder's `VisitNodes`/`Visit
 
 ## Verification
 
-All references come from the pinned sources: ts-ref at `b85298b6a81f772d080b0455de0ca9d744cd6fd6`, the server
-built with `cd ts-ref/tsc && GOWORK=off go build ./cmd/tsc` (Go 1.27.1; source SHA, Go version and executable
-sha256 are recorded in `tests/golden/manifest.json`). The JavaScript client used to drive it and to decode is the
-`dist/api` of npm `typescript@7.1.0-dev.20260930.4`, whose gitHead is the pin plus one commit touching only
-`tools/pipelines/*.yml` (no client source change). Regenerate with `gen/oracle.mjs` (server goldens, client
-encodings, printNode outputs) and `gen/goprobe.sh` (in-process Go probes: `GetIndex`, `DecodeNodes`+`EncodeNode`).
+The current goldens use `ts-ref` at source commit `2f9fd09a104ef14268944a0aeb9cdc4d80abb6a6`,
+the Go server built from that revision with Go 1.27.0, and the `npm/tsrs` JavaScript client compiled
+from source-24 SDK files. `tests/golden/manifest.json` records the source SHA, Go version, executable
+sha256 and client package. After building the source-24 Go server and local SDK, regenerate with:
 
-`cargo test -p tsrs_api_codec` (`TSRS_CODEC_ORACLE=<dir>/node_modules/typescript` enables the Node test,
-`TSRS_CODEC_TSC=<pinned tsc>` additionally its live printNode check):
+```sh
+TSRS_CODEC_COMMIT=<source-SHA> TSRS_CODEC_TSC=<source-24-tsgo> TSRS_CODEC_ORACLE=npm/tsrs node crates/tsrs_api_codec/gen/oracle.mjs
+TSRS_CODEC_COMMIT=<source-SHA> bash crates/tsrs_api_codec/gen/goprobe.sh
+```
+
+`cargo test -p tsrs_api_codec` (`TSRS_CODEC_ORACLE=npm/tsrs` enables the Node test,
+`TSRS_CODEC_TSC=<reference tsc>` additionally its live printNode check):
 
 * `golden_compat`: the Rust encoding of each of the 12 public fixtures (`tests/fixtures`: TS, TSX, `.d.ts`,
   checked JS with every JSDoc tag form, BOM + CRLF + astral identifiers, escapes producing WTF-8 lone
-  surrogates, parse errors, missing declarations, empty file) is byte-identical to the pinned server's
+  surrogates, parse errors, missing declarations, empty file) is byte-identical to the reference server's
   `createSourceFile` response (ID/lease zeroed): header, string table, extended data, msgpack structured data
   and every node record. The fixtures contain every node kind a parser produces (236 kinds). `GetIndex` matches
-  the pinned Go result for all 1625 node records (121 of them resolve to another occurrence of a node that is
+  the reference Go result for all 1625 node records (121 of them resolve to another occurrence of a node that is
   encoded several times, i.e. a JSDoc comment hosting `@typedef`/`@callback` attached to several declarations);
   index tables rebuilt later agree. Plus node handles and generator freshness.
 * `decoder`: decodes the server's and the JS client encoder's bytes and compares structure; Go
-  `DecodeNodes`+`EncodeNode` (pinned probe) vs Rust `decode_nodes`+encode on 30 inputs (all server goldens and
+  `DecodeNodes`+`EncodeNode` (reference probe) vs Rust `decode_nodes`+encode on 30 inputs (all server goldens and
   all client-encoded print inputs, incl. synthesized trees with 0xFFFFFFFF positions and SourceFile roots
   mixing synthesized and parsed nodes): 29 byte-identical, 1 identical failure (see below); ~13k malformed
   inputs never panic.
-* `print_parity`: pinned server `printNode` vs `decode_nodes` + `tsrs_printer` on 30 inputs: 28 identical texts,
+* `print_parity`: reference server `printNode` vs `decode_nodes` + `tsrs_printer` on 30 inputs: 28 identical texts,
   2 identical failures.
-* `node_client`: the pinned JS client reads the Rust encodings and every exposed property (source file metadata,
+* `node_client`: the reference JS client reads the Rust encodings and every exposed property (source file metadata,
   references, imports, augmentations, external module indicator, each node's kind/pos/end/flags/text/… via
   `forEachChild` incl. NodeArrays) equals its view of the Go encodings and of Go's re-encodings; with
-  `TSRS_CODEC_TSC` the pinned server prints a Rust-encoded synthesized tree exactly as `tsrs_printer` does.
+  `TSRS_CODEC_TSC` the reference server prints a Rust-encoded synthesized tree exactly as `tsrs_printer` does.
 
 ## Notes on parity
 
@@ -79,7 +83,7 @@ encodings, printNode outputs) and `gen/goprobe.sh` (in-process Go probes: `GetIn
 * Synthesized positions: `0xFFFFFFFF` decodes to `-1` (tsrs positions are `i32`; Go keeps `int` 4294967295).
   Both re-encode to `0xFFFFFFFF` and both printers treat the nodes identically on every tested input; the client
   reads node `pos` with `getInt32` (-1) and NodeList `pos` with `getUint32` (4294967295) either way.
-* The pinned Go decoder panics on a non-empty raw child list (`JSDocTypeLiteral`, `SyntaxList`) because it
+* The reference Go decoder panics on a non-empty raw child list (`JSDocTypeLiteral`, `SyntaxList`) because it
   indexes a zero-length slice; `decode_nodes` returns `DecodeError::GoDecoderPanic` with Go's message at the
   same point (printNode of any file with `@typedef {Object}` + `@property` fails on both).
 * `get_index` assigns node ids lazily in sort-comparison order exactly like Go, so the session must keep one
@@ -91,12 +95,12 @@ encodings, printNode outputs) and `gen/goprobe.sh` (in-process Go probes: `GetIn
 * The API's project system does not content-map files yet (`tsrs_project` compilerhost.rs; content
   mappers in the project system are phase 2 of notes/contentmappers.md), and the encoder always writes the
   "absent" values for the span map, supplemental/canonical file names, content mapper, virtual file name and
-  diagnostic directive fields; those are what the pinned encoder writes for an ordinary file. Encoding content-mapper info is not implemented.
-* Binder data (header offset 60) is always 0, as in the pinned encoder.
+  diagnostic directive fields; those are what the reference encoder writes for an ordinary file. Encoding content-mapper info is not implemented.
+* Binder data (header offset 60) is always 0, as in the reference encoder.
 * The decoder rejects malformed input that the Go decoder would panic on or misread (out-of-range offsets,
   non-forward sibling links, unknown kinds/enum values, invalid UTF-8 other than WTF-8 surrogates, missing
   required children, the reserved data type); the server turns either into an error response.
-* The pinned server cannot accept source text with unpaired surrogates (its JSON request decoding rejects
+* The reference server cannot accept source text with unpaired surrogates (its JSON request decoding rejects
   it), so lone surrogates are covered only through string-literal escapes; `PositionMap` follows Go's
   `DecodeJSStringRune` for them.
 * `tsrs_printer` formats kinds in panic messages without Go's `Kind` prefix (`unhandled statement:

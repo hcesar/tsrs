@@ -2,7 +2,8 @@
 # Regenerates go_probe_b85298b6.jsonl from the pinned Go API session.
 #
 # Requirements: a clean microsoft/TypeScript checkout at the commit in the workspace Cargo.toml
-# ([workspace.metadata.typescript] commit) in ./ts-ref (or $TS_REF), and a Go toolchain matching its
+# ([workspace.metadata.typescript] commit), or TSRS_API_COMMIT during an in-progress source upgrade,
+# in ./ts-ref (or $TS_REF), and a Go toolchain matching its
 # go.work (go1.27.x). The probe source is copied into the reference checkout only for the duration of
 # the run and is removed again (also on failure); the script fails if the checkout is not clean before
 # or after.
@@ -16,7 +17,7 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(git -C "$here" rev-parse --show-toplevel)
 ref=${TS_REF:-$repo/ts-ref}
-pinned=$(sed -n 's/^commit = "\([0-9a-f]*\)"$/\1/p' "$repo/Cargo.toml" | head -n1)
+pinned=${TSRS_API_COMMIT:-$(sed -n 's/^commit = "\([0-9a-f]*\)"$/\1/p' "$repo/Cargo.toml" | head -n1)}
 actual=$(git -C "$ref" rev-parse HEAD)
 if [ -z "$pinned" ] || [ "$actual" != "$pinned" ]; then
   echo "ts-ref is at $actual, expected pinned $pinned" >&2

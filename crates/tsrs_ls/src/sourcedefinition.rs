@@ -101,9 +101,21 @@ impl LanguageService {
 
         let (origin_selection_range, _) = self.create_lsp_range_from_node(node, file);
 
+        let containing_module_specifier = find_containing_module_specifier(node);
+        if containing_module_specifier
+            .is_some_and(|specifier| specifier.parent().is_some_and(ast::is_source_phase_import))
+        {
+            return Ok(self.provide_definition_at_position(
+                ctx,
+                program,
+                file,
+                text_pos,
+                client_supports_link,
+            ));
+        }
+
         // If the cursor is directly on a module specifier string, resolve to the
         // implementation file's entry point.
-        let containing_module_specifier = find_containing_module_specifier(node);
         if Some(node) == containing_module_specifier {
             let containing_module_specifier = containing_module_specifier.unwrap();
             let specifier_mode =

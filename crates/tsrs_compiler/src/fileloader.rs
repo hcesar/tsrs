@@ -1277,7 +1277,7 @@ pub(crate) fn prefetch_resolutions(
             imports_of_file.iter().copied().chain(augmentations).enumerate()
         {
             let module_name = entry.text();
-            if module_name.is_empty() {
+            if module_name.is_empty() || entry.parent().is_some_and(ast::is_source_phase_import) {
                 imports.push(None);
                 continue;
             }
@@ -1600,7 +1600,8 @@ impl fileLoader {
                     _ => None,
                 };
                 let module_name = entry.text();
-                if module_name.is_empty() {
+                if module_name.is_empty() || entry.parent().is_some_and(ast::is_source_phase_import)
+                {
                     continue;
                 }
 
@@ -2128,12 +2129,16 @@ pub(crate) fn get_emit_syntax_for_usage_location_worker(
         return ModuleKind::CommonJS;
     }
     let file_emit_mode = ast::get_emit_module_format_of_file_worker(file_name, options, meta);
-    if ast::walk_up_parenthesized_expressions(parent).is_some_and(ast::is_import_call) {
-        return if ast::should_transform_import_call(file_name, options, file_emit_mode) {
-            ModuleKind::CommonJS
-        } else {
-            ModuleKind::ESNext
-        };
+    if let Some(call) =
+        ast::walk_up_parenthesized_expressions(parent).filter(|&n| ast::is_import_call(n))
+    {
+        if ast::is_source_phase_import_call(call) {
+            return ModuleKind::ESNext;
+        }
+        if ast::should_transform_import_call(file_name, options, file_emit_mode) {
+            return ModuleKind::CommonJS;
+        }
+        return ModuleKind::ESNext;
     }
     // If we're in --module preserve on an input file, we know that an import
     // is an import. But if this is a declaration file, we'd prefer to use the
