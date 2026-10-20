@@ -28,6 +28,10 @@ for g in "${generators[@]}"; do
   # shellcheck disable=SC2086 # each entry is a command line
   $g > /dev/null
 done
+echo "+ python3 tools/gen-diagnostics/check_localizations.py"
+python3 tools/gen-diagnostics/check_localizations.py
+echo "+ python3 -m unittest discover -s tools/gen-diagnostics -p test_*.py"
+python3 -m unittest discover -s tools/gen-diagnostics -p 'test_*.py'
 echo "+ cargo fmt --all"
 cargo fmt --all
 

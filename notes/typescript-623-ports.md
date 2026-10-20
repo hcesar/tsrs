@@ -1518,3 +1518,46 @@ remain disclosed above. Evidence is under
 `target/port-623/0031-ed4807212c/`, including exact-source Go and npm
 API results, full compiler pass-set and Fourslash outcome comparisons,
 workspace, regression, WASM, lint and generator-integrity logs.
+
+## 32. `cb72b2e17b75` — update localization files
+
+Upstream `cb72b2e17b75557db7e3286d835544aef5d85f6c` refreshes the
+OneLoc handbacks and deterministic runtime archives for 13 locales. The 26
+JSON and gzip files in `crates/tsrs_diagnostics/loc/` match that commit byte
+for byte; every handback has 2,220 sorted diagnostic keys, and every gzip
+payload has the matching key/value map. The new
+`tools/gen-diagnostics/import_localization.py` ports the upstream handback
+rules to this repository's Python tooling: only completed `Loc` targets
+replace existing translations, pending `Update` and unstated targets keep
+their previous text, obsolete and English-equivalent entries are removed,
+invalid metadata leaves the output unchanged, and the result is sorted CRLF
+JSON. The locale checker validates canonical formatting, placeholders and
+archive contents in `tools/gen-check.sh`; its importer cases mirror the new
+upstream Go tests. The upstream Azure OneLoc pipeline is Go-repository
+infrastructure and is not copied here.
+
+Localized output remains a pre-existing gap: tsrs does not yet load these
+catalogs, and `--locale` still leaves English messages unchanged. This data
+port does not claim to implement that runtime subsystem. The ignored
+reference checkout advances to source 32; the published TypeScript pin and
+base SDK manifest remain unchanged until the full upgrade.
+
+All twelve complete checker and emit pass/nonpass sets match source 31 with
+no lost passes, new failures, crashes or timeouts. Go-history checker passes
+13,521 diagnostics and 12,836 type/symbol baselines; canonical checker passes
+13,521 diagnostics and 12,835 type/symbol baselines. Emit passes 13,525
+diagnostics, 12,836 type/symbol, 13,451 JavaScript/declaration, 149
+JavaScript-map and 156 source-map baselines. Exact-source Fourslash passes
+4,084 groups, skips 472 and fails none; all 4,620 named source-31 outcomes
+are unchanged. The source-32 Go diagnostics and importer package tests pass,
+as do the seven Rust diagnostics tests, importer cases, all 1,111 workspace
+tests (four ignored), regression projects, WASM check, warnings-denied
+Clippy, source lint, formatting and generator integrity. Workspace and
+Fourslash needed escalated reruns only because the sandbox denied Unix-socket
+binds.
+
+No source-32 release performance measurement was collected under the user's
+nonblocking migration policy. No production Rust or npm runtime code
+changed; the staged catalogs are not embedded or loaded by tsrs. The measured
+source-11 regressions remain disclosed above. Evidence is under
+`target/port-623/0032-cb72b2e17b/`.

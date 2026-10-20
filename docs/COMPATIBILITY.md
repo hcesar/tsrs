@@ -7,7 +7,7 @@ The goal is 100% conformance with TypeScript 7. This page records the current ev
 tsrs is a function-by-function port of the Go implementation of TypeScript (`microsoft/TypeScript`, commit
 `b85298b6a81f`, TypeScript 7.1.0-dev). The Go code is the spec: any difference from it in diagnostics, their order,
 message text or exit code is a tsrs bug, even when tsrs's output looks better. The in-progress source upgrade is
-validated through `ed4807212c28c`; the [port log](../notes/typescript-623-ports.md) records each step. The published
+validated through `cb72b2e17b755`; the [port log](../notes/typescript-623-ports.md) records each step. The published
 pin remains unchanged until that upgrade is complete.
 
 On that revision's conformance suite, tsrs matches the reference on 13,521 of 13,525 error baselines (the other four are
@@ -63,7 +63,7 @@ defaults, unsupported features and known parity gaps.
 | Options TypeScript 7 removed (ES5 target, AMD/UMD/System, `baseUrl`, …) | rejected, as in tsgo | same TS5102 / TS5108 errors |
 | `--watch`, `-b --watch` | yes; Linux and macOS (Windows: exits with "not supported") | The seven former watch-tuning flags (`watchInterval`, `watchFile`, `watchDirectory`, `fallbackPolling`, `synchronousWatchDirectory`, `excludeDirectories`, `excludeFiles`) now report the same unknown-option diagnostics as tsgo. 39 of 42 `tscWatch` and all 65 `tsbuildWatch` scenario baselines pass; the three failures are `--help` and `--init`. Watches with inotify on Linux (tsgo uses fanotify where the kernel allows it, inotify otherwise) and FSEvents or kqueue on macOS. Controlled descriptor-reuse and overlapping-watch cases verify kqueue closes only its current owned descriptors; controlled native batches and real filesystem delivery cover FSEvents write settling. On Linux a cycle starts when the writer closes the saved file, where tsgo starts at the first write (often the truncation) and checks a half-written file. A watch session frees each replaced program and each parsed file version nothing refers to any more (notes/watch-memory.md), and `-b --watch` reuses parsed files whose text is unchanged; tsgo reparses every file each cycle. Ctrl-C ends the session |
 | `--init`, `--showConfig` | no | exits with "not supported"; `--help` prints a short usage |
-| `--locale` | ignored | messages are English only |
+| `--locale` | ignored | messages are English only. The source-32 catalogs for 13 locales and their gzip archives are preserved and validated, but are not loaded by the compiler; the upstream OneLoc automation is outside this repository ([diagnostic localization data](../tools/gen-diagnostics/README.md)) |
 | `--generateTrace` | no | warns "Failed to start tracing" (tsgo's message when it can't write a trace) and type-checks as without the flag |
 | Ctrl-C, SIGTERM | `--lsp` and `--api`: yes. Command line: stops at once | the language server exits with status 1 ("context canceled"), the API server with status 0 after the next message or EOF, as in tsgo. tsgo's command line catches the signals too but finishes a non-incremental run anyway; tsrs keeps their default action so a check can be interrupted. Windows: default action everywhere |
 | Prebuilt binaries | yes | macOS arm64, Linux x64/arm64 (glibc and musl since 0.14.0). Windows x64 is configured for the next release; 0.18.0 and earlier have no Windows package. No Intel macOS binary |
