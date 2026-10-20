@@ -1821,3 +1821,37 @@ summary cites these counts.
 No source-39 release performance measurement was collected under the user's
 nonblocking migration policy. The measured source-11 regressions remain
 disclosed above. Evidence is under `target/port-623/0039-fc636a691f/`.
+
+## 40. `de61e6962143` — update DOM and WebWorker typings
+
+Upstream `de61e696214322f72d967bd17c58c50e44b2920d` updates bundled
+`lib.dom.d.ts` and `lib.webworker.d.ts`, including CSS, DOM, Serial, and
+WebTransport declarations. The Rust bundled copies match the source-40 Go
+files byte for byte. The upstream commit also updates two type baselines;
+`mappedTypeRecursiveInference` and `globalThisBlockscopedProperties` pass
+their exact-source diagnostic, type, symbol, and JavaScript baselines. The
+ignored reference checkout advances to source 40. The published TypeScript
+pin and base SDK manifest remain unchanged until the full upgrade.
+
+The new DOM declarations add 34 `string` references to the language-service
+smoke fixture. Its one affected expected response was regenerated with a
+Go compiler built from source 40; the Rust response matches the new Go JSON
+byte for byte, and the other 38 responses remain unchanged. All twelve
+complete checker and emit pass/nonpass sets retain their source-39 outcomes,
+with no removed passes, new failures, crashes, or timeouts. Go-history checker
+passes 13,528 diagnostics and 12,842 type/symbol baselines; canonical
+checker passes 13,528 diagnostics and 12,841 type/symbol baselines. Emit
+passes 13,532 diagnostics, 12,842 type/symbol, 13,458 JavaScript/declaration,
+149 JavaScript-map, and 156 source-map baselines. Exact-source Fourslash
+passes 4,086 groups, skips 470, fails none, and all 4,620 named outcomes
+match source 39. Full Rust workspace all-targets, all 38 CLI regression
+projects, WebAssembly check, dev builds, warnings-denied Clippy, source
+lint, formatting, and all seven generators pass. The generator rerun leaves
+the tracked crate diff byte-identical. Workspace and Fourslash Unix-socket
+tests used the previously required sandbox escalation. The compatibility
+table records the source revision and library update; no root or npm README
+summary cites these counts.
+
+No source-40 release performance measurement was collected under the user's
+nonblocking migration policy. The measured source-11 regressions remain
+disclosed above. Evidence is under `target/port-623/0040-de61e69621/`.
