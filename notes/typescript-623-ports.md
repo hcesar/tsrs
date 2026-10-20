@@ -1284,3 +1284,42 @@ policy; no runtime code changes in this port. The measured source-11
 regressions remain disclosed above. Evidence is under
 `target/port-623/0026-efbf3b5067/`, including the exact-source snapshot
 stamp, full compiler pass-set comparison and Fourslash outcome comparison.
+
+## 27. `dca8e236a227` — bump `brace-expansion` to 5.0.12
+
+Upstream `dca8e236a227e37183dcf1dd4e51b22571f5b558` changes only its
+`package-lock.json`, moving `brace-expansion` from 5.0.9 to 5.0.12. tsrs uses
+pnpm, and its existing lockfile already selects 5.0.12 with the exact upstream
+SHA-512 integrity. This is a transitive development-tool dependency through
+`void` and `minimatch`; there is no tsrs code or lockfile change to make. The
+installed package reports 5.0.12, and `minimatch` successfully expands a
+brace-pattern smoke case. The ignored reference checkout advances to source
+27, while the published TypeScript pin and base SDK manifest stay unchanged.
+
+All twelve complete checker and emit pass and nonpass sets match source 26,
+with no crashes or timeouts. Go-history checker passes 13,518 diagnostic and
+12,833 type/symbol baselines; canonical checker passes 13,518 diagnostic and
+12,832 type/symbol baselines. Emit passes 13,522 diagnostic, 12,833
+type/symbol, 13,448 JavaScript/declaration, 149 JavaScript-map and 156
+source-map baselines. The exact-source Fourslash gate passes 4,083 groups,
+skips 472 and fails none; all 4,615 named outcomes match source 26. The dev
+build, warnings-denied Clippy, source lint and formatting pass. The Rust
+workspace, npm API suite and generators reuse their last successful checks:
+the upstream compiler, library, generator and SDK input trees, as well as
+all tsrs product inputs, are byte-identical to source 26.
+
+The frozen pnpm lock passes its supply-chain check, but an install attempt
+exits with the repository's existing ignored-build-script policy for
+`esbuild` and `workerd`; the exact package is installed and the focused
+dependency smoke passes. This does not affect the compiler or Fourslash
+gates. No compatibility table or README status changes are needed because
+this port changes no user-visible capability or cited pass count.
+
+No source-27 release performance measurement was collected under the user's
+nonblocking migration policy. The rebuilt dev compiler, test runner and
+Fourslash server binaries have the same SHA-256 hashes as before this port,
+and the runtime source and assets are unchanged. The measured source-11
+regressions remain disclosed above. Evidence is under
+`target/port-623/0027-dca8e236a2/`, including source-tree and binary
+identity, dependency resolution, complete compiler pass-set and Fourslash
+outcome comparisons, and build and lint logs.
