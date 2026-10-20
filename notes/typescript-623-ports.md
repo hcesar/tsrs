@@ -2339,3 +2339,38 @@ TypeScript pin remains unchanged until the full upgrade. No source-52
 release instruction-count or peak-RSS measurement was collected under the
 user's nonblocking migration policy. The measured source-11 regressions
 remain disclosed above. Evidence is under `target/port-623/0052-0ba5d992db/`.
+
+## 53. `0bd74f77b2` — avoid CommonJS exports for shadowed names in function-local loops
+
+Upstream `0bd74f77b276e659df9f63c3c63377cf11d1d86a` changes the
+iteration-body visitors for the ordinary CommonJS `for`, `for..in`, and
+`for..of` transforms from the top-level nested visitor to the normal
+visitor. The Rust port mirrors those two calls. Before the port, the new
+`commonjsExportShadowedInFunctionLoop` fixture passed diagnostics, types,
+and symbols but emitted three spurious `exports.mount = mount` assignments
+for local variables shadowing an exported function. Afterward, the fixture
+passes JavaScript emit while file-level loops still assign to exports for
+hoisted `var` declarations. A Go compiler built from this exact commit and
+the Rust CLI emit byte-identical JavaScript with matching diagnostics and
+exit status for the fixture.
+
+All three full compiler modes pass. The new fixture is the only pass-set
+addition from source 52, including diagnostics, types, symbols, and
+JavaScript; no prior pass was removed and there are no new failures,
+crashes, or timeouts. Go-history checker passes 13,541 diagnostics and
+12,851 type/symbol baselines; canonical checker passes 13,541 diagnostics
+and 12,850 type/symbol baselines. Emit passes 13,545 diagnostics, 12,851
+type/symbol, 13,471 JavaScript, 149 JavaScript-map, and 156 source-map
+baselines. Exact-source Fourslash passes 4,087 of 4,557 groups, skips 470,
+fails none, and all 4,621 named outcomes are unchanged. The full Rust
+workspace, all 39 CLI regressions, WebAssembly check, dev builds,
+warnings-denied Clippy, source lint, and formatting pass. The workspace and
+Fourslash Unix-socket checks required the previously observed sandbox
+escalation. The generator check ran after the commit because it compares
+its output against the whole working-tree diff.
+
+The ignored reference checkout advances to source 53; the published
+TypeScript pin remains unchanged until the full upgrade. No source-53
+release instruction-count or peak-RSS measurement was collected under the
+user's nonblocking migration policy. The measured source-11 regressions
+remain disclosed above. Evidence is under `target/port-623/0053-0bd74f77b2/`.
