@@ -17,7 +17,7 @@ type remoteSnapshot struct {
 
 type remoteProjectCollection struct {
 	Items    []*remoteProject
-	Defaults map[tspath.Path]project.ID
+	Defaults map[tspath.PathKey]project.ID
 	Registry *remoteConfigFileRegistry
 }
 
@@ -25,7 +25,7 @@ func (c *remoteProjectCollection) Projects() []*remoteProject {
 	return c.Items
 }
 
-func (c *remoteProjectCollection) GetDefaultProject(path tspath.Path) *remoteProject {
+func (c *remoteProjectCollection) GetDefaultProject(path tspath.PathKey) *remoteProject {
 	for _, p := range c.Items {
 		if p.Name == c.Defaults[path] {
 			return p
@@ -52,7 +52,7 @@ type remoteProgram struct {
 }
 
 func (p *remoteProgram) GetSourceFiles() []*remoteSourceFile { return p.Files }
-func (p *remoteProgram) GetSourceFileByPath(path tspath.Path) *remoteSourceFile {
+func (p *remoteProgram) GetSourceFileByPath(path tspath.PathKey) *remoteSourceFile {
 	for _, file := range p.Files {
 		if file.PathName == path {
 			return file
@@ -63,26 +63,26 @@ func (p *remoteProgram) GetSourceFileByPath(path tspath.Path) *remoteSourceFile 
 
 type remoteSourceFile struct {
 	Handle   string
-	Name     string
-	PathName tspath.Path
+	Name     tspath.RootedFilePath
+	PathName tspath.PathKey
 }
 
-func (f *remoteSourceFile) FileName() string  { return f.Name }
-func (f *remoteSourceFile) Path() tspath.Path { return f.PathName }
+func (f *remoteSourceFile) FileName() tspath.RootedFilePath { return f.Name }
+func (f *remoteSourceFile) PathKey() tspath.PathKey         { return f.PathName }
 
 type remoteConfigFileRegistry struct {
-	Configs   map[tspath.Path]*remoteConfigEntry
-	FileNames map[tspath.Path]*project.TestConfigFileNamesEntry
+	Configs   map[tspath.PathKey]*remoteConfigEntry
+	FileNames map[tspath.PathKey]*project.TestConfigFileNamesEntry
 }
 
 type remoteConfigEntry struct {
-	FileName           string
+	FileName           tspath.RootedFilePath
 	RetainingProjects  []project.ID
-	RetainingOpenFiles []tspath.Path
-	RetainingConfigs   []tspath.Path
+	RetainingOpenFiles []tspath.PathKey
+	RetainingConfigs   []tspath.PathKey
 }
 
-func (r *remoteConfigFileRegistry) GetTestConfigEntry(path tspath.Path) *project.TestConfigEntry {
+func (r *remoteConfigFileRegistry) GetTestConfigEntry(path tspath.PathKey) *project.TestConfigEntry {
 	if r == nil || r.Configs[path] == nil {
 		return nil
 	}
@@ -95,7 +95,7 @@ func (r *remoteConfigFileRegistry) GetTestConfigEntry(path tspath.Path) *project
 	}
 }
 
-func (r *remoteConfigFileRegistry) ForEachTestConfigEntry(fn func(tspath.Path, *project.TestConfigEntry)) {
+func (r *remoteConfigFileRegistry) ForEachTestConfigEntry(fn func(tspath.PathKey, *project.TestConfigEntry)) {
 	if r != nil {
 		for path := range r.Configs {
 			fn(path, r.GetTestConfigEntry(path))
@@ -103,14 +103,14 @@ func (r *remoteConfigFileRegistry) ForEachTestConfigEntry(fn func(tspath.Path, *
 	}
 }
 
-func (r *remoteConfigFileRegistry) GetTestConfigFileNamesEntry(path tspath.Path) *project.TestConfigFileNamesEntry {
+func (r *remoteConfigFileRegistry) GetTestConfigFileNamesEntry(path tspath.PathKey) *project.TestConfigFileNamesEntry {
 	if r == nil {
 		return nil
 	}
 	return r.FileNames[path]
 }
 
-func (r *remoteConfigFileRegistry) ForEachTestConfigFileNamesEntry(fn func(tspath.Path, *project.TestConfigFileNamesEntry)) {
+func (r *remoteConfigFileRegistry) ForEachTestConfigFileNamesEntry(fn func(tspath.PathKey, *project.TestConfigFileNamesEntry)) {
 	if r != nil {
 		for path, entry := range r.FileNames {
 			fn(path, entry)

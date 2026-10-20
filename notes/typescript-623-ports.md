@@ -1450,3 +1450,71 @@ No source-30 release performance measurement was collected under the
 user's nonblocking migration policy. No production runtime code changed;
 the measured source-11 regressions remain disclosed above. Evidence is
 under `target/port-623/0030-7e5d1c1c1d/`.
+
+## 31. `ed4807212c28` — strongly typed file paths
+
+Upstream `ed4807212c28c90777c1d7ef2bf8e47af5d08519` introduces
+`RootedPath`, `RootedFilePath`, `RootedDirectoryPath`, `PathKey` and
+`CaseSensitivity` across the Go compiler, project system, API, virtual
+filesystem and test infrastructure. The corresponding Rust port focuses on
+the observable semantics: a dynamic URI with no authority separator is not
+treated as a valid root, and common-parent grouping uses canonicalized
+components on case-insensitive filesystems. Auto-imports rebase unresolved
+relative module augmentations from the importing file, retain extensionless
+specifier text, and keep rooted ambient module names rooted. A trailing-slash NodeNext
+directory import now reports TS2834, rather than TS2835. The test runner
+preserves the parsed configuration's base directory and case sensitivity, so
+TS6059 explains the matching include pattern and emits related TS1408.
+The new empty/dot-stem filename and trailing-slash type-reference fixtures
+also pass. Existing Rust watch-root handling already normalizes `..`.
+
+The npm SDK advances its source-31 API, AST, enum, path, protocol and test
+files, including the `unstable/path` export. The Rust API sends numeric
+`caseSensitivity` in `initialize`, omits `configFileName` for inferred
+projects, resolves raw compiler-option paths against the server directory,
+rejects invalid document identifiers, and resolves relative callback
+`realpath` results from the queried path's directory. The Go Fourslash
+subprocess bridge now accepts upstream's typed virtual-filesystem paths and
+project-state path keys. The Rust compiler continues to use its established
+string and canonical `Path` storage internally; the Go-wide compile-time
+newtype conversion is not mechanically mirrored in every Rust signature.
+The ignored reference checkout advances to source 31; the published
+TypeScript pin and base SDK manifest remain unchanged until the full upgrade.
+
+All twelve complete checker and emit pass and nonpass sets match source 30,
+with no lost passing cases or new failures, crashes or timeouts. The three
+new compiler cases pass in both histories and emit. Go-history checker passes
+13,521 diagnostics and 12,836 type/symbol baselines; canonical checker
+passes 13,521 diagnostics and 12,835 type/symbol baselines. Emit passes
+13,525 diagnostics, 12,836 type/symbol, 13,451 JavaScript/declaration, 149
+JavaScript-map and 156 source-map baselines.
+The exact-source Fourslash suite passes 4,084 groups, skips 472 and fails
+none. All 4,615 named source-30 outcomes are preserved; the five new
+empty/dot-stem rename outcomes pass. Its first run found a CSS-module
+auto-import mismatch at the newly added extensionless and rooted cases;
+the auto-import representation now preserves both kinds of module name,
+and the full rerun passes all 4,620 named outcomes.
+The source-31 npm SDK build and source-condition typecheck pass. All 18
+changed API/AST/enum source files match upstream byte for byte; eight
+changed test files match after the tsrs package-name edit, and reversing
+the existing async connection-loss patch restores upstream's client file.
+The full npm API suite passes 953/953, including the new typed-path and
+relative callback-realpath cases. Exact-source Go path, options, AST,
+encoder and request-filesystem package tests pass. The regression
+projects and WASM target check pass.
+The full Rust workspace passes 1,111 tests with four existing ignored
+tests. The initial workspace run exposed three stored source-24 checker
+oracle responses for document identifiers that source 31 now rejects.
+An exact-source Go oracle confirmed all three new errors; a three-row
+override updates those expectations while retaining the other 81
+checker-response comparisons. The final workspace and focused API
+configuration test pass. The dev CLI/testrunner and Fourslash-server
+builds, warnings-denied Clippy, source lint and formatting pass. All seven
+generators plus formatting leave 1,172 tracked crate files byte-identical.
+
+No source-31 release performance measurement was collected under the
+user's nonblocking migration policy. The measured source-11 regressions
+remain disclosed above. Evidence is under
+`target/port-623/0031-ed4807212c/`, including exact-source Go and npm
+API results, full compiler pass-set and Fourslash outcome comparisons,
+workspace, regression, WASM, lint and generator-integrity logs.

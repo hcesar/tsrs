@@ -8,7 +8,7 @@ fn initialize_and_unknown_methods() {
     let s = session(&dir.dir(), false);
     let r = call(&s, "initialize", "");
     assert_eq!(str_of(get(&r, "currentDirectory")), dir.dir());
-    assert!(matches!(get(&r, "useCaseSensitiveFileNames"), Value::Bool(_)));
+    assert!(matches!(get(&r, "caseSensitivity"), Value::Number(n) if [0.0, 1.0].contains(n)));
     assert_eq!(call(&s, "ping", ""), Value::String("pong".into()));
     let e = call_err(&s, "noSuchMethod", "{}");
     assert!(e.starts_with("api: invalid request: unknown API method"), "{e}");
@@ -162,6 +162,15 @@ fn null_params_are_the_zero_value_struct() {
         e,
         "api: invalid request: failed to unmarshal *api.ReadConfigFileParams: json: cannot unmarshal into Go api.DocumentIdentifier within \"/file\": DocumentIdentifier: expected string or object, got null"
     );
+    for (file, reason) in [
+        (r#""""#, "file name must not be empty"),
+        ("{}", "object must contain uri"),
+        (r#"{"uri":""}"#, "uri must be a non-empty string"),
+        (r#"{"uri":42}"#, "uri must be a non-empty string"),
+    ] {
+        let e = call_err(&s, "readConfigFile", &format!(r#"{{"file":{file}}}"#));
+        assert!(e.contains(reason), "{e}");
+    }
     let e = call_err(&s, "getDefaultProjectForFile", r#"{"snapshot":0,"file":null}"#);
     assert!(
         e.starts_with(

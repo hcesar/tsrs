@@ -1,6 +1,8 @@
 // Integrated regression tests through core's real `Session` (codec node handles, source-file
 // descriptors and leases, transport-independent request dispatch), compared with responses recorded
 // from the source-phase-import Go session (testdata/go_probe/go_shapes_2f9fd09a.jsonl).
+// Source31 tightens DocumentIdentifier decoding; its three changed responses are recorded
+// separately in go_shapes_ed4807212c_docid.jsonl, verified against exact-source Go.
 //
 // Compared as JSON values after one normalization: ids that are per-process or per-checker counters
 // (type / signature / symbol ids, source-file node ids) are renamed per line in order of first
@@ -23,6 +25,8 @@ const TYPES: &str = include_str!("testdata/go_probe/fixture/types.d.ts");
 const TSCONFIG: &str = include_str!("testdata/go_probe/fixture/tsconfig.json");
 const OTHER: &str = include_str!("testdata/go_probe/fixture/other.ts");
 const GO_SHAPES: &str = include_str!("testdata/go_probe/go_shapes_2f9fd09a.jsonl");
+const GO_SHAPES_SOURCE31_DOCID: &str =
+    include_str!("testdata/go_probe/go_shapes_ed4807212c_docid.jsonl");
 
 const ID_KEYS: &[&str] = &[
     "id",
@@ -828,8 +832,17 @@ fn shapes() -> Vec<(String, Value)> {
 }
 
 #[test]
-fn session_responses_match_source24_go() {
+fn session_responses_match_go_with_source31_document_identifiers() {
     let ours: FxHashMap<String, Value> = shapes().into_iter().collect();
+    let source31_docid: FxHashMap<String, Value> = GO_SHAPES_SOURCE31_DOCID
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            let value = json::unmarshal(line).unwrap();
+            let Value::String(query) = get(&value, "q") else { panic!() };
+            (query, get(&value, "r"))
+        })
+        .collect();
     if let Ok(out) = std::env::var("TSRS_CHECKER_SHAPES_OUT") {
         let mut text = String::new();
         text = ours.iter().fold(text, |mut text, (q, r)| {
@@ -844,10 +857,17 @@ fn session_responses_match_source24_go() {
     }
     let mut diffs = Vec::new();
     let mut compared = 0;
+    let mut source31_overrides_compared = 0;
     for line in GO_SHAPES.lines().filter(|l| !l.is_empty()) {
         let v = json::unmarshal(line).unwrap();
         let Value::String(q) = get(&v, "q") else { panic!() };
-        let go = get(&v, "r");
+        let go = match source31_docid.get(&q) {
+            Some(response) => {
+                source31_overrides_compared += 1;
+                response.clone()
+            }
+            None => get(&v, "r"),
+        };
         let Some(rs) = ours.get(&q) else {
             diffs.push(format!("{q}: missing"));
             continue;
@@ -873,6 +893,7 @@ fn session_responses_match_source24_go() {
         }
     }
     assert_eq!(compared, GO_SHAPES.lines().filter(|l| !l.is_empty()).count());
+    assert_eq!(source31_overrides_compared, source31_docid.len());
     assert!(
         diffs.is_empty(),
         "{} of {compared} differ from pinned Go:\n{}",

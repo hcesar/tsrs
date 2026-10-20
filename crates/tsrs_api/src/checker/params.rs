@@ -246,28 +246,23 @@ impl DocumentIdentifier {
     fn decode(v: &Value, pointer: &str) -> CheckerResult<DocumentIdentifier> {
         let got = match v {
             Value::String(s) => {
+                if s.is_empty() {
+                    return Err(CheckerError::invalid(format!(
+                        "cannot unmarshal into Go api.DocumentIdentifier within \"{pointer}\": DocumentIdentifier: file name must not be empty"
+                    )));
+                }
                 return Ok(DocumentIdentifier { file_name: s.clone(), uri: String::new() });
             }
             Value::Object(map) => {
-                // Go reads `uri` with `ReadToken().String()`: a scalar is taken as its literal text
-                // (`null` becomes the URI "null", which later fails as an invalid URI, as in Go).
                 return match map.get("uri") {
-                    None => Ok(DocumentIdentifier::default()),
-                    Some(Value::String(uri)) => {
+                    None => Err(CheckerError::invalid(format!(
+                        "cannot unmarshal into Go api.DocumentIdentifier within \"{pointer}\": DocumentIdentifier: object must contain uri"
+                    ))),
+                    Some(Value::String(uri)) if !uri.is_empty() => {
                         Ok(DocumentIdentifier { file_name: String::new(), uri: uri.clone() })
                     }
-                    Some(Value::Null) => {
-                        Ok(DocumentIdentifier { file_name: String::new(), uri: "null".to_string() })
-                    }
-                    Some(Value::Bool(b)) => {
-                        Ok(DocumentIdentifier { file_name: String::new(), uri: b.to_string() })
-                    }
-                    Some(n @ Value::Number(_)) => Ok(DocumentIdentifier {
-                        file_name: String::new(),
-                        uri: tsrs_core::json::marshal(n).unwrap_or_default(),
-                    }),
                     Some(_) => Err(CheckerError::invalid(format!(
-                        "cannot unmarshal into Go api.DocumentIdentifier within \"{pointer}\": DocumentIdentifier: unsupported uri value"
+                        "cannot unmarshal into Go api.DocumentIdentifier within \"{pointer}\": DocumentIdentifier: uri must be a non-empty string"
                     ))),
                 };
             }

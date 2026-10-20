@@ -29,6 +29,29 @@ fn create_program(s: &tsrs_api::Session, roots: &[String], options: &str) -> (u6
 }
 
 #[test]
+fn api_raw_compiler_options_resolve_against_server_directory() {
+    let dir = TempDir::new("raw_options");
+    dir.write("src/a.ts", "export const a = 1;\n");
+    let s = session(&dir.dir(), false);
+    let response = call(
+        &s,
+        "createSnapshot",
+        r#"{"createPrograms":[{"rootFiles":["src/a.ts"],"compilerOptions":{"noLib":true,"outDir":"dist","rootDirs":["src","${configDir}/generated"],"tsBuildInfoFile":"cache/build.tsbuildinfo"}}]}"#,
+    );
+    let project = get(&response, "projects.0");
+    assert!(matches!(project, Value::Object(o) if !o.contains_key("configFileName")));
+    assert_eq!(str_of(get(project, "compilerOptions.outDir")), dir.path("dist"));
+    assert_eq!(
+        get(project, "compilerOptions.rootDirs"),
+        &Value::Array(vec![Value::String(dir.path("src")), Value::String(dir.path("generated")),])
+    );
+    assert_eq!(
+        str_of(get(project, "compilerOptions.tsBuildInfoFile")),
+        dir.path("cache/build.tsbuildinfo")
+    );
+}
+
+#[test]
 fn create_program_diagnostics_emit_release() {
     let dir = TempDir::new("prog");
     let a = dir.write(

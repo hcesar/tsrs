@@ -1,8 +1,8 @@
 # The language server (`tsrs --lsp -stdio`)
 
 tsrs provides diagnostics, hover, go to definition, references, rename, completions with auto-imports, code fixes
-and formatting through the TypeScript 7 language-server protocol. The in-progress source upgrade passes 4,083 of
-4,555 fourslash groups; see [known gaps](#known-gaps) and the
+and formatting through the TypeScript 7 language-server protocol. The in-progress source upgrade passes 4,084 of
+4,556 fourslash groups; see [known gaps](#known-gaps) and the
 [compatibility table](COMPATIBILITY.md#what-it-does-and-doesnt-do).
 
 ## Editor setup
@@ -235,7 +235,7 @@ index 0, as in Go), so `sort_symbols` uses Go's pdqsort port there (`checker::Pr
 
 ## Fourslash
 
-The Go subprocess runner passes **4,083 groups, with 0 failures and 472 skips** at the in-progress source revision.
+The Go subprocess runner passes **4,084 groups, with 0 failures and 472 skips** at the in-progress source revision.
 Its state snapshots preserve the upstream project-state assertions. Go's `@tsc` setup helper builds fixtures for
 eight groups unsupported by the former translated harness; their LSP requests run against Rust. See the
 [runner guide](../tools/go-fourslash/README.md)

@@ -44,18 +44,15 @@ impl DocumentIdentifier {
 /// Go `NewProjectResponse`.
 pub fn project_response(p: &Project) -> Value {
     let command_line = p.command_line.expect("project_response called with unloaded project");
-    let config_file_name = if p.kind == tsrs_project::Kind::Configured {
-        p.config_file_name().to_string()
-    } else {
-        String::new()
-    };
+    let config_file_name =
+        (p.kind == tsrs_project::Kind::Configured).then(|| s(p.config_file_name().to_string()));
     let options = match command_line.compiler_options() {
         Some(o) => gojson::compiler_options_to_go_json(&o),
         None => Value::Null,
     };
     Obj::new()
         .set("id", s(p.id().0))
-        .set("configFileName", s(config_file_name))
+        .set_opt("configFileName", config_file_name)
         .set("currentDirectory", s(p.current_directory()))
         .set("dirty", b(p.is_dirty()))
         .set("parsedCommandLine", config_file_response(&command_line))
@@ -163,9 +160,7 @@ impl Session {
             .iter()
             .map(|d| d.to_absolute_file_name(cwd))
             .collect();
-        let mut options = gojson::compiler_options_from_go_json(p.get("compilerOptions"))
-            .map_err(ApiError::invalid_request)?;
-        crate::predecode::exact_compiler_options_ints(p.get("compilerOptions"), &mut options);
+        let options = crate::raw_options::compiler_options_from_raw(p.get("compilerOptions"), cwd)?;
         let mut request = APICreateProgramRequest {
             root_file_names,
             compiler_options: Some(P::new(options)),

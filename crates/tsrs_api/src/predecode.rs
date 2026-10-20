@@ -42,13 +42,24 @@ fn go_type_name(t: &str) -> String {
 /// lane, `checker/params.rs`).
 fn check_document(v: &Value, pointer: &str) -> Result<(), String> {
     let got = match v {
-        Value::String(_) => return Ok(()),
+        Value::String(s) => {
+            return if s.is_empty() {
+                Err(format!(
+                    "cannot unmarshal into Go api.DocumentIdentifier within \"{pointer}\": DocumentIdentifier: file name must not be empty"
+                ))
+            } else {
+                Ok(())
+            };
+        }
         Value::Object(o) => {
             return match o.get("uri") {
-                Some(Value::Object(_) | Value::Array(_)) => Err(format!(
-                    "cannot unmarshal into Go api.DocumentIdentifier within \"{pointer}\": DocumentIdentifier: unsupported uri value"
+                Some(Value::String(uri)) if !uri.is_empty() => Ok(()),
+                Some(_) => Err(format!(
+                    "cannot unmarshal into Go api.DocumentIdentifier within \"{pointer}\": DocumentIdentifier: uri must be a non-empty string"
                 )),
-                _ => Ok(()),
+                None => Err(format!(
+                    "cannot unmarshal into Go api.DocumentIdentifier within \"{pointer}\": DocumentIdentifier: object must contain uri"
+                )),
             };
         }
         Value::Null => "null",

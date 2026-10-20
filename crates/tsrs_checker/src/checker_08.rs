@@ -650,11 +650,16 @@ impl Checker {
                     && resolution_is_node16_or_next
                     && is_extensionless_relative_path_import
                 {
-                    let absolute_ref = tspath::get_normalized_absolute_path(
-                        module_reference,
-                        &tspath::get_directory_path(importing_source_file.file_name()),
-                    );
-                    let suggested_ext = self.get_suggested_import_extension(&absolute_ref);
+                    let suggested_ext =
+                        if tspath::has_trailing_directory_separator(module_reference) {
+                            String::new()
+                        } else {
+                            let absolute_ref = tspath::get_normalized_absolute_path(
+                                module_reference,
+                                &tspath::get_directory_path(importing_source_file.file_name()),
+                            );
+                            self.get_suggested_import_extension(&absolute_ref)
+                        };
                     if !suggested_ext.is_empty() {
                         let suggestion = format!("{module_reference}{suggested_ext}");
                         self.error(Some(error_node), &diagnostics::Relative_import_paths_need_explicit_file_extensions_in_ECMAScript_imports_when_moduleResolution_is_node16_or_nodenext_Did_you_mean_0, &[&suggestion]);

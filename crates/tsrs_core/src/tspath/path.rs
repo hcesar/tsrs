@@ -238,7 +238,7 @@ pub fn get_encoded_root_length(path: &str) -> EncodedRootLength {
                 if let Some(authority_end) = path[scheme_end + 1..].find('/') {
                     return EncodedRootLength::Disk(scheme_end + authority_end + 2);
                 }
-                return EncodedRootLength::Disk(ln);
+                return EncodedRootLength::Url(ln);
             }
         }
         return EncodedRootLength::Disk(2);
@@ -1365,11 +1365,10 @@ fn get_common_parents_worker(
                     let mut new_groups: FxHashMap<Path, (Vec<String>, Vec<Vec<String>>)> =
                         FxHashMap::default();
                     for g in component_groups {
-                        let key = to_path(
+                        let key = Path::from(get_canonical_file_name(
                             &g[last_common_index],
-                            &options.current_directory,
                             options.use_case_sensitive_file_names,
-                        );
+                        ));
                         let entry = match new_groups.entry(key) {
                             Entry::Occupied(entry) => entry.into_mut(),
                             Entry::Vacant(entry) => {

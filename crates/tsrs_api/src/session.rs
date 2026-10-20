@@ -422,7 +422,10 @@ impl Session {
         }
         let result = match method {
             "initialize" => Obj::new()
-                .set("useCaseSensitiveFileNames", Value::Bool(self.use_case_sensitive_file_names()))
+                .set(
+                    "caseSensitivity",
+                    Value::Number(f64::from(u8::from(self.use_case_sensitive_file_names()))),
+                )
                 .set("currentDirectory", Value::String(self.current_directory().to_string()))
                 .build(),
             // Config requests allocate their parsed command lines in a scratch region freed once the response

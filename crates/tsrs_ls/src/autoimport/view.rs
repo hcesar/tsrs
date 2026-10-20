@@ -149,7 +149,7 @@ impl View {
             let exports = search_fn(bucket);
             results.reserve(exports.len());
             results.extend(exports.into_iter().filter_map(|e| {
-                if e.module_id.0 == self.importing_file.path().as_str() {
+                if e.module_id.as_file() == Some(self.importing_file.path().as_str()) {
                     // Don't auto-import from the importing file itself
                     return None;
                 }
@@ -281,6 +281,7 @@ impl View {
                         (*element) = Arc::new(Export {
                             export_id: e.export_id.clone(),
                             module_file_name: e.module_file_name.clone(),
+                            unresolved_module_specifier: e.unresolved_module_specifier.clone(),
                             package_name: e.package_name.clone(),
                             is_type_only: e.is_type_only || ex.is_type_only,
                             syntax: e.syntax.min(ex.syntax),

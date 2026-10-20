@@ -16,6 +16,7 @@ The package also ships TypeScript 7's programmatic API, copied from microsoft/Ty
 | `tsrs/unstable/async` | `API` with promise-returning calls (JSON-RPC) |
 | `tsrs/unstable/ast` (`/is`, `/factory`, `/utils`, `/scanner`, `/visitor`, `/clone`) | AST types, guards, factory and traversal |
 | `tsrs/unstable/fs`, `/proto` | filesystem callbacks/request filesystems, protocol types |
+| `tsrs/unstable/path` | strongly typed path constructors and helpers |
 
 ```js
 import { API } from "tsrs/unstable/sync";
@@ -38,6 +39,11 @@ that uses the remote declaration's owning API. It returns the binder symbol from
 synthetic and configuration declarations have no cached file owner, and a released or replaced file cannot be
 looked up after its cached result is gone.
 
+The source-31 API reports `caseSensitivity` as TypeScript's enum in its `initialize` response.
+Inferred projects omit `configFileName`; snapshot program and transpile requests accept raw compiler
+options, with relative option paths resolved from the API server's current directory. Document
+identifiers must contain a non-empty file name or URI.
+
 The code is TypeScript's, with one intentional difference: if the server process dies, the async API rejects
 every pending and later request with an error starting `API server connection lost: ` instead of leaving them
 pending forever (see [npm packaging](../npm/README.md)).
@@ -53,7 +59,7 @@ The JS API runs on the package's minimum Node (16.20; checked on 16.20, 18, 20, 
 
 Port of the TypeScript 7 native API, with the workspace `Cargo.toml` still pinned at the base
 `b85298b6a81f772d080b0455de0ca9d744cd6fd6` while the commit-by-commit migration includes API changes
-through `d2f9dd68cfff50ca3c2fdf3152f808fd9d4ca2d6`: server side `tsc/internal/api` + `tsc/internal/ipc`, client
+through `ed4807212c28c90777c1d7ef2bf8e47af5d08519`: server side `tsc/internal/api` + `tsc/internal/ipc`, client
 side `packages/typescript/src/{api,ast}` exported as `unstable/sync` and `unstable/async`. The wire
 format, method names, params and response schemas follow the ported Go revision; tsrs does not define its own
 protocol or a one-shot CLI wrapper, and it is not compatible with TS5 `createProgram` objects.

@@ -39,6 +39,7 @@ const TEST_FILES = [
     "test/testUtils.ts",
     "test/diagnosticFormatter.test.ts",
     "test/encoder.test.ts",
+    "test/path.test.ts",
     "test/proto.test.ts",
     "test/scanner.test.ts",
     "test/spanMap.test.ts",

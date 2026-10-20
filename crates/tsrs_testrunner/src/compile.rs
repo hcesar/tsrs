@@ -295,11 +295,18 @@ fn compile_files_ex(
 
     let config_file = tsconfig.and_then(|t| t.config_file);
     let errors = tsconfig.map(|t| t.errors.clone()).unwrap_or_default();
+    let base_directory = tsconfig
+        .map(|t| t.get_current_directory().to_string())
+        .filter(|directory| !directory.is_empty())
+        .unwrap_or_else(|| current_directory.to_string());
     let mut config = tsoptions::new_parsed_command_line(
         P::new(compiler_options),
         program_file_names,
         Vec::new(),
-        ComparePathsOptions::default(),
+        ComparePathsOptions {
+            current_directory: base_directory,
+            use_case_sensitive_file_names: harness_options.use_case_sensitive_file_names,
+        },
     );
     config.config_file = config_file;
     config.errors = errors;

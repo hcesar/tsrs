@@ -20,6 +20,7 @@ import (
 	"github.com/microsoft/TypeScript/tsc/internal/jsonrpc"
 	"github.com/microsoft/TypeScript/tsc/internal/lsp"
 	"github.com/microsoft/TypeScript/tsc/internal/lsp/lsproto"
+	"github.com/microsoft/TypeScript/tsc/internal/tspath"
 	"github.com/microsoft/TypeScript/tsc/internal/vfs"
 )
 
@@ -221,7 +222,7 @@ func (c *LSPClient) shutdownSubprocess() error {
 
 // SubprocessState reads the snapshot after the preceding LSP request has completed.
 // State inspection has its own connection so it cannot block filesystem callbacks.
-func (c *LSPClient) SubprocessState(t *testing.T, openFiles []string, result any) {
+func (c *LSPClient) SubprocessState(t *testing.T, openFiles []tspath.RootedFilePath, result any) {
 	t.Helper()
 	c.WaitForSubprocessInit(t)
 	if err := c.subprocess.stateEncoder.Encode(openFiles); err != nil {
@@ -261,7 +262,7 @@ func (s *subprocessClient) serveFS(ctx context.Context, conn net.Conn, opts lsp.
 			err = marshalErr
 			result = map[string]any{
 				"compilerOptions": stdjson.RawMessage(encoded), "cwd": opts.Cwd,
-				"defaultLibraryPath": opts.DefaultLibraryPath, "caseSensitive": opts.FS.UseCaseSensitiveFileNames(),
+				"defaultLibraryPath": opts.DefaultLibraryPath, "caseSensitive": opts.FS.CaseSensitivity().IsCaseSensitive(),
 			}
 		case "ready":
 			stateConn, acceptErr := s.stateListener.Accept()
@@ -311,20 +312,26 @@ func callFS(fs vfs.FS, method string, args []stdjson.RawMessage) (any, error) {
 	if err := stdjson.Unmarshal(args[0], &path); err != nil {
 		return nil, err
 	}
+	rootedPath, ok := tspath.TryRootedPathFromAbsolute(path)
+	if !ok {
+		return nil, fmt.Errorf("%s: expected a rooted path: %q", method, path)
+	}
+	filePath := tspath.RootedFilePathFromPath(rootedPath)
+	directoryPath := tspath.RootedDirectoryPathFromPath(rootedPath)
 	switch method {
 	case "fileExists":
-		return fs.FileExists(path), nil
+		return fs.FileExists(filePath), nil
 	case "directoryExists":
-		return fs.DirectoryExists(path), nil
+		return fs.DirectoryExists(directoryPath), nil
 	case "readFile":
-		if text, ok := fs.ReadFile(path); ok {
+		if text, ok := fs.ReadFile(filePath); ok {
 			return text, nil
 		}
 		return nil, nil
 	case "realpath":
-		return fs.Realpath(path), nil
+		return fs.Realpath(rootedPath), nil
 	case "entries":
-		entries := fs.GetAccessibleEntries(path)
+		entries := fs.GetAccessibleEntries(directoryPath)
 		var symlinks []string
 		if entries.Symlinks != nil {
 			symlinks = make([]string, 0, len(entries.Symlinks))
@@ -335,7 +342,7 @@ func callFS(fs vfs.FS, method string, args []stdjson.RawMessage) (any, error) {
 		}
 		return map[string]any{"files": entries.Files, "directories": entries.Directories, "symlinks": symlinks}, nil
 	case "stat":
-		if info := fs.Stat(path); info != nil {
+		if info := fs.Stat(rootedPath); info != nil {
 			return map[string]any{"name": info.Name(), "size": info.Size(), "mode": uint32(info.Mode()),
 				"seconds": info.ModTime().Unix(), "nanos": info.ModTime().Nanosecond()}, nil
 		}
@@ -344,7 +351,7 @@ func callFS(fs vfs.FS, method string, args []stdjson.RawMessage) (any, error) {
 	var err error
 	switch method {
 	case "remove":
-		err = fs.Remove(path)
+		err = fs.Remove(rootedPath)
 	case "writeFile", "appendFile":
 		var text string
 		if len(args) != 2 {
@@ -354,9 +361,9 @@ func callFS(fs vfs.FS, method string, args []stdjson.RawMessage) (any, error) {
 			return nil, err
 		}
 		if method == "writeFile" {
-			err = fs.WriteFile(path, text)
+			err = fs.WriteFile(filePath, text)
 		} else {
-			err = fs.AppendFile(path, text)
+			err = fs.AppendFile(filePath, text)
 		}
 	case "chtimes":
 		var atime, mtime float64
@@ -369,7 +376,7 @@ func callFS(fs vfs.FS, method string, args []stdjson.RawMessage) (any, error) {
 		if err := stdjson.Unmarshal(args[2], &mtime); err != nil {
 			return nil, err
 		}
-		err = fs.Chtimes(path, time.Unix(int64(atime), int64((atime-float64(int64(atime)))*1e9)),
+		err = fs.Chtimes(rootedPath, time.Unix(int64(atime), int64((atime-float64(int64(atime)))*1e9)),
 			time.Unix(int64(mtime), int64((mtime-float64(int64(mtime)))*1e9)))
 	default:
 		return nil, fmt.Errorf("unknown VFS operation %q", method)

@@ -162,16 +162,23 @@ pub enum DocumentIdentifier {
 impl DocumentIdentifier {
     pub fn parse(v: &Value, key: &str) -> ApiResult<DocumentIdentifier> {
         match v {
-            Value::String(s) => Ok(DocumentIdentifier::FileName(s.clone())),
+            Value::String(s) if !s.is_empty() => Ok(DocumentIdentifier::FileName(s.clone())),
+            Value::String(_) => {
+                Err(ApiError::invalid_request("DocumentIdentifier: file name must not be empty"))
+            }
             // proto.go `DocumentIdentifier.UnmarshalJSONFrom`: an explicit null is an error (an absent field is the
             // zero value; see `Params::document`).
             Value::Null => Err(ApiError::invalid_request(
                 "DocumentIdentifier: expected string or object, got null",
             )),
             Value::Object(o) => match o.get("uri") {
-                Some(Value::String(u)) => Ok(DocumentIdentifier::Uri(u.clone())),
-                // Go reads `{}` (no uri) as an empty file name.
-                _ => Ok(DocumentIdentifier::FileName(String::new())),
+                Some(Value::String(u)) if !u.is_empty() => Ok(DocumentIdentifier::Uri(u.clone())),
+                Some(_) => Err(ApiError::invalid_request(
+                    "DocumentIdentifier: uri must be a non-empty string",
+                )),
+                None => {
+                    Err(ApiError::invalid_request("DocumentIdentifier: object must contain uri"))
+                }
             },
             _ => Err(ApiError::invalid_request(format!(
                 "DocumentIdentifier: expected string or object for {key}"

@@ -871,6 +871,20 @@ fn test_untitled_path_edge_cases() {
 }
 
 #[test]
+fn test_dynamic_uri_root_classification() {
+    let root = "^/~ts-uri~/custom/authority";
+    assert_eq!(get_encoded_root_length(root), EncodedRootLength::Url(root.len()));
+    assert!(is_url(root));
+    assert!(!is_rooted_disk_path(root));
+    assert!(path_is_absolute(root));
+    assert_eq!(get_root_length(root), root.len());
+    assert_eq!(
+        get_encoded_root_length(&format!("{root}/Foo.ts")),
+        EncodedRootLength::Disk(root.len() + 1)
+    );
+}
+
+#[test]
 fn test_starts_with_directory() {
     let tests = [
         ("exact match case sensitive", "/project/src/file.ts", "/project/src", true, true),

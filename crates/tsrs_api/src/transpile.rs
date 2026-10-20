@@ -12,7 +12,6 @@ use tsrs_compiler::{EmitOnly, EmitOptions, ProgramOptions, WriteFileData};
 use tsrs_core::context::Context;
 use tsrs_core::json::Value;
 use tsrs_core::{CompilerOptions, JsxEmit, P, Tristate, tspath};
-use tsrs_tsoptions::gojson;
 use tsrs_vfs::{Entries, FS, FileInfo};
 
 use crate::handler::{ApiError, ApiResult};
@@ -277,13 +276,10 @@ struct ParsedTranspileOptions {
     report_diagnostics: bool,
 }
 
-fn parse_options(v: &Value) -> ApiResult<ParsedTranspileOptions> {
+fn parse_options(v: &Value, cwd: &str) -> ApiResult<ParsedTranspileOptions> {
     let p = Params(v);
     let compiler_options = if p.has("compilerOptions") {
-        let mut options = gojson::compiler_options_from_go_json(p.get("compilerOptions"))
-            .map_err(ApiError::invalid_request)?;
-        crate::predecode::exact_compiler_options_ints(p.get("compilerOptions"), &mut options);
-        Some(options)
+        Some(crate::raw_options::compiler_options_from_raw(p.get("compilerOptions"), cwd)?)
     } else {
         None
     };
@@ -295,12 +291,8 @@ fn parse_options(v: &Value) -> ApiResult<ParsedTranspileOptions> {
 }
 
 impl Session {
-    #[expect(
-        clippy::unused_self,
-        reason = "API request handlers share the Session receiver used by the request dispatcher."
-    )]
     pub(crate) fn handle_transpile(&self, p: Params, declaration: bool) -> ApiResult<Value> {
-        let o = parse_options(p.get("options"))?;
+        let o = parse_options(p.get("options"), self.current_directory())?;
         let out = transpile(
             p.str("input")?,
             o.compiler_options.as_ref(),
@@ -322,7 +314,7 @@ impl Session {
             .base_fs()
             .read_file(&file_name)
             .ok_or_else(|| ApiError::client(format!("could not read file {file_name:?}")))?;
-        let o = parse_options(p.get("options"))?;
+        let o = parse_options(p.get("options"), self.current_directory())?;
         let out = transpile(
             &input,
             o.compiler_options.as_ref(),

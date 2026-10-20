@@ -20,6 +20,7 @@ pub(crate) mod paramfields;
 pub(crate) mod predecode;
 pub mod printing;
 pub mod program;
+mod raw_options;
 pub mod requestfs;
 pub mod resolution;
 pub mod session;

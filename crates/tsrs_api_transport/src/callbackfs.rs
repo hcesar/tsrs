@@ -12,6 +12,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use rustc_hash::FxHashSet;
 use serde::Deserialize;
 use serde_json::value::RawValue;
+use tsrs_core::tspath;
 use tsrs_vfs::{Entries, FS, FileInfo, FileMode};
 
 use crate::handler::Caller;
@@ -333,7 +334,10 @@ impl FS for CallbackFs {
         if self.is_enabled(CALLBACK_REALPATH) {
             let response = self.call_path(CALLBACK_REALPATH, path);
             return match response.kind.as_str() {
-                "value" => response.string_value(CALLBACK_REALPATH),
+                "value" => tspath::get_normalized_absolute_path(
+                    &response.string_value(CALLBACK_REALPATH),
+                    &tspath::get_directory_path(path),
+                ),
                 "identity" => path.to_string(),
                 "useOS" => self.base.realpath(path),
                 _ => invalid_kind(CALLBACK_REALPATH, &response),
