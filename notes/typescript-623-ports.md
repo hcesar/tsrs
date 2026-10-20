@@ -1630,3 +1630,34 @@ used the previously required Unix-socket sandbox escalation.
 No source-34 release performance measurement was collected under the user's
 nonblocking migration policy. The measured source-11 regressions remain
 disclosed above. Evidence is under `target/port-623/0034-50d70a3f5f/`.
+
+## 35. `6b3da828d7f5` — remove legacy localization handbacks
+
+Upstream `6b3da828d7f59669ba3b26e9a466b7bde9a5f6d4` deletes only the 13
+legacy `tools/loc/*/diagnosticMessages.generated.json.lcl` handbacks. tsrs
+never tracked `.lcl` files or referenced that format, so there is no source
+asset or runtime behavior to change. The 13 source-32 imported JSON catalogs
+and their 13 matching gzip archives are a separate, validated data format and
+remain in place. The existing `--locale` gap is unchanged: tsrs still emits
+English messages. The ignored reference checkout advances to source 35; the
+published TypeScript pin and base SDK manifest stay unchanged until the full
+upgrade.
+
+All twelve complete checker and emit pass/nonpass sets match source 34 exactly.
+Go-history checker passes 13,522 diagnostics and 12,837 type/symbol baselines;
+canonical checker passes 13,522 diagnostics and 12,836 type/symbol baselines.
+Emit passes 13,526 diagnostics, 12,837 type/symbol, 13,452 JavaScript/declaration,
+149 JavaScript-map, and 156 source-map baselines. No passing case was lost and
+no new failure, crash, or timeout appeared. Exact-source Fourslash passes
+4,086 groups, skips 470, fails none, and all 4,620 named outcomes match source
+34. The source audit confirms zero tsrs `.lcl` files and references. Locale
+catalog validation, importer unit cases, seven Rust diagnostics tests, the dev
+build, warnings-denied Clippy, source lint, formatting, and generator integrity
+pass. The Fourslash subprocess gate used the previously required Unix-socket
+sandbox escalation.
+
+No source-35 release performance measurement was collected under the user's
+nonblocking migration policy. This commit changes documentation only and
+leaves production code and shipped locale data untouched. The measured
+source-11 regressions remain disclosed above. Evidence is under
+`target/port-623/0035-6b3da828d7/`.
