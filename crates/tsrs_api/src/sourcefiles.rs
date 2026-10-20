@@ -1,6 +1,6 @@
 // session.go source-file handling: encodeSourceFileResponse, newSourceFileDescriptor, sourceFileNodeID,
 // nodeHandleFrom / resolveNodeHandle, source-file leases (createSourceFile*, retainSourceFile,
-// releaseSourceFile, getCachedSourceFile) and getSourceFile / getConfigSourceFile.
+// releaseSourceFile, getCachedSourceFile, getSymbolOfDeclaration) and getSourceFile / getConfigSourceFile.
 //
 // Node index tables: Go caches one table per AST on the source file itself (`GetOrComputeData`), created
 // either by the first encode or by the first node-handle request. tsrs source files have no per-file data
@@ -364,6 +364,28 @@ impl Session {
         let r = self.encode_source_file_response(Some(lease.source_file()));
         lease.release();
         r
+    }
+
+    /// Go `handleGetSymbolOfDeclaration`.
+    pub(crate) fn handle_get_symbol_of_declaration(&self, p: Params) -> ApiResult<Response> {
+        let index = u32::try_from(p.u64("index")?)
+            .map_err(|_| ApiError::invalid_request("index must be a uint32"))?;
+        let lease = self.acquire_cached_source_file(p.get("file"))?;
+        let table = self.node_index_table(lease.source_file());
+        let result = if index == 0 || index as usize >= table.len() {
+            Err(ApiError::client(format!("declaration node index {index} is out of range")))
+        } else if let Some(node) = table.node(index).filter(|n| tsrs_ast::is_declaration(*n)) {
+            match node.symbol() {
+                Some(symbol) => crate::checker::file_symbol_response(self, symbol),
+                None => Err(ApiError::client(format!(
+                    "declaration node index {index} has no binder symbol"
+                ))),
+            }
+        } else {
+            Err(ApiError::client(format!("node index {index} is not a declaration")))
+        };
+        lease.release();
+        json_response(&result?)
     }
 
     pub(crate) fn handle_release_source_file(&self, p: Params) -> ApiResult<Response> {

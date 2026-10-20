@@ -54,7 +54,7 @@ if let Some(result) = checker::handle(session, method, &params) { /* map result 
 
 ## Coverage
 
-`coverage_table.rs` has one row per `Method` constant in pinned `proto.go` (172, same order as core's
+`coverage_table.rs` has one row per `Method` constant in ported `proto.go` (173 through source 16, same order as core's
 `methods.rs`). 115 are owned by this lane (the 111 checker/symbol/type/signature methods plus the four
 language-service backed ones: `getCompletionsAtPosition`, `getReferencedSymbolsForNode`,
 `getSignatureUsages`, `getImportAdderEdits`). `tests.rs` checks the table against core's inventory and

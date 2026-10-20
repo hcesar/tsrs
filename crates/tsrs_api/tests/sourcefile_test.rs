@@ -116,6 +116,41 @@ fn create_source_file_leases() {
 }
 
 #[test]
+fn get_symbol_of_declaration_uses_cached_file_node_index() {
+    let dir = TempDir::new("declsym");
+    let file = dir.write("symbols.ts", "function present() {}\nimport {} from './missing';\n");
+    let s = session(&dir.dir(), false);
+    let (snapshot, project) = program(&s, &file);
+    let symbol = call(
+        &s,
+        "getSymbolAtPosition",
+        &format!(
+            "{{\"snapshot\":{snapshot},\"project\":{},\"file\":{},\"position\":9}}",
+            quote(&project),
+            quote(&file),
+        ),
+    );
+    let descriptor = json::marshal(get(&symbol, "reference.file")).unwrap();
+    let index =
+        str_of(get(&symbol, "declarations.0")).split('.').next().unwrap().parse::<u32>().unwrap();
+    let lookup = |index: u32| format!("{{\"file\":{descriptor},\"index\":{index}}}");
+    let from_declaration = call(&s, "getSymbolOfDeclaration", &lookup(index));
+    assert_eq!(get(&from_declaration, "name"), get(&symbol, "name"));
+    assert_eq!(get(&from_declaration, "reference"), get(&symbol, "reference"));
+
+    let zero = call_err(&s, "getSymbolOfDeclaration", &lookup(0));
+    assert!(zero.contains("declaration node index 0 is out of range"), "{zero}");
+    let outside = call_err(&s, "getSymbolOfDeclaration", &lookup(u32::MAX));
+    assert!(outside.contains("is out of range"), "{outside}");
+    let malformed = call_err(
+        &s,
+        "getSymbolOfDeclaration",
+        &format!("{{\"file\":{descriptor},\"index\":4294967296}}"),
+    );
+    assert!(malformed.contains("api: invalid request"), "{malformed}");
+}
+
+#[test]
 fn get_config_source_file_root_and_extended_repeatedly() {
     let dir = TempDir::new("cfgsf");
     let base = dir.write("base.json", r#"{ "compilerOptions": { "strict": true } }"#);

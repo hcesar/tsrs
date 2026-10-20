@@ -1,4 +1,4 @@
-// @generated from pinned tsc/internal/api/proto.go (microsoft/TypeScript b85298b6). One row per Method constant.
+// @generated from tsc/internal/api/proto.go through microsoft/TypeScript 688d86d7f6. One row per Method constant.
 // Lane: Checker = owned by the checker lane; Ls = language-service backed (unassigned, needs core decision); Other = owned by another lane.
 use super::coverage_types::{Lane::*, Row, Status::*};
 
@@ -7,6 +7,7 @@ pub const PINNED_METHODS: &[Row] = &[
     Row { method: "releaseSourceFile", lane: Other, status: NotOwned },
     Row { method: "retainSourceFile", lane: Other, status: NotOwned },
     Row { method: "getCachedSourceFile", lane: Other, status: NotOwned },
+    Row { method: "getSymbolOfDeclaration", lane: Other, status: NotOwned },
     Row { method: "batchRequests", lane: Other, status: NotOwned },
     Row { method: "initialize", lane: Other, status: NotOwned },
     Row { method: "createSnapshot", lane: Other, status: NotOwned },

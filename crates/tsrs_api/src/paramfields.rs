@@ -90,6 +90,22 @@ pub fn params_fields(method: &str) -> &'static [FieldSpec] {
             nullable: false,
             elem: None,
         }],
+        "getSymbolOfDeclaration" => &[
+            FieldSpec {
+                name: "file",
+                go_type: "SourceFileDescriptor",
+                kind: FieldKind::Object,
+                nullable: false,
+                elem: None,
+            },
+            FieldSpec {
+                name: "index",
+                go_type: "uint32",
+                kind: FieldKind::U32,
+                nullable: false,
+                elem: None,
+            },
+        ],
         "createSnapshot" => &[
             FieldSpec {
                 name: "openProjects",

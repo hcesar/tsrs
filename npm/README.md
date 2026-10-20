@@ -97,6 +97,9 @@ pnpm re-resolve the whole lockfile.)
 `npm/tsrs/src`, `npm/tsrs/vendor` (vscode-jsonrpc, MIT, with its license) and `npm/tsrs/test` are TypeScript 7's JS API
 package (`packages/typescript` in microsoft/TypeScript) at the pinned commit, copied by `npm/sdk/sync-upstream.mjs`
 (byte for byte, except a few listed test edits; `npm/tsrs/UPSTREAM.json` holds the commit and sha256 of every file).
+During the [#623 commit-by-commit migration](../notes/typescript-623-ports.md), changed SDK files advance at each
+corresponding source commit; the published `Cargo.toml` pin and `UPSTREAM.json` manifest remain at the base until
+the full upgrade is complete.
 After bumping `[workspace.metadata.typescript]`, check out that commit as `ts-ref` and rerun it;
 `node npm/sdk/sync-upstream.mjs --check` fails if the copy drifted.
 

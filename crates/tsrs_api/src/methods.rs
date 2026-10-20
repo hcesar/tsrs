@@ -1,5 +1,5 @@
-// Pinned method inventory: every `Method` constant in microsoft/TypeScript
-// tsc/internal/api/proto.go @ b85298b6a81f772d080b0455de0ca9d744cd6fd6 (172 entries, same order).
+// Method inventory: every `Method` constant in microsoft/TypeScript
+// tsc/internal/api/proto.go through 688d86d7f647781565dc1f6438a4fb09b5179160 (173 entries, same order).
 // `status` is the honest implementation state in tsrs; it must only become `Supported` when a real
 // compiler-backed test exercises the method (docs/NODE_API.md keeps the matrix in sync).
 
@@ -25,11 +25,12 @@ pub struct MethodInfo {
     pub status: Status,
 }
 
-pub const METHODS: [MethodInfo; 172] = [
+pub const METHODS: [MethodInfo; 173] = [
     MethodInfo { name: "release", owner: Owner::Core, status: Status::Supported },
     MethodInfo { name: "releaseSourceFile", owner: Owner::Core, status: Status::Supported },
     MethodInfo { name: "retainSourceFile", owner: Owner::Core, status: Status::Partial },
     MethodInfo { name: "getCachedSourceFile", owner: Owner::Core, status: Status::Partial },
+    MethodInfo { name: "getSymbolOfDeclaration", owner: Owner::Core, status: Status::Supported },
     MethodInfo { name: "batchRequests", owner: Owner::Core, status: Status::Supported },
     MethodInfo { name: "initialize", owner: Owner::Core, status: Status::Supported },
     MethodInfo { name: "createSnapshot", owner: Owner::Core, status: Status::Supported },
@@ -343,6 +344,7 @@ pub const PARAMS_TYPES: &[(&str, Option<&str>)] = &[
     ("releaseSourceFile", Some("ReleaseSourceFileParams")),
     ("retainSourceFile", Some("RetainSourceFileParams")),
     ("getCachedSourceFile", Some("GetCachedSourceFileParams")),
+    ("getSymbolOfDeclaration", Some("GetSymbolOfDeclarationParams")),
     ("initialize", None),
     ("createSnapshot", Some("CreateSnapshotParams")),
     ("updateSnapshot", Some("UpdateSnapshotParams")),

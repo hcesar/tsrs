@@ -26,7 +26,7 @@ pub mod coverage_types;
 
 use std::sync::Arc;
 
-use tsrs_ast::{Node, SourceFile};
+use tsrs_ast::{Node, SourceFile, Symbol};
 use tsrs_compiler::Program;
 use tsrs_core::P;
 use tsrs_core::context::Context;
@@ -75,6 +75,11 @@ pub(crate) fn handle(
             }
         }
     }))
+}
+
+/// Go `newFileSymbolResponse`, for core handlers that return a binder symbol from an ordinary cached AST.
+pub(crate) fn file_symbol_response(session: &Session, symbol: P<Symbol>) -> ApiResult<Value> {
+    setup::file_symbol_response(&SessionHost { session }, symbol).map_err(to_api_error)
 }
 
 fn to_api_error(e: CheckerError) -> ApiError {

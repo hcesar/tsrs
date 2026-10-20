@@ -850,3 +850,39 @@ No source-15 release performance measurement was collected under the user's nonb
 confirmed source-11 regressions remain disclosed above, and no performance-equivalence claim is made for this port.
 Evidence is under `target/port-623/0015-237b14a5d9/`. The ignored reference checkout advances to this revision;
 the published TypeScript pin remains unchanged until the full source upgrade.
+
+## 16. `688d86d7f647` — resolve binder symbols from remote declarations
+
+Upstream `688d86d7f647781565dc1f6438a4fb09b5179160` adds `getSymbol(decl)` to the sync and async Node APIs.
+The Rust core server now implements `getSymbolOfDeclaration`: it acquires the exact cached ordinary source file,
+resolves the declaration's encoder index, rejects index zero, out-of-range and non-declaration nodes, rejects
+declarations without binder symbols, and returns a file-owned symbol response. The source-file lease is released
+on success and error. The protocol inventory and uint32 request decoder include the new method. A Rust
+integration test checks file-owned identity against the checker response and validates zero, out-of-range, and
+malformed indices. The exact-source Go `TestCreateSourceFile` suite passes.
+
+The five changed public client source files (`async/api.ts`, `sync/api.ts`, `node/node.ts`, `sourceFileCache.ts`,
+and `proto.generated.ts`) are byte-identical to this upstream revision. The changed upstream sync, async, and
+generator tests are carried with the existing tsrs package-name and earlier snapshot-test edits preserved.
+Remote source files retain their owning API and symbol-cache record. Successful declaration lookups are interned
+by both binder ID and declaration index; concurrent async lookups share one request, while failures are not
+cached. The full public npm API suite passes 925 tests, including the upstream checks for checker symbol identity,
+synthetic and configuration nodes, cache clearing, lease release, stale/recreated files, and generator behavior.
+
+All twelve full compiler passing sets and their known nonpassing outcomes match source 15 exactly. Go-history
+checker has 13,471 diagnostic and 12,786 type/symbol passes; canonical checker has 13,471 diagnostic and
+12,785 type/symbol passes. Emit has 13,475 diagnostic, 12,786 type/symbol, 13,401 JavaScript/declaration,
+149 JavaScript-map, and 156 source-map passes. The full exact-source Go Fourslash gate passes 4,075 groups with
+472 skipped and zero failures; its 4,603 named outcomes are identical to source 15. All 37 regression projects
+pass. The workspace has 1,073 passing tests and four existing ignored. Native and WASM checks, warnings-denied
+Clippy, source lint, formatting, and the npm SDK build pass. All 1,168 tracked crate files remain byte-identical
+after running the seven code generators. Initial sandboxed workspace and Fourslash runs could not bind their
+local Unix sockets; complete reruns with socket access passed.
+
+No source-16 release performance measurements were collected under the user's nonblocking regression policy.
+The measured source-11 regressions remain disclosed above, and no performance-equivalence claim is made for
+this port. Evidence is under `target/port-623/0016-688d86d7f6/`, including the compiler pass-set and
+Fourslash outcome comparisons, exact-source Go API test, full npm API and workspace suites, regression fixtures,
+lint and build logs, and generator hashes. The ignored reference checkout advances to this revision; the
+published `Cargo.toml` TypeScript pin and `npm/tsrs/UPSTREAM.json` base manifest remain unchanged until the full
+source upgrade.

@@ -361,7 +361,7 @@ const MAIN_FILE: &str = "/p/main.ts";
 
 #[test]
 fn coverage_inventory_matches_pinned_proto_and_dispatch() {
-    assert_eq!(PINNED_METHODS.len(), 172);
+    assert_eq!(PINNED_METHODS.len(), 173);
     let mut seen = rustc_hash::FxHashSet::default();
     for row in PINNED_METHODS {
         assert!(seen.insert(row.method), "duplicate {}", row.method);
