@@ -1,6 +1,6 @@
 # Node programmatic API (`tsrs --api`)
 
-## JavaScript API (unstable)
+## JavaScript API
 
 Install the package with `pnpm add -D tsrs`. `require("tsrs")` exports `version`, `typescriptVersion` and
 `typescriptCommit`.
@@ -8,22 +8,23 @@ Install the package with `pnpm add -D tsrs`. `require("tsrs")` exports `version`
 The package also ships TypeScript 7's programmatic API, copied from microsoft/TypeScript
 `packages/typescript` under the same subpaths as the `typescript` 7 package. During the
 [commit-by-commit migration](../notes/typescript-623-ports.md), the SDK advances with each API commit;
-[`UPSTREAM.json`](../npm/tsrs/UPSTREAM.json) retains the published base until the final source pin update:
+[`UPSTREAM.json`](../npm/tsrs/UPSTREAM.json) records the copied SDK revision, while the published compiler pin
+remains at the base until the final source update:
 
 | subpath | contents |
 | --- | --- |
-| `tsrs/unstable/sync` | `API` with synchronous calls (MessagePack over the server's stdio) |
-| `tsrs/unstable/async` | `API` with promise-returning calls (JSON-RPC) |
-| `tsrs/unstable/ast` (`/is`, `/factory`, `/utils`, `/scanner`, `/visitor`, `/clone`) | AST types, guards, factory and traversal |
-| `tsrs/unstable/fs`, `/proto` | filesystem callbacks/request filesystems, protocol types |
-| `tsrs/unstable/path` | strongly typed path constructors and helpers |
-| `tsrs/unstable/vscode` | `createTypeScriptModuleLoader` and upstream editor SDK types; tsrs does not bundle the VS Code extension |
+| `tsrs/sync` | `API` with synchronous calls (MessagePack over the server's stdio) |
+| `tsrs/async` | `API` with promise-returning calls (JSON-RPC) |
+| `tsrs/ast` (`/is`, `/factory`, `/utils`, `/scanner`, `/visitor`, `/clone`) | AST types, guards, factory and traversal |
+| `tsrs/fs`, `/proto` | filesystem callbacks/request filesystems, protocol types |
+| `tsrs/path` | strongly typed path constructors and helpers |
+| `tsrs/vscode` | `createTypeScriptModuleLoader` and upstream editor SDK types; tsrs does not bundle the VS Code extension |
 
 ```js
-import { API } from "tsrs/unstable/sync";
+import { API } from "tsrs/sync";
 
 const api = new API({ cwd: process.cwd() });            // spawns `tsrs --api`; tsserverPath overrides the binary
-const snapshot = api.createSnapshot({ openProject: "/abs/path/tsconfig.json" });
+const snapshot = api.createSnapshot({ openProjects: ["/abs/path/tsconfig.json"] });
 const project = snapshot.getConfiguredProject("/abs/path/tsconfig.json");
 console.log(project.program.getSemanticDiagnostics("/abs/path/src/index.ts"));
 project.program.emit();                                  // follows the project's compiler options
@@ -49,12 +50,15 @@ The code is TypeScript's, with one intentional difference: if the server process
 every pending and later request with an error starting `API server connection lost: ` instead of leaving them
 pending forever (see [npm packaging](../npm/README.md)).
 
-The source-50 module loader accepts full `typescript/unstable/*` specifiers and resolves them through the
-selected package manifest. Passing a `tsrs` installation's `package.json` loads `tsrs/unstable/*` from that
+The source-50 module loader accepts full `typescript/*` specifiers and resolves them through the
+selected package manifest. Passing a `tsrs` installation's `package.json` loads `tsrs/*` from that
 installation. This is a package-side helper; tsrs does not supply the upstream VS Code extension's SDK event,
 API-pipe lifecycle, or in-place-upgrade restart handling.
 
-These entry points are unstable upstream and here. The API is served by the `tsrs` binary (`tsrs --api`), whose
+Source 58 promotes these entry points to the upstream beta names. It also removes deprecated `openProject`,
+`Project.rootFiles` / `.compilerOptions`, and the `Snapshot.internal` formatting alias; use `openProjects`,
+`project.parsedCommandLine`, and `project.languageService.formatNodeForInsertion`. The server's project response
+no longer sends the removed duplicate fields. The API is served by the `tsrs` binary (`tsrs --api`), whose
 coverage of the protocol is still incomplete; [the method inventory](../npm/sdk/METHODS.md) tracks the published
 base per method, and the coverage matrix below tracks the incremental port.
 TypeScript consumers need `esnext.disposable` (or a newer lib) for the declarations' `Symbol.dispose` and
@@ -67,8 +71,8 @@ minimum Node (16.20; checked on 16.20, 18, 20, 22 and 24). Where Node lacks the 
 
 Port of the TypeScript 7 native API, with the workspace `Cargo.toml` still pinned at the base
 `b85298b6a81f772d080b0455de0ca9d744cd6fd6` while the commit-by-commit migration includes API changes
-through `fc636a691f1dbdbc9ba678911891a9e85ec283bf`: server side `tsc/internal/api` + `tsc/internal/ipc`, client
-side `packages/typescript/src/{api,ast}` exported as `unstable/sync` and `unstable/async`. The wire
+through `c0ca4744c917430282a7de06c3e8f22d2cb87353`: server side `tsc/internal/api` + `tsc/internal/ipc`, client
+side `packages/typescript/src/{api,ast}` exported as `sync` and `async`. The wire
 format, method names, params and response schemas follow the ported Go revision; tsrs does not define its own
 protocol or a one-shot CLI wrapper, and it is not compatible with TS5 `createProgram` objects.
 
@@ -104,7 +108,7 @@ The API was developed in parallel lanes; the names stay in use below and in the 
 | runtime | `crates/tsrs_api_transport` (MessagePack tuple protocol, JSON-RPC framing, sync/async conns, stdio/pipe transports, timing) |
 | codec | `crates/tsrs_api_codec` (AST binary encoder/decoder, string table, node index tables, source-file id) |
 | checker | `crates/tsrs_api/src/checker.rs`, `crates/tsrs_api/src/checker/**`, necessary checker exports |
-| sdk | `npm/**` (ported `unstable/sync` / `unstable/async` client, AST package, Node tests) |
+| sdk | `npm/**` (ported `sync` / `async` client, AST package, Node tests) |
 | parity | `tools/node-api/**`, `.github/workflows/node-api.yml.bak` (automation disabled) |
 
 ## Integration contract (Rust)

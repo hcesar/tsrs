@@ -15,13 +15,14 @@ import {
     toRootedPath,
     tryPathKeyFromCanonical,
     tryRootedPathFromNormalized,
-} from "tsrs/unstable/path";
+} from "tsrs/path";
 import assert from "node:assert";
 import { test } from "node:test";
 import { parseNodeHandleFromCompiler } from "../src/api/node/node.ts";
 import {
     documentURIToFileName,
     fileNameToDocumentURI,
+    // @ts-ignore -- Internal path helper is exercised by source tests.
     getRootLength,
 } from "../src/api/path.ts";
 import { createVirtualFileSystem } from "./testUtils.ts";

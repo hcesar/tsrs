@@ -415,16 +415,15 @@ fn external_struct_decoding_matches_go_classes() {
         ),
     );
     assert_eq!(
-        get(&r, "projects.0.compilerOptions.target"),
+        get(&r, "projects.0.parsedCommandLine.options.target"),
         &tsrs_core::json::Value::Number(12345.0),
         "{}",
         tsrs_core::json::marshal(&r).unwrap()
     );
     assert_eq!(
-        get(&r, "projects.0.parsedCommandLine.options.target"),
-        &tsrs_core::json::Value::Number(12345.0)
+        get(&r, "projects.0.parsedCommandLine.options.module"),
+        &tsrs_core::json::Value::Number(1.0)
     );
-    assert_eq!(get(&r, "projects.0.compilerOptions.module"), &tsrs_core::json::Value::Number(1.0));
     invalid(
         "transpileModule",
         r#"{"input":"const x: number = 1;","options":{"compilerOptions":{"target":1e1}}}"#,

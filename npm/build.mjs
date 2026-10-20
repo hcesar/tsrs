@@ -10,7 +10,7 @@
 //   node npm/build.mjs --print-version          # also --print-crate-version, --print-typescript-commit, --print-typescript-nightly, --check-tag <tag>
 //   node npm/build.mjs --sdk-only               # just compile the JS API (npm/tsrs/src -> npm/tsrs/dist)
 //
-// The main package also carries TypeScript 7's unstable JS API (`tsrs/unstable/sync`, `/async`, `/ast`, ...),
+// The main package also carries TypeScript 7's JavaScript API (`tsrs/sync`, `/async`, `/ast`, ...),
 // copied from microsoft/TypeScript packages/typescript by npm/sdk/sync-upstream.mjs. It is compiled here with the
 // build-only compiler in npm/package.json (`pnpm install --frozen-lockfile` first; `--tsc <path>` to use another TypeScript 7 tsc).
 //
@@ -169,6 +169,8 @@ function buildSdk(tscPath) {
     fs.rmSync(path.join(pkgDir, "tsconfig.tsbuildinfo"), { force: true });
     const isJs = /\.[cm]?js$/.test(tsc);
     execFileSync(isJs ? process.execPath : tsc, [...(isJs ? [tsc] : []), "-b", path.join(pkgDir, "tsconfig.json")], { stdio: "inherit" });
+    // Type-check the declarations consumers receive after stripInternal removes private API surfaces.
+    execFileSync(isJs ? process.execPath : tsc, [...(isJs ? [tsc] : []), "-p", path.join(pkgDir, "tsconfig.dist.json")], { stdio: "inherit" });
 
     // Like upstream: published declarations may only import relative paths or the package's own `#` imports.
     const errors = [];

@@ -1,0 +1,8 @@
+tsrs patch to the vendored vscode-jsonrpc package manifest: retain the dependency
+version already used by tsrs tooling while syncing the SDK sources from TypeScript.
+
+--- a/vendor/vscode-jsonrpc/package.json
++++ b/vendor/vscode-jsonrpc/package.json
+@@ -34 +34 @@
+-		"msgpack-lite": "^0.1.26"
++		"msgpack-lite": "^0.2.0"

@@ -3,7 +3,7 @@
 // and class type sub-properties, export symbols, widened/parameter types, array-likeness, signature-to-declaration
 // and references. Values are oracle-recorded; captured runs also pair these responses method by method.
 
-import { API } from "@typescript/typescript/unstable/async";
+import { API } from "@typescript/typescript/async";
 import { describe, test } from "node:test";
 import { createVirtualFileSystem } from "../testUtils.ts";
 import { cwd, golden } from "./utils.ts";
@@ -27,7 +27,7 @@ describe("parity: async binding coverage", () => {
     test("checker queries, sub-properties and resolver release through the async client", async () => {
         const api = new API({ cwd, fs: createVirtualFileSystem({ "/tsconfig.json": `{ "compilerOptions": { "strict": true } }`, "/src/index.ts": source }) });
         try {
-            const snapshot = await api.createSnapshot({ openProject: "/tsconfig.json" });
+            const snapshot = await api.createSnapshot({ openProjects: ["/tsconfig.json"] });
             const project = snapshot.getConfiguredProject("/tsconfig.json")!;
             const { checker, program } = project;
             const file = (await program.getSourceFile("/src/index.ts"))!;

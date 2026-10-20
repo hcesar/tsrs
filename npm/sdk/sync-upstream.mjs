@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // Copies the TypeScript 7 JS/TS API SDK (packages/typescript in microsoft/TypeScript) into npm/tsrs, from a checkout
-// of exactly the commit pinned in Cargo.toml's [workspace.metadata.typescript]. The copied files are committed, so
-// building the npm package needs no network or upstream checkout; rerun this after bumping the pinned commit.
+// recorded in npm/tsrs/UPSTREAM.json (the published Cargo pin can lag during a commit-by-commit port), or an
+// explicitly selected port commit. The copied files are committed, so
+// building the npm package needs no network or upstream checkout; rerun this for each SDK source port.
 //
-//   node npm/sdk/sync-upstream.mjs [--ts-ref <dir>]   # copy (default checkout: ./ts-ref)
-//   node npm/sdk/sync-upstream.mjs --check            # verify the committed copy matches the checkout
+//   node npm/sdk/sync-upstream.mjs [--ts-ref <dir>] [--source-commit <sha>]   # copy (default checkout: ./ts-ref)
+//   node npm/sdk/sync-upstream.mjs --check [--source-commit <sha>]            # verify the committed copy matches the checkout
 //
 // Source files are copied byte for byte, except files listed in PATCHES, which get a deliberate tsrs patch from
-// npm/sdk/patches applied (strictly: every hunk must match the pinned original exactly). Test files get the small, listed edits in editTest (package name, the
+// npm/sdk/patches applied (strictly: every hunk must match the selected original exactly). Test files get the small, listed edits in editTest (package name, the
 // places upstream hard-codes its repo build of the server, and the compiler fixture root). npm/tsrs/UPSTREAM.json records the commit and a
 // sha256 of every copied file.
 
@@ -26,11 +27,12 @@ const UPSTREAM_NAME = "@typescript/typescript";
 // Directories copied verbatim (relative to packages/typescript).
 const VERBATIM_DIRS = ["src", "vendor", "schemas"];
 // Single files copied verbatim. lib/getExePath.d.ts types tsrs's own lib/getExePath.js, which has the same signature.
-const VERBATIM_FILES = ["tsconfig.base.json", "tsconfig.json", "tsconfig.dev.json", "lib/getExePath.d.ts"];
+const VERBATIM_FILES = ["tsconfig.base.json", "tsconfig.json", "tsconfig.dev.json", "tsconfig.dist.json", "lib/getExePath.d.ts"];
 // Deliberate tsrs changes to upstream sources, documented in each patch header and in npm/README.md.
 const PATCHES = {
     "src/api/async/client.ts": "async-client-connection-loss.patch",
     "vendor/vscode-jsonrpc/lib/common/connection.js": "vscode-jsonrpc-send-request-write-error.patch",
+    "vendor/vscode-jsonrpc/package.json": "vscode-jsonrpc-msgpack-version.patch",
 };
 
 // Test files copied with the editTest edits applied. Benchmarks are left out (they need tinybench and TypeScript 5),
@@ -57,9 +59,10 @@ const TEST_FILES = [
 ];
 
 function parseArgs(argv) {
-    const opts = { tsRef: path.join(repoRoot, "ts-ref"), check: false };
+    const opts = { tsRef: path.join(repoRoot, "ts-ref"), check: false, sourceCommit: undefined };
     for (let i = 0; i < argv.length; i++) {
         if (argv[i] === "--ts-ref") opts.tsRef = path.resolve(argv[++i]);
+        else if (argv[i] === "--source-commit") opts.sourceCommit = argv[++i];
         else if (argv[i] === "--check") opts.check = true;
         else throw new Error(`unknown argument ${argv[i]}`);
     }
@@ -97,7 +100,7 @@ function editTest(rel, text, packageName) {
 
 // Applies a unified diff to `text`. Every hunk's context and removed lines must match exactly at the stated
 // line, so an upstream change under a patch fails loudly instead of being merged silently. Lines keep their
-// original endings (the patch files are byte-exact against the pinned sources, CRLF included).
+// original endings (the patch files are byte-exact against the selected sources, CRLF included).
 function applyPatch(rel, text, patchText) {
     const lines = text.split("\n");
     const patchLines = patchText.split("\n");
@@ -129,7 +132,7 @@ function applyPatch(rel, text, patchText) {
         const start = Number(header[1]) - 1 + offset;
         const actual = lines.slice(start, start + oldLines.length);
         if (actual.length !== oldLines.length || actual.some((l, k) => l !== oldLines[k])) {
-            throw new Error(`${rel}: hunk ${hunks + 1} (@@ -${header[1]}) does not match the pinned source`);
+            throw new Error(`${rel}: hunk ${hunks + 1} (@@ -${header[1]}) does not match the selected source`);
         }
         lines.splice(start, oldLines.length, ...newLines);
         offset += newLines.length - oldLines.length;
@@ -155,9 +158,12 @@ function sha256(data) {
 
 function main() {
     const opts = parseArgs(process.argv.slice(2));
-    const commit = pinnedCommit();
+    const manifestPath = path.join(pkgDir, "UPSTREAM.json");
+    const recordedCommit = fs.existsSync(manifestPath) ? JSON.parse(fs.readFileSync(manifestPath, "utf8")).commit : undefined;
+    const commit = opts.sourceCommit ?? recordedCommit ?? pinnedCommit();
+    if (!/^[0-9a-f]{40}$/.test(commit)) throw new Error(`invalid source commit ${commit}`);
     const head = execFileSync("git", ["-C", opts.tsRef, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-    if (head !== commit) throw new Error(`${opts.tsRef} is at ${head}, but Cargo.toml pins ${commit}`);
+    if (head !== commit) throw new Error(`${opts.tsRef} is at ${head}, but the selected SDK source is ${commit}`);
     const status = execFileSync("git", ["-C", opts.tsRef, "status", "--porcelain", "--", UPSTREAM_PKG], { encoding: "utf8" });
     if (status.trim()) throw new Error(`${opts.tsRef}/${UPSTREAM_PKG} has local changes:\n${status}`);
 

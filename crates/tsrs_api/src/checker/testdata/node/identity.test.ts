@@ -6,7 +6,7 @@
 
 import { test } from "node:test";
 import fs from "node:fs";
-import { API } from "@typescript/typescript/unstable/sync";
+import { API } from "@typescript/typescript/sync";
 import { cwd, recordingFS, syncAPI } from "../parity/utils.ts";
 
 const A1 = `export const value: number = 1;\nexport interface Box<T> { v: T }\n`;
@@ -32,7 +32,7 @@ test("checker identity across requests, snapshot updates and disposal", () => {
     const o: Record<string, unknown> = {};
     const at = (text: string, needle: string) => text.indexOf(needle);
 
-    const snap1 = api.createSnapshot({ openProject: "/tsconfig.json" });
+    const snap1 = api.createSnapshot({ openProjects: ["/tsconfig.json"] });
     const c1 = snap1.getConfiguredProject("/tsconfig.json")!.checker;
     const use1 = c1.getSymbolAtPosition("/src/b.ts", at(B, "use ="))!;
     o.withinSnapshot_sameSymbolObject = use1 === c1.getSymbolAtPosition("/src/b.ts", at(B, "use ="));
@@ -81,7 +81,7 @@ test("checker identity across requests, snapshot updates and disposal", () => {
     o.afterAllDisposed_cachedParent = attempt(() => use1.getParent()?.name);
     o.afterAllDisposed_uncachedMembers = attempt(() => [...use1.getMembers().keys()]);
 
-    const snap3 = api.createSnapshot({ openProject: "/tsconfig.json" });
+    const snap3 = api.createSnapshot({ openProjects: ["/tsconfig.json"] });
     const c3 = snap3.getConfiguredProject("/tsconfig.json")!.checker;
     const use3 = c3.getSymbolAtPosition("/src/b.ts", at(B, "use ="))!;
     o.recreated_sameSymbolObjectAsDisposed = use3 === use1;
@@ -117,7 +117,7 @@ test("checker requests on a retained snapshot from inside a filesystem callback 
     const api = new API({ cwd, fs: vfs });
     using _ = api;
     const o: Record<string, unknown> = {};
-    const snap1 = api.createSnapshot({ openProject: "/tsconfig.json" });
+    const snap1 = api.createSnapshot({ openProjects: ["/tsconfig.json"] });
     c1 = snap1.getConfiguredProject("/tsconfig.json")!.checker;
     use1 = c1.getSymbolAtPosition("/src/b.ts", B.indexOf("use ="))!;
     box1 = c1.getTypeAtPosition("/src/b.ts", B.indexOf("box:"))!;

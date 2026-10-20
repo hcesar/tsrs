@@ -1,11 +1,11 @@
 import type {
     SourceFile,
     Statement,
-} from "tsrs/unstable/ast";
+} from "tsrs/ast";
 import {
     SyntaxKind,
     TokenFlags,
-} from "tsrs/unstable/ast";
+} from "tsrs/ast";
 import {
     createArrayLiteralExpression,
     createBlock,
@@ -25,12 +25,12 @@ import {
     createVariableDeclaration,
     createVariableDeclarationList,
     createVariableStatement,
-} from "tsrs/unstable/ast/factory";
+} from "tsrs/ast/factory";
 import {
     CaseSensitivity,
     pathKey,
     toRootedFilePath,
-} from "tsrs/unstable/path";
+} from "tsrs/path";
 import assert from "node:assert";
 import {
     describe,

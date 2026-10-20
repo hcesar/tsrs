@@ -1,5 +1,5 @@
 // Method inventory: every `Method` constant in microsoft/TypeScript
-// tsc/internal/api/proto.go through d2f9dd68cfff50ca3c2fdf3152f808fd9d4ca2d6 (177 entries, same order).
+// tsc/internal/api/proto.go through c0ca4744c917430282a7de06c3e8f22d2cb87353 (177 entries, same order).
 // `status` is the honest implementation state in tsrs; it must only become `Supported` when a real
 // compiler-backed test exercises the method (docs/NODE_API.md keeps the matrix in sync).
 
@@ -308,6 +308,7 @@ pub const METHODS: [MethodInfo; 177] = [
     },
     MethodInfo { name: "getSignatureUsages", owner: Owner::Checker, status: Status::Partial },
     MethodInfo { name: "getCompletionsAtPosition", owner: Owner::Checker, status: Status::Partial },
+    MethodInfo { name: "formatNodeForInsertion", owner: Owner::Core, status: Status::Partial },
     MethodInfo { name: "getSyntacticDiagnostics", owner: Owner::Core, status: Status::Supported },
     MethodInfo { name: "getBindDiagnostics", owner: Owner::Core, status: Status::Supported },
     MethodInfo { name: "getSemanticDiagnostics", owner: Owner::Core, status: Status::Supported },
@@ -321,7 +322,6 @@ pub const METHODS: [MethodInfo; 177] = [
         status: Status::Supported,
     },
     MethodInfo { name: "printNode", owner: Owner::Core, status: Status::Partial },
-    MethodInfo { name: "formatNodeForInsertion", owner: Owner::Core, status: Status::Partial },
     MethodInfo { name: "emit", owner: Owner::Core, status: Status::Supported },
     MethodInfo { name: "emitToString", owner: Owner::Core, status: Status::Supported },
     MethodInfo { name: "getJavaScriptEmit", owner: Owner::Core, status: Status::Supported },
@@ -500,8 +500,8 @@ pub const PARAMS_TYPES: &[(&str, Option<&str>)] = &[
     ("getReferencedSymbolsForNode", Some("GetReferencedSymbolsForNodeParams")),
     ("getSignatureUsages", Some("GetSignatureUsagesParams")),
     ("getCompletionsAtPosition", Some("GetCompletionsAtPositionParams")),
-    ("printNode", Some("PrintNodeParams")),
     ("formatNodeForInsertion", Some("FormatNodeForInsertionParams")),
+    ("printNode", Some("PrintNodeParams")),
     ("emit", Some("EmitParams")),
     ("emitToString", Some("EmitParams")),
     ("getJavaScriptEmit", Some("SelectedFilesEmitParams")),

@@ -1,18 +1,18 @@
 // Type-only check of the published declarations from a nodenext consumer: compiled with `tsrs -p` in the temp
 // consumer (see ../smoke-consumer.mjs), never run.
 import { typescriptCommit, version } from "tsrs";
-import { API as AsyncAPI } from "tsrs/unstable/async";
-import { type Node, type SourceFile, SyntaxKind } from "tsrs/unstable/ast";
-import { isIdentifier } from "tsrs/unstable/ast/is";
-import { createFileSystem, type FileSystemCallbacks } from "tsrs/unstable/fs";
-import { API, type APIOptions, type Diagnostic, type Snapshot } from "tsrs/unstable/sync";
-import { createTypeScriptModuleLoader, type TypeScriptModuleLoader } from "tsrs/unstable/vscode";
+import { API as AsyncAPI } from "tsrs/async";
+import { type Node, type SourceFile, SyntaxKind } from "tsrs/ast";
+import { isIdentifier } from "tsrs/ast/is";
+import { createFileSystem, type FileSystemCallbacks } from "tsrs/fs";
+import { API, type APIOptions, type Diagnostic, type Snapshot } from "tsrs/sync";
+import { createTypeScriptModuleLoader, type TypeScriptModuleLoader } from "tsrs/vscode";
 
 declare const callbacks: FileSystemCallbacks;
 const options: APIOptions = { cwd: "/", tsserverPath: "/path/to/tsrs", fs: callbacks };
 const requestFileSystem = createFileSystem([["/a.ts", "export {};"]]);
 const api: API = new API(options);
-const snapshot: Snapshot = api.createSnapshot({ openProject: "/tsconfig.json" });
+const snapshot: Snapshot = api.createSnapshot({ openProjects: ["/tsconfig.json"] });
 const sourceFile: SourceFile | undefined = snapshot.getConfiguredProject("/tsconfig.json")?.program.getSourceFile("/a.ts");
 const diagnostics: readonly Diagnostic[] = snapshot.getConfiguredProject("/tsconfig.json")!.program.getSemanticDiagnostics("/a.ts");
 const first: Node | undefined = sourceFile?.statements[0];
@@ -21,6 +21,6 @@ const kind: SyntaxKind = SyntaxKind.Identifier;
 const asyncApi = new AsyncAPI({ cwd: "/" });
 const closed: Promise<void> = asyncApi.close();
 const moduleLoader: TypeScriptModuleLoader = createTypeScriptModuleLoader("/path/to/tsrs/package.json");
-const loadedAsync: Promise<typeof import("tsrs/unstable/async")> = moduleLoader.importModule("typescript/unstable/async");
+const loadedAsync: Promise<typeof import("tsrs/async")> = moduleLoader.importModule("typescript/async");
 const strings: string[] = [version, typescriptCommit];
 export { closed, requestFileSystem, diagnostics, isId, kind, loadedAsync, strings };

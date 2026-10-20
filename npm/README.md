@@ -4,7 +4,7 @@ tsrs ships on npm the way TypeScript 7 ships its native compiler (`typescript@7`
 
 | package | contents |
 | --- | --- |
-| `tsrs` | `bin/tsrs` (Node launcher), `lib/` (binary lookup, `version.cjs`), `dist/` + `vendor/` (the `unstable/*` JS API, see below), `optionalDependencies` on every platform package |
+| `tsrs` | `bin/tsrs` (Node launcher), `lib/` (binary lookup, `version.cjs`), `dist/` + `vendor/` (the JavaScript API, see below), `optionalDependencies` on every platform package |
 | `@tsrs/<os>-<arch>[-<libc>]` | the `tsrs` binary and default TypeScript libraries for one platform, with `os`/`cpu` (and `libc: glibc` or `musl` on Linux) so package managers install only the matching one |
 | `@tsrs/wasm` | the WebAssembly module (`npm/tsrs-wasm`, notes/wasm-build.md): a `tsrs-wasm` command and a `tsc()` API for Node 22+ and browsers, single-threaded; no platform packages |
 
@@ -92,27 +92,31 @@ pnpm add -D tsrs@file:/abs/npm/dist/tsrs-<version>.tgz \
 `@tsrs/darwin-arm64` at the tarball reproduces the registry layout exactly, but changing `overrides` makes
 pnpm re-resolve the whole lockfile.)
 
-## JS API (`unstable/*` exports)
+## JS API (`sync`, `async`, `ast`, and related exports)
 
 `npm/tsrs/src`, `npm/tsrs/schemas`, `npm/tsrs/vendor` (vscode-jsonrpc, MIT, with its license) and `npm/tsrs/test` are TypeScript 7's JS API
-package (`packages/typescript` in microsoft/TypeScript) at the pinned commit, copied by `npm/sdk/sync-upstream.mjs`
+package (`packages/typescript` in microsoft/TypeScript) at the SDK commit, copied by `npm/sdk/sync-upstream.mjs`
 (byte for byte, except a few listed test edits; `npm/tsrs/UPSTREAM.json` holds the commit and sha256 of every file).
 During the [#623 commit-by-commit migration](../notes/typescript-623-ports.md), changed SDK files advance at each
-corresponding source commit; the published `Cargo.toml` pin and `UPSTREAM.json` manifest remain at the base until
-the full upgrade is complete. The in-progress source tree supports `import source` and `import.source()` as of
+corresponding source commit; `UPSTREAM.json` records the copied SDK revision, while the published `Cargo.toml`
+pin remains at the base until the full upgrade is complete. The in-progress source tree supports `import source` and `import.source()` as of
 source commit `2f9fd09a104e`.
 Source commit `d2f9dd68cfff` adds the project checker's merged-symbol and parent lookup methods to the sync and
 async SDKs, including generator forms. These changes are not in published packages until the source pin advances.
-Source commit `ed4807212c28` adds the `unstable/path` export and typed paths, and changes the API's
+Source commit `ed4807212c28` adds typed paths and changes the API's
 initialize response to report `caseSensitivity`.
-Source commit `4529d07ab5b7` adds `unstable/vscode` with the upstream API module loader and editor SDK
+Source commit `4529d07ab5b7` adds the upstream API module loader and editor SDK
 types. The loader resolves from the selected package manifest; tsrs does not ship the upstream VS Code extension
 or its initialization and restart lifecycle.
 Source commit `bea2e849e90b` makes deferred imports without namespace bindings report TS18117 in TypeScript and
 JavaScript; the published compiler pin remains at the base during the migration.
+Source commit `c0ca4744c917` promotes the API exports to `tsrs/sync`, `tsrs/async`, `tsrs/ast`, `tsrs/vscode`,
+and related stable subpaths for the upstream beta. It removes deprecated SDK aliases, strips internal declarations,
+and validates the emitted declarations during package builds. The published compiler pin and npm version are still deferred.
 The package exports `./schemas/tsconfig.schema.json` and `./schemas/jsconfig.schema.json`, copied from upstream.
-After bumping `[workspace.metadata.typescript]`, check out that commit as `ts-ref` and rerun it;
-`node npm/sdk/sync-upstream.mjs --check` fails if the copy drifted.
+To advance the SDK during the migration, check out the source commit in `ts-ref` and run
+`node npm/sdk/sync-upstream.mjs --source-commit <sha>`. `node npm/sdk/sync-upstream.mjs --check` verifies
+the revision recorded in `UPSTREAM.json` and fails if the copy drifted.
 
 ```sh
 pnpm install --frozen-lockfile                        # build-only tools: typescript@7 (compiler), @types/node, tinybench
@@ -126,7 +130,7 @@ The tests and the inventory can run against a tsgo built from the pinned commit 
 /tmp/tsgo ./cmd/tsc`) as the reference server. The SDK spawns `getExePath()` (so `TSRS_BINARY` applies) unless the
 caller passes `tsserverPath`.
 
-Deliberate patches (the only differences from the pinned sources; each patch file explains itself, and
+Deliberate patches (the only differences from the recorded SDK sources; each patch file explains itself, and
 `sync-upstream.mjs` applies them strictly and records the original sha256 in `UPSTREAM.json` `patchedFiles`):
 
 - `npm/sdk/patches/async-client-connection-loss.patch` (`src/api/async/client.ts`): upstream, if the server dies or
@@ -136,6 +140,8 @@ Deliberate patches (the only differences from the pinned sources; each patch fil
   release.
 - `npm/sdk/patches/vscode-jsonrpc-send-request-write-error.patch` (vendored vscode-jsonrpc 9.0.2): a request written
   to a dead server also became an unhandled rejection that terminated Node; the request's own rejection is kept.
+- `npm/sdk/patches/vscode-jsonrpc-msgpack-version.patch`: keeps tsrs's existing vendored development dependency
+  adjustment when the upstream SDK copy advances.
 
 The sync client is unpatched: after a server crash its next call throws at once with the raw pipe error.
 `npm/sdk/smoke/consumer.mjs` kills the real server with work in flight to cover all of this (the unpatched

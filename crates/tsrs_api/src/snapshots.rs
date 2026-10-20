@@ -46,18 +46,12 @@ pub fn project_response(p: &Project) -> Value {
     let command_line = p.command_line.expect("project_response called with unloaded project");
     let config_file_name =
         (p.kind == tsrs_project::Kind::Configured).then(|| s(p.config_file_name().to_string()));
-    let options = match command_line.compiler_options() {
-        Some(o) => gojson::compiler_options_to_go_json(&o),
-        None => Value::Null,
-    };
     Obj::new()
         .set("id", s(p.id().0))
         .set_opt("configFileName", config_file_name)
         .set("currentDirectory", s(p.current_directory()))
         .set("dirty", b(p.is_dirty()))
         .set("parsedCommandLine", config_file_response(&command_line))
-        .set("rootFiles", strings(command_line.file_names().iter().cloned()))
-        .set("compilerOptions", options)
         .build()
 }
 

@@ -40,13 +40,13 @@ fn api_raw_compiler_options_resolve_against_server_directory() {
     );
     let project = get(&response, "projects.0");
     assert!(matches!(project, Value::Object(o) if !o.contains_key("configFileName")));
-    assert_eq!(str_of(get(project, "compilerOptions.outDir")), dir.path("dist"));
+    assert_eq!(str_of(get(project, "parsedCommandLine.options.outDir")), dir.path("dist"));
     assert_eq!(
-        get(project, "compilerOptions.rootDirs"),
+        get(project, "parsedCommandLine.options.rootDirs"),
         &Value::Array(vec![Value::String(dir.path("src")), Value::String(dir.path("generated")),])
     );
     assert_eq!(
-        str_of(get(project, "compilerOptions.tsBuildInfoFile")),
+        str_of(get(project, "parsedCommandLine.options.tsBuildInfoFile")),
         dir.path("cache/build.tsbuildinfo")
     );
 }
@@ -216,6 +216,9 @@ fn configured_project_update_and_retained_old_snapshot() {
     let project = str_of(get(&r, "projects.0.id")).to_string();
     assert_eq!(str_of(get(&r, "projects.0.configFileName")), cfg);
     assert_eq!(get(&r, "projects.0.parsedCommandLine.options.strict"), &Value::Bool(true));
+    assert!(
+        matches!(get(&r, "projects.0"), Value::Object(o) if !o.contains_key("rootFiles") && !o.contains_key("compilerOptions"))
+    );
 
     let dp = call(
         &s,

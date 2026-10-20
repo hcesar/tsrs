@@ -455,6 +455,7 @@ impl Session {
             }
             "getConfigFileNames" => self.handle_get_config_file_names(p)?,
             "getSourceFileMetadata" => self.handle_get_source_file_metadata(p)?,
+            "formatNodeForInsertion" => self.handle_format_node_for_insertion(p)?,
             "getSyntacticDiagnostics" => {
                 self.handle_get_diagnostics(p, DiagnosticKind::Syntactic)?
             }
@@ -487,7 +488,6 @@ impl Session {
                 ));
             }
             "printNode" => self.handle_print_node(p)?,
-            "formatNodeForInsertion" => self.handle_format_node_for_insertion(p)?,
             "transpileModule" => self.handle_transpile(p, false)?,
             "transpileDeclaration" => self.handle_transpile(p, true)?,
             "transpileModuleFromFile" => self.handle_transpile_from_file(p, false)?,

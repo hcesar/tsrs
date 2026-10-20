@@ -33,8 +33,8 @@ The seven watch-tuning flags removed by TypeScript 7 are rejected by tsrs as wel
 The in-progress [#623 source upgrade](https://github.com/oxc-project/tsrs/issues/623) supports source-phase
 `import source` and `import.source()` syntax; published packages stay on the earlier TypeScript pin until it completes.
 Its in-progress Node API also exposes the project checker's merged, declaration, node, and parent symbol lookups.
-The source-31 SDK adds typed paths and an `unstable/path` export.
-The source-50 SDK adds the `unstable/vscode` module loader for an explicitly selected API package.
+The source-31 SDK adds typed paths; source 58 promotes the SDK exports to `tsrs/path`, `tsrs/sync`,
+`tsrs/async`, `tsrs/ast`, and `tsrs/vscode` for an explicitly selected API package.
 The source-51 compiler reports TS18117 for deferred imports without a namespace binding, including in JavaScript.
 
 <a href="https://github.com/oxc-project/tsrs/blob/main/bench/RESULTS.md">
@@ -54,7 +54,7 @@ targeting `wasm32-wasip1` (WASI Preview 1).
 
 - [CLI usage and memory tuning](https://github.com/oxc-project/tsrs/blob/main/docs/USAGE.md)
 - [Editor setup](https://github.com/oxc-project/tsrs/blob/main/docs/LSP.md#editor-setup)
-- [Node API (unstable)](https://github.com/oxc-project/tsrs/blob/main/docs/NODE_API.md)
+- [Node API](https://github.com/oxc-project/tsrs/blob/main/docs/NODE_API.md)
 - [WebAssembly for Node and browsers](https://github.com/oxc-project/tsrs/blob/main/npm/tsrs-wasm/README.md)
 - [Benchmarks and methodology](https://github.com/oxc-project/tsrs/blob/main/bench/README.md)
 - [Release notes](https://github.com/oxc-project/tsrs/blob/main/docs/STATUS.md)

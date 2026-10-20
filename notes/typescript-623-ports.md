@@ -2529,3 +2529,61 @@ instruction-count or peak-RSS measurement was collected under the user's
 nonblocking migration policy. Because only comments changed, no runtime
 performance change is expected. The measured source-11 regressions remain
 disclosed above. Evidence is under `target/port-623/0057-fed0bf2414/`.
+
+## 58. `c0ca4744c9` — prepare the JavaScript API for beta
+
+Upstream `c0ca4744c917430282a7de06c3e8f22d2cb87353` promotes the TypeScript 7
+SDK subpaths from `unstable/*` to `sync`, `async`, `fs`, `path`, `proto`, `ast/*`, and
+`vscode`. It removes deprecated snapshot and project aliases, moves
+`formatNodeForInsertion` to the project language service, exposes `isRemoteNode`
+and `API.debug`, strips internal declarations, and adds a declaration-checking
+configuration. The tsrs package exports the matching stable subpaths and syncs
+all 192 recorded SDK files, tests, generated protocol and AST sources at this
+commit. The Rust project response drops the duplicate `rootFiles` and
+`compilerOptions` fields; its 177-method inventory places
+`formatNodeForInsertion` in the upstream protocol order. SDK, package-consumer,
+and Node parity tests use the promoted names and replacement APIs. Recorded
+Node goldens were refreshed against the exact source-58 Go oracle, including
+its current AST kind numbers and source-map serialization.
+
+The SDK source manifest now records source 58, and the sync tool accepts an
+explicit `--source-commit` so the copied SDK can advance during the migration.
+The `Cargo.toml` TypeScript pin and npm package version remain at their
+published base until the final source commit. The source-58 VS Code extension
+edits have no counterpart here because tsrs ships the `vscode` SDK helper,
+not the upstream extension. The pre-existing tsrs async connection-loss fix
+and vendored JSON-RPC adjustments remain explicit sync patches. These are the
+deliberate differences from the selected SDK source.
+
+All three full compiler modes retain the exact source-57 passing and
+nonpassing sets, without new failures, crashes, or timeouts. Go-history
+checker passes 13,552 diagnostic and 12,862 type/symbol baselines; canonical
+checker passes 13,552 diagnostic and 12,861 type/symbol baselines. Emit passes
+13,556 diagnostic, 12,862 type/symbol, 13,482 JavaScript/declaration, 149
+JavaScript-map, and 156 source-map baselines. Exact-source Fourslash passes
+4,088 of 4,558 groups, skips 470, fails none, and preserves all 4,622 named
+source-57 outcomes. The SDK source suite passes all 956 tests. The packed npm
+consumer completes all 25 smoke steps and the separate Node consumer passes.
+The full Rust workspace, 39 CLI regressions, WebAssembly check, dev builds,
+warnings-denied Clippy, source lint, formatting, SDK sync, and generated-code
+checks pass. Exact-source Go API and protocol-generator tests pass. The
+Fourslash and workspace socket checks used the previously observed sandbox
+escalation.
+
+In the additional Node API parity lane, both the exact source-58 Go oracle
+and tsrs pass 48 of 55 tests, skip four, mark two TODO, and fail the same
+async checker test on the upstream `signatureToSignatureDeclarationHelper`
+panic. Rust's lone-surrogate TODO succeeds where the Go oracle reports the
+known server exit. The three existing soft differences (CPU profiling and
+two large-declared-payload transport cases) remain documented in the parity
+summary. This lane identifies no new tsrs regression from source 58; the
+upstream panic remains a known gap.
+
+No source-58 release instruction-count, wall-time, or peak-RSS comparison was
+collected under the user's nonblocking migration policy. The compiler
+conformance sets are unchanged, but the SDK and API response do change; no
+performance-equality claim follows. The measured source-11 regressions
+remain disclosed above. Evidence is under
+`target/port-623/0058-c0ca4744c9/`, with Node parity summaries under
+`tools/node-api/.work/source58-oracle-parity/` and
+`tools/node-api/.work/source58-parity-refreshed/`.

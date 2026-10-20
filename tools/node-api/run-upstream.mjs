@@ -21,7 +21,7 @@ const repoRoot = path.resolve(here, "..", "..");
 
 function usage(msg) {
     if (msg) console.error(`error: ${msg}`);
-    console.error("usage: run-upstream.mjs --binary <exe> --label <name> [--suite upstream|parity|all] [--no-trace] [--record] [--capture] [--filter <s>]... [--timeout-min N] [--idle-sec N] [--test-timeout-sec N] [--concurrency N] [--ref <ts-ref>]");
+    console.error("usage: run-upstream.mjs --binary <exe> --label <name> [--suite upstream|parity|all] [--no-trace] [--record] [--capture] [--filter <s>]... [--timeout-min N] [--idle-sec N] [--test-timeout-sec N] [--concurrency N] [--ref <ts-ref>] [--source-commit <sha>]");
     process.exit(2);
 }
 
@@ -42,6 +42,7 @@ for (let i = 0; i < argv.length; i++) {
     else if (a === "--test-timeout-sec") opts.testTimeoutSec = Number(v());
     else if (a === "--concurrency") opts.concurrency = Number(v());
     else if (a === "--ref") opts.ref = path.resolve(v());
+    else if (a === "--source-commit") opts.sourceCommit = v();
     else usage(`unknown argument ${a}`);
 }
 if (!opts.binary || !opts.label) usage("--binary and --label are required");
@@ -57,8 +58,9 @@ if (opts.record && !isOracle) usage(`--record only accepts the Go oracle at ${or
 // ── pinned reference check ──────────────────────────────────────────
 const pinned = /\[workspace\.metadata\.typescript\][^[]*?commit\s*=\s*"([0-9a-f]{40})"/s.exec(fs.readFileSync(path.join(repoRoot, "Cargo.toml"), "utf8"))?.[1];
 const refHead = spawnSync("git", ["-C", opts.ref, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim();
-if (!pinned || refHead !== pinned) {
-    console.error(`ts-ref HEAD ${refHead || "(missing)"} does not match Cargo.toml commit ${pinned}; run tools/node-api/setup.sh`);
+const expectedCommit = opts.sourceCommit ?? pinned;
+if (!pinned || !/^[0-9a-f]{40}$/.test(expectedCommit) || refHead !== expectedCommit) {
+    console.error(`ts-ref HEAD ${refHead || "(missing)"} does not match expected commit ${expectedCommit}; run tools/node-api/setup.sh or pass --source-commit during a port`);
     process.exit(2);
 }
 const refPkg = path.join(opts.ref, "packages", "typescript");
