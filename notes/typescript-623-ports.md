@@ -3624,3 +3624,67 @@ are within this local counter's run-to-run variation.
 
 The release binaries, input fixture, raw paired samples, and JavaScript
 collectors are under `target/port-623/0079-c9b2c8e29c/perf/`.
+
+## 80. `1d76970f7a` — Keep local ambient-module imports local
+
+Upstream `1d76970f7a46fc330dc32bbe74ae3ff611d571cb` stops resolving an
+import when its specifier is already an ambient module name declared in the
+same source file. The tsrs file loader applies the same check before the
+resolver in both its sequential and speculative prefetch paths, records an
+unresolved module entry under the normal mode-aware key, and emits Go's local
+ambient-module trace when `--traceResolution` is enabled. This prevents a
+same-named package from entering the program through an import inside the
+ambient declaration. The ignored `ts-ref` checkout advances to this exact
+source commit; the published TypeScript pin remains at the base revision
+until the complete upgrade.
+
+The new upstream `ambientModuleImportingItselfNotResolved` fixture failed in
+the source-79 Rust binary and now passes diagnostics, types, symbols, and
+JavaScript baselines. Exact-source Go passes all its fixture subtests,
+including module resolution. A materialized copy of the existing
+`nodeColonModuleResolution` fixture and a standalone reproduction of the new
+fixture have byte-identical Go/Rust CLI resolution traces and diagnostics; neither
+compiler loads the same-named package in the new case. Exact-source Go also
+passes the changed `nodeColonModuleResolution` trace baseline.
+
+Across all 18 Go-history check, 18 canonical check, and 36 emit result lists,
+no source-79 passing outcome is lost; the only additions are the new compiler
+fixture's passing diagnostics, types, symbols, and JavaScript baselines and
+its skipped map baselines. Go-history passes 13,570 diagnostic and 12,874
+type/symbol baselines; canonical passes 13,570 and 12,873; emit passes
+13,500 JavaScript, 149 JavaScript-map, and 156 source-map baselines. The
+`intersectionConstructorReductionCrash` fixture exceeded the runner's
+default 20-second timeout in the first local runs, passed alone with a
+60-second limit, and the complete Go-history/emit runs then passed with that limit;
+all prior named outcomes remained unchanged. Exact-source Fourslash passes
+4,091 groups, skips 470, fails none, with all 4,627 named outcomes unchanged.
+The full Rust workspace, 40 CLI regressions, `wasm32-wasip1` target check,
+warnings-denied Clippy, source lint, and formatting pass. The workspace and
+Fourslash gates needed local Unix-socket access after the filesystem sandbox
+denied binds. Evidence and the JavaScript pass-set comparator are under
+`target/port-623/0080-1d76970f7a/`.
+
+Paired local macOS release measurements used the immediate source-79 binary,
+five alternating pairs per public project and checker mode, and identical
+compiler output hashes. macOS `time -l` includes kernel work in its retired
+instruction counts, so this is a local regression screen rather than the
+repository's deterministic Linux instruction gate. No material instruction
+or peak-memory regression was observed. A five-pair forced build/emit screen
+showed 3.5566G → 3.5489G instructions (-0.218%), 124.08 → 124.14 MiB peak
+RSS (+0.050%), and +3.49% wall time; a reversed-order 15-pair confirmation
+showed 3.6032G → 3.6051G instructions (+0.052%), 124.16 → 124.13 MiB
+(-0.025%), and -2.49% wall time. Output hashes matched in both runs. The
+short-workload wall-time change reversed, so it does not establish a
+regression.
+
+| public case | instructions, source 79 → 80 | peak RSS, MiB, source 79 → 80 | wall change |
+| --- | ---: | ---: | ---: |
+| Compiler-Unions, single | 3.2731G → 3.2732G | 59.6 → 59.6 | -0.34% |
+| Compiler-Unions, default | 3.9652G → 3.9638G | 83.4 → 83.3 | +0.44% |
+| webpack, single | 10.8403G → 10.8409G | 310.8 → 311.3 | -2.28% |
+| webpack, default | 15.1997G → 15.1851G | 502.4 → 503.5 | +1.31% |
+| VS Code, single | 81.5565G → 81.5550G | 1,607.3 → 1,603.0 | -0.04% |
+| VS Code, default | 93.7209G → 93.6657G | 2,109.9 → 2,105.9 | -0.19% |
+
+The release binaries, paired samples, output manifests, and JavaScript
+collectors are under `target/port-623/0080-1d76970f7a/perf/`.

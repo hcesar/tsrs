@@ -1285,6 +1285,28 @@ pub(crate) fn prefetch_resolutions(
             }
             let mode =
                 get_mode_for_usage_location(file.file_name(), meta, entry, Some(&options_for_file));
+            // A module declared in this file resolves locally, even if a package with the same name exists.
+            if file.ambient_module_names().contains(&module_name) {
+                let resolved_module = P::new(ResolvedModule::default());
+                resolutions_in_file.insert(
+                    ModeAwareCacheKey { name: alloc_str(module_name), mode },
+                    resolved_module,
+                );
+                let trace = if options_for_file.trace_resolution.is_true() {
+                    vec![DiagAndArgs {
+                        message: &diagnostics::Module_0_was_resolved_as_locally_declared_ambient_module_in_file_1,
+                        args: vec![module_name.to_string(), file.file_name().to_string()],
+                    }]
+                } else {
+                    Vec::new()
+                };
+                imports.push(Some(prefetchedImport {
+                    resolution: Ok((resolved_module, trace)),
+                    mode,
+                    prepared: None,
+                }));
+                continue;
+            }
             let resolution = resolver.resolve_module_name(module_name, &file_name, mode, redirect);
             // As resolve_imports_and_module_augmentations inserts them, in the same order (a failed resolution gets a
             // default module).
@@ -1616,6 +1638,24 @@ impl fileLoader {
                         entry,
                         Some(&options_for_file),
                     );
+                    // Keep this path in sync with prefetch_resolutions: traced and synthetic imports bypass it.
+                    if file.ambient_module_names().contains(&module_name) {
+                        let trace = if options_for_file.trace_resolution.is_true() {
+                            vec![DiagAndArgs {
+                                message: &diagnostics::Module_0_was_resolved_as_locally_declared_ambient_module_in_file_1,
+                                args: vec![module_name.to_string(), file.file_name().to_string()],
+                            }]
+                        } else {
+                            Vec::new()
+                        };
+                        let resolved_module = P::new(ResolvedModule::default());
+                        resolutions_in_file.insert(
+                            ModeAwareCacheKey { name: alloc_str(module_name), mode },
+                            resolved_module,
+                        );
+                        resolutions_trace.extend(trace);
+                        continue;
+                    }
                     (
                         self.resolver.resolve_module_name(module_name, &file_name, mode, redirect),
                         mode,
