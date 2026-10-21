@@ -3350,3 +3350,51 @@ regression was confirmed in these local macOS runs, which are not the
 repository's two-publish Linux performance gate. The user's nonblocking
 migration policy applies. Raw samples, hashes, binaries, and the JavaScript
 collector are under `target/port-623/0073-a0a0ff55ca/perf/`.
+
+## 74. `0a66074847` — Fix `stripInternal` type-alias declaration emit
+
+Upstream `0a660748471910ecac1ae6e1625529908dc228f2` visits a type
+alias's right-hand side before updating its declaration and substitutes an
+`any` keyword node when `--stripInternal` elides that right-hand side. The
+Rust transform follows the same order and fallback. No semantic deviation
+was needed. The new exact upstream fixture emits `export type T = any;`
+instead of aborting; its Go `TestLocal` case and Rust diagnostics,
+type/symbol, and JavaScript/declaration baselines all pass. The ignored
+`ts-ref` checkout advances to this source commit, while the published
+TypeScript pin remains at the base revision until the complete upgrade.
+
+Full Go-history checking passes 13,569 diagnostic and 12,873 type/symbol
+baselines; canonical checking passes 13,569 and 12,872 respectively. Emit
+passes 13,573 diagnostics, 12,873 type/symbols, 13,499
+JavaScript/declaration baselines, 149 JavaScript maps, and 156 source maps.
+All 18 Go-history, 18 canonical, and 36 emit outcome lists retain every
+source-73 result. Their only additions are the new fixture's pass entries
+and expected map skips; there are no new failures, crashes, or timeouts.
+Exact-source Fourslash passes 4,091 of 4,559 groups, skips 468, and fails
+none; all 4,623 named outcomes match source 73. The full Rust workspace,
+40 CLI regressions, WebAssembly target check, warnings-denied Clippy,
+source lint, and formatting pass. Fourslash and workspace transport tests
+required the established sandbox escalation for local Unix-socket binds.
+Generated-code freshness is checked after the corresponding commit because
+that script compares the worktree with HEAD. Complete evidence is under
+`target/port-623/0074-0a66074847/`.
+
+Five alternating paired release runs per cell compared source 73 with
+source 74 on the public Compiler-Unions corpus, which enables declaration
+emit and `stripInternal`. Each run used fresh output directories, an
+explicit `--rootDir`, and a write-deny sandbox over the corpus. Both
+binaries exited with the same status and produced identical stdout and all
+105 emitted files. macOS `/usr/bin/time -l` provided retired instructions
+and peak RSS, including the sandbox's work; wall time surrounded the whole
+process. Medians are before → after:
+
+| Mode | Instructions, billion | Wall, seconds | Peak RSS, MiB |
+| --- | ---: | ---: | ---: |
+| Single checker | 5.71167 → 5.71165 (−0.0004%) | 0.4135 → 0.4128 (−0.17%) | 84.41 → 84.41 (0.00%) |
+| Default checkers | 6.43796 → 6.43455 (−0.053%) | 0.1863 → 0.1851 (−0.66%) | 134.34 → 134.94 (+0.44%) |
+
+No threshold-level performance regression was observed in these local
+macOS runs; they do not replace the repository's two-publish Linux gate.
+The user's nonblocking migration policy applies. Raw samples, output
+hashes, binaries, and the JavaScript collector are under
+`target/port-623/0074-0a66074847/perf/`.

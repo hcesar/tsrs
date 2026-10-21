@@ -628,12 +628,17 @@ impl DeclarationTransformer {
     // transform.go:1798
     pub(crate) fn transform_type_alias_declaration(&self, input: P<Node>) -> P<Node> {
         self.needs_declare.set(false);
+        let mut type_node = self.visit_fn(input.type_node());
+        if type_node.is_none() {
+            // stripInternal can elide an @internal type RHS; fall back like index signatures.
+            type_node = Some(self.factory().new_keyword_type_node(Kind::AnyKeyword));
+        }
         self.factory().update_type_alias_declaration(
             input,
             self.ensure_modifiers(input),
             input.name().unwrap(),
             self.visitor().visit_nodes(input.type_parameter_list()),
-            self.visit_fn(input.type_node()),
+            type_node,
         )
     }
 
