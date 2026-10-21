@@ -4051,3 +4051,71 @@ pairs measured +0.245% instructions, +0.404% RSS, and -2.08% wall. The
 direction changes do not establish a material regression. Frozen release
 binaries, raw paired samples, output hashes, and the JavaScript collector are
 under `target/port-623/0087-9eedcb0dd7/perf/`.
+
+## 88. `86c0182bbf` — Avoid allocating normalized types on interning cache hits
+
+Upstream `86c0182bbf8b57eeb3ce343f598519867245c115` changes only Go checker
+allocation management and tests, with no compiler fixture, library, or
+user-visible behavior change. It borrows a per-checker temporary set for union
+and intersection normalization, makes `mapTypeEx` build a mapped list only
+after the first changed constituent, and copies constituent lists only when
+publishing new composite types or caching a subtype reduction. Its focused Go
+tests check constituent ownership, zero-allocation cache hits, and reuse through
+nested calls and large sets. The exact-source Go checker package passes.
+
+Rust already copies new union and intersection lists with `alloc_slice`,
+copies cached subtype-reduction lists with `alloc_slice`, and pools intersection
+and mapping scratch lists. Its default union front cache also bypasses many
+normalization calls on cache hits. The remaining difference is the ordinary
+union-normalization list, a mapping list built before a change is known, and a
+short list in `remove_type`. An earlier simple pooled-`getUnionType` experiment
+was rejected at -0.04% instructions, within noise
+(`notes/perf-round2-followups.md`, “Measured and rejected”). The new upstream
+patch and combined reuse across the other call paths justified a fresh probe.
+
+A 100-line Rust candidate added a reentrant checker-local set pool, retained
+the intersection dedup map, reused the set in union construction and
+`remove_type`, and delayed mapping-list construction until the first changed
+constituent. It kept the arena copy at every publication boundary. The
+candidate passed all 18 Go-history, 18 canonical, and 36 emit named outcome
+lists with exact source-87 equality; there were no new failures, crashes, or
+timeouts. All 13,572 Go-history diagnostic passes, 12,876 type/symbol passes,
+13,502 JavaScript passes, 149 JavaScript-map passes, and 156 source-map passes
+were retained. Canonical checking retained 13,572 diagnostics and 12,875
+type/symbol passes. Go's exact-source ownership and temporary-set tests passed.
+
+Five alternating paired macOS release runs per public cell compared the
+immediate source-87 executable with the candidate. Both compilers produced
+identical output hashes. `time -l` instructions include kernel work, so these
+are local screens rather than the deterministic Linux instruction gate.
+
+| public case | mode | instructions, source 87 → candidate | peak RSS, MiB, source 87 → candidate | wall change |
+| --- | --- | ---: | ---: | ---: |
+| Compiler-Unions | single | 3.2721G → 3.2676G (-0.139%) | 59.59 → 59.70 (+0.184%) | +0.01% |
+| Compiler-Unions | default | 3.9614G → 3.9540G (-0.185%) | 83.44 → 83.23 (-0.243%) | +1.29% |
+| webpack | single | 10.8447G → 10.8513G (+0.061%) | 311.59 → 311.30 (-0.095%) | -0.31% |
+| webpack | default | 15.3138G → 15.3633G (+0.323%) | 505.09 → 507.31 (+0.439%) | +0.83% |
+| VS Code | single | 81.6072G → 81.6082G (+0.001%) | 1,613.63 → 1,613.55 (-0.005%) | -0.68% |
+| VS Code | default | 93.7947G → 93.9679G (+0.185%) | 2,111.39 → 2,106.22 (-0.245%) | +1.90% |
+
+The largest single-thread instruction gain is 0.185% and the largest
+default-checker peak-memory gain is 0.245%, both below the 1% and 5%
+performance bars; no two-publish 2% wall gain was established. The candidate
+also moved webpack/default instructions and VS Code/default wall time upward
+locally. Therefore it was not retained. The resulting source-88 tsrs commit is
+an evidence-only port: the ignored `ts-ref` checkout advances to the exact
+source commit, while the published TypeScript pin and runtime code remain as
+source 87. The candidate patch, frozen binaries, raw paired samples, output
+hashes, collector, and full named outcome lists are under
+`target/port-623/0088-86c0182bbf/`.
+
+The final release executable is byte-identical to source 87 (both SHA-256
+`106a23c08ca5a6a6041e5d49ac28784d4e120b66d0d351a62aece14980f3d42a`),
+so final runtime performance is exactly unchanged. The dev CLI and testrunner
+build, exact-source Fourslash gate (4,091 exercised groups pass, 470 skipped,
+none fail), full Rust workspace, warnings-denied Clippy, source lint,
+formatting, and generator freshness all pass. A sandbox Unix-socket denial
+needed an escalated Fourslash/workspace rerun; one FSEvents load-test assertion
+on the first unrestricted workspace run passed on the clean rerun. Source 87's
+CLI regressions and WASM checks apply unchanged because no production file
+changed. No capability status, README summary, or compatibility count changes.
