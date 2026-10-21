@@ -3084,3 +3084,42 @@ blockers under the user's nonblocking migration policy. These local pairs
 are not the repository's two-publish Linux performance gate. The earlier
 measured source-11 regressions remain disclosed above. All source-68
 evidence is under `target/port-623/0068-96fffa9f65/`.
+
+## 69. `fd871fcc3c` — Preserve replacement library order during sorting
+
+Upstream `fd871fcc3c1f30e1d5f39ed4bae9ff49ad57ef50` makes `sortLibs`
+stable because replacement libraries share the fallback priority and must
+retain their discovery order. Rust already used the stable `sort_by_key` in
+`sort_libs`; this port documents the tie-order invariant at that call and
+advances the ignored `ts-ref` checkout to the exact upstream commit. The new
+`libReplacementOrder` fixture passes. On its materialized project, exact-source
+Go and Rust `--listFiles` outputs contain the same 14 replacement libraries in
+the same ES2015-through-script-host order. A temporary Rust unstable-sort
+probe also passed this fixture, so that fixture alone does not distinguish
+Rust's two sorting methods on this input; the stable method remains the
+required translation of Go's new `SortStableFunc`.
+
+All 18 Go-history, 18 canonical, and 36 emit outcome lists retain every
+source-68 passing outcome, with no new failures, crashes, or timeouts. The new
+fixture adds one diagnostics pass in each checker history and one diagnostics
+and JavaScript pass in emit; its type, symbol, JavaScript-map, and source-map
+baselines are intentionally absent. Go-history and canonical checker
+diagnostics pass 13,566 of 13,570 baselines; Go-history type/symbol passes
+12,870 and canonical 12,869. Emit passes 13,570 diagnostics, 12,870
+type/symbol, 13,496 JavaScript/declaration, 149 JavaScript-map, and 156
+source-map baselines. Exact-source Fourslash passes 4,088 of 4,558 groups,
+skips 470, fails none, and preserves all 4,622 named source-68 outcomes. The
+published TypeScript pin remains unchanged until the full upgrade.
+
+The full Rust workspace, 40 CLI regressions, WebAssembly target check,
+warnings-denied Clippy, source lint, formatting, and generated-code freshness
+pass. Fourslash and the workspace transport socket test used the established
+sandbox escalation for local Unix-socket binds. An unrelated emit case timed
+out once with the default limit and passed on the complete rerun at 120
+seconds; no final outcome list contains a timeout. The compatibility table
+records the new diagnostics pass and replacement-library ordering; the README
+compatibility summaries have no count to change. No release instruction-count,
+wall-time, or peak-RSS comparison was collected for source 69 under the user's
+nonblocking migration policy; no numerical performance-equality claim follows.
+The earlier measured source-11 regressions remain disclosed above. Evidence
+is under `target/port-623/0069-fd871fcc3c/`.

@@ -510,6 +510,8 @@ impl fileLoader {
     }
 
     pub(crate) fn sort_libs(&self, lib_files: &mut [P<SourceFile>]) {
+        // Replacement libraries share a priority, so preserve their discovery order.
+        // This is the stable counterpart of Go's slices.SortStableFunc.
         lib_files.sort_by_key(|f| self.get_default_lib_file_priority(*f));
     }
 
