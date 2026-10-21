@@ -3398,3 +3398,66 @@ macOS runs; they do not replace the repository's two-publish Linux gate.
 The user's nonblocking migration policy applies. Raw samples, output
 hashes, binaries, and the JavaScript collector are under
 `target/port-623/0074-0a66074847/perf/`.
+
+## 75. `b82cd139dc` — Restore dependency-depth build scheduling
+
+Upstream `b82cd139dcdae5024a08e2aaf4f0847112d4a023` makes builders
+take projects in stable dependency-depth order, including when building one
+selected project's graph or only its references. It keeps reporting in the
+original selected build order. Rust already computed and cached the full
+schedule but still dispatched the original order; this port passes the
+selected order into the same depth sort and dispatches that schedule. The
+Rust graph regression checks full, selected, and references-only schedules,
+one-builder dispatch, and unchanged reporting order. Upstream Go
+`TestBuildScheduling` passes. A five-project CLI fixture also produces
+identical Go and Rust verbose build logs after replacing wall-clock
+timestamps. No semantic deviation from this upstream change was needed.
+The API's existing one-builder implementation remains sequential. The
+ignored `ts-ref` checkout advances to source 75; the published TypeScript
+pin stays at the base revision until the full upgrade.
+
+All 18 Go-history, 18 canonical, and 36 emit outcome lists are byte-for-byte
+unchanged from source 74. Full Go-history checking passes 13,569 diagnostic
+and 12,873 type/symbol baselines; canonical checking passes 13,569 and
+12,872; emit passes 13,573 diagnostics, 12,873 type/symbols, 13,499
+JavaScript/declaration baselines, 149 JavaScript maps, and 156 source maps.
+Exact-source Fourslash passes 4,091 of 4,559 groups, skips 468, fails none,
+and all 4,623 named outcomes match source 74. The full Rust workspace,
+40 CLI regressions, WebAssembly target check, warnings-denied Clippy,
+source lint, and formatting pass. Fourslash and the workspace transport test
+needed the established sandbox escalation for local Unix-socket binds.
+Generated-code freshness is checked after this commit because that script
+compares the worktree with HEAD. Evidence is under
+`target/port-623/0075-b82cd139dc/`.
+
+Five alternating paired **release** runs per cell compared source 74 and 75.
+Both binaries emitted identical files and stdout on a synthetic, public
+five-project composite graph: `Leaf → Middle → Root`,
+`Independent → Root`, and `Other`, with 512 small generated source files in
+each leaf. Each run forced a fresh build with two builders. macOS
+`/usr/bin/time -l` counted retired instructions and peak RSS including
+kernel work; Node measured process wall time. Medians are before → after:
+
+| Workload | Instructions, billion | Wall, seconds | Peak RSS, MiB |
+| --- | ---: | ---: | ---: |
+| Graph, 2 builders | 3.501 → 3.637 (+3.88%) | 0.1135 → 0.1125 (−0.82%) | 103.1 → 124.2 (+20.54%) |
+| Compiler-Unions, single checker, `--noEmit` | 3.274 → 3.273 (−0.005%) | 0.2283 → 0.2290 (+0.33%) | 59.6 → 59.5 (−0.08%) |
+| Compiler-Unions, default checkers, `--noEmit` | 3.965 → 3.964 (−0.044%) | 0.1087 → 0.1095 (+0.77%) | 83.2 → 83.6 (+0.47%) |
+
+Ten additional build-graph pairs in reversed order confirmed the RSS
+increase: 103.4 → 124.0 MiB (+19.96%), with instructions 3.500 →
+3.588 billion (+2.52%) and wall 0.1185 → 0.1095 seconds (−7.61%). A
+one-builder control measured peak RSS 92.1 → 100.1 MiB (+8.74%),
+instructions +0.11%, and wall −0.14%. The new schedule starts the other
+large independent leaf earlier; with two builders the leaves overlap, and
+with one builder it runs before the small dependent project gives Rust's
+asynchronous per-project free thread more time to reclaim the first leaf.
+This is a material build-mode memory and instruction regression on this
+graph, not a general compiler-check regression. Waiting for cleanup or
+delaying the independent leaf would surrender the concurrency the upstream
+change restores; no low-risk parity-preserving fix was identified. The
+user's nonblocking migration instruction applies, so the port continues
+with the tradeoff disclosed. These local macOS samples do not replace the
+repository's two-publish Linux gate. Raw paired samples, manifests,
+binaries, and JavaScript collectors are under
+`target/port-623/0075-b82cd139dc/perf/`.
