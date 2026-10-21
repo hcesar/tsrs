@@ -4,7 +4,7 @@ use tsrs_core::{PKey, PSlot};
 /// Go `core.LinkStore` keyed by node or symbol identity.
 ///
 /// Most of the checker's link stores use this type; `KeyedLinkStore`, `SymbolReferenceLinkStore`,
-/// `NodeLinkStore` (Go `nodeLinkStore`) and `SymbolArenaLinkStore` (Go `symbolArenaLinkStore`) below cover
+/// `NodeLinkStore` (Go `nodeLinkStore`) and `SymbolArenaLinkStore` (Go `symbolLinkStore`) below cover
 /// the rest. (The node builder's link stores use `tsrs_core::LinkStore`.) Values live in the arena, so `get`
 /// hands out a `Copy` pointer whose `Cell` fields are mutated in place.
 ///
@@ -770,19 +770,36 @@ impl<V: Default + LinkCopy + 'static> InlineIdStore<V> {
     }
 }
 
-/// Go `nodeLinkStore`: keyed by the node id, so every access assigns the node its id (`ast.GetNodeId`) the
-/// way Go does.
+const MAX_PAGE_LINK_COUNT: u64 = 0x100_0000;
+
+#[inline]
+fn dense_link_key(id: u64) -> Option<u64> {
+    // Ordinary ids wrap to a large key and fail the bound check; the hot path needs one comparison.
+    let key = id.wrapping_sub(ast::BLOCK_ID_OFFSET);
+    (key < MAX_PAGE_LINK_COUNT).then_some(key)
+}
+
+/// Go `nodeLinkStore` with a checker-local 256-id generator.
 ///
-/// Ids are observable (e.g. in cache keys and internal names), so the assignment order must match. The values
-/// are stored inline (`InlineIdStore`): its one user, `symbol_node_links`, holds a 4-byte symbol handle per
-/// node.
+/// Go uses a reserved high id range for this store; the AST decodes Rust's tagged 32-bit representation to that
+/// range.
+///
+/// High-range ids are normalized before indexing the dense `InlineIdStore`; an ordinary id assigned elsewhere
+/// uses a separate store so the two ranges cannot alias. Its one user, `symbol_node_links`, holds a 4-byte
+/// symbol handle per node.
 pub struct NodeLinkStore<V: 'static> {
-    store: InlineIdStore<V>,
+    generator: ast::NodeIdGenerator,
+    block_store: InlineIdStore<V>,
+    ordinary_store: InlineIdStore<V>,
 }
 
 impl<V: 'static> Default for NodeLinkStore<V> {
     fn default() -> Self {
-        NodeLinkStore { store: InlineIdStore::default() }
+        NodeLinkStore {
+            generator: ast::NodeIdGenerator::default(),
+            block_store: InlineIdStore::default(),
+            ordinary_store: InlineIdStore::default(),
+        }
     }
 }
 
@@ -790,7 +807,11 @@ impl<V: 'static> NodeLinkStore<V> {
     /// Shared graph: see `InlineIdStore::fork`.
     #[must_use]
     pub fn fork(&'static self) -> Self {
-        NodeLinkStore { store: self.store.fork() }
+        NodeLinkStore {
+            generator: ast::NodeIdGenerator::default(),
+            block_store: self.block_store.fork(),
+            ordinary_store: self.ordinary_store.fork(),
+        }
     }
 }
 
@@ -799,7 +820,12 @@ impl<V: Default + LinkCopy + 'static> NodeLinkStore<V> {
     #[inline]
     #[cfg_attr(feature = "site-counts", track_caller)]
     pub fn get(&mut self, node: P<Node>) -> &'static V {
-        self.store.get(ast::get_node_id(node).0)
+        let id = self.generator.get_node_id(node).0;
+        if let Some(key) = dense_link_key(id) {
+            self.block_store.get(key)
+        } else {
+            self.ordinary_store.get(id)
+        }
     }
 }
 
@@ -808,32 +834,49 @@ impl<V: 'static> NodeLinkStore<V> {
     /// never had links (`InlineIdStore`). Assigns the node an id, as Go's `TryGet` does.
     #[inline]
     pub fn try_get(&self, node: P<Node>) -> Option<&'static V> {
-        self.store.try_get(ast::get_node_id(node).0)
+        let id = self.generator.get_node_id(node).0;
+        if let Some(key) = dense_link_key(id) {
+            self.block_store.try_get(key)
+        } else {
+            self.ordinary_store.try_get(id)
+        }
     }
 
     /// `try_get` that returns `None` for a node without an id instead of assigning one (no side effect).
     #[inline]
     pub fn try_get_if_id_assigned(&self, node: P<Node>) -> Option<&'static V> {
-        let id = ast::get_assigned_node_id(node)?;
-        match self.store.narrow(id) {
+        let id = ast::get_assigned_node_id(node)?.0;
+        let (store, key) = match dense_link_key(id) {
+            Some(key) => (&self.block_store, key),
+            None if id >= ast::BLOCK_ID_OFFSET => return self.ordinary_store.try_get(id),
+            None => (&self.ordinary_store, id),
+        };
+        let key = u32::try_from(key).ok()?;
+        match store.narrow(key) {
             Some(v) => Some(v),
-            None => self.store.parent.filter(|_| tsrs_core::sharedgraph::COMPILED_IN)?.narrow(id),
+            None => store.parent.filter(|_| tsrs_core::sharedgraph::COMPILED_IN)?.narrow(key),
         }
     }
 }
 
-/// Go `symbolArenaLinkStore`: keyed by the symbol id, so every access assigns the symbol its id
-/// (`ast.GetSymbolId`) the way Go does.
+/// Go `symbolLinkStore`: assigns an id from a checker-local 256-id block when the symbol has no id.
 ///
-/// Symbol ids are observable (the internal names of unique-symbol-keyed properties embed them, and the node
-/// builder counts their length toward truncation), so the assignment order must match.
+/// Its reserved high ids are observable: unique-symbol internal names embed them, and the node builder counts
+/// their length toward truncation. Rust keeps the packed `IdLinkStore` layout for high and ordinary ids in
+/// separate stores to prevent collisions.
 pub struct SymbolArenaLinkStore<V: 'static> {
-    store: IdLinkStore<V>,
+    generator: ast::SymbolIdGenerator,
+    block_store: IdLinkStore<V>,
+    ordinary_store: IdLinkStore<V>,
 }
 
 impl<V: 'static> Default for SymbolArenaLinkStore<V> {
     fn default() -> Self {
-        SymbolArenaLinkStore { store: IdLinkStore::default() }
+        SymbolArenaLinkStore {
+            generator: ast::SymbolIdGenerator::default(),
+            block_store: IdLinkStore::default(),
+            ordinary_store: IdLinkStore::default(),
+        }
     }
 }
 
@@ -841,7 +884,11 @@ impl<V: 'static> SymbolArenaLinkStore<V> {
     /// Shared graph: see `IdLinkStore::fork`.
     #[must_use]
     pub fn fork(&'static self) -> Self {
-        SymbolArenaLinkStore { store: self.store.fork() }
+        SymbolArenaLinkStore {
+            generator: ast::SymbolIdGenerator::default(),
+            block_store: self.block_store.fork(),
+            ordinary_store: self.ordinary_store.fork(),
+        }
     }
 }
 
@@ -849,40 +896,93 @@ impl<V: Default + LinkCopy + 'static> SymbolArenaLinkStore<V> {
     #[inline]
     #[cfg_attr(feature = "site-counts", track_caller)]
     pub fn get(&mut self, symbol: P<Symbol>) -> P<V> {
-        self.store.get(ast::get_symbol_id(symbol).0)
+        let id = self.generator.get_symbol_id(symbol).0;
+        if let Some(key) = dense_link_key(id) {
+            self.block_store.get(key)
+        } else {
+            self.ordinary_store.get(id)
+        }
     }
 }
 
 impl<V: 'static> SymbolArenaLinkStore<V> {
     #[inline]
     pub fn try_get(&self, symbol: P<Symbol>) -> Option<P<V>> {
-        self.store.try_get(ast::get_symbol_id(symbol).0)
+        let id = self.generator.get_symbol_id(symbol).0;
+        if let Some(key) = dense_link_key(id) {
+            self.block_store.try_get(key)
+        } else {
+            self.ordinary_store.try_get(id)
+        }
     }
 
     /// `try_get` that returns `None` for a symbol without an id instead of assigning one (no side effect, no call:
     /// for fast paths whose fallback does the `get`).
     #[inline]
     pub fn try_get_if_id_assigned(&self, symbol: P<Symbol>) -> Option<P<V>> {
-        let id = ast::get_assigned_symbol_id(symbol)?;
-        match self.store.narrow_slot(id) {
-            Some(slot) => Some(self.store.at(slot)),
-            None => self
-                .store
+        let id = ast::get_assigned_symbol_id(symbol)?.0;
+        let (store, key) = match dense_link_key(id) {
+            Some(key) => (&self.block_store, key),
+            None if id >= ast::BLOCK_ID_OFFSET => return self.ordinary_store.try_get(id),
+            None => (&self.ordinary_store, id),
+        };
+        let key = u32::try_from(key).ok()?;
+        match store.narrow_slot(key) {
+            Some(slot) => Some(store.at(slot)),
+            None => store
                 .parent
                 .filter(|_| tsrs_core::sharedgraph::COMPILED_IN)?
-                .try_get(id as u64),
+                .try_get(u64::from(key)),
         }
     }
 
     #[inline]
     pub fn has(&self, symbol: P<Symbol>) -> bool {
-        self.store.has(ast::get_symbol_id(symbol).0)
+        let id = self.generator.get_symbol_id(symbol).0;
+        if let Some(key) = dense_link_key(id) {
+            self.block_store.has(key)
+        } else {
+            self.ordinary_store.has(id)
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn symbol_link_store_separates_reserved_and_ordinary_ids() {
+        assert_eq!(dense_link_key(ast::BLOCK_ID_OFFSET), Some(0));
+        assert_eq!(
+            dense_link_key(ast::BLOCK_ID_OFFSET + MAX_PAGE_LINK_COUNT - 1),
+            Some(MAX_PAGE_LINK_COUNT - 1)
+        );
+        assert_eq!(dense_link_key(ast::BLOCK_ID_OFFSET + MAX_PAGE_LINK_COUNT), None);
+        let ordinary = P::new(Symbol::default());
+        let ordinary_id = ast::get_symbol_id(ordinary).0;
+        assert!(ordinary_id < ast::BLOCK_ID_OFFSET);
+
+        let mut store: SymbolArenaLinkStore<Cell<u32>> = SymbolArenaLinkStore::default();
+        store.get(ordinary).set(7);
+        let symbols: Vec<_> =
+            std::iter::repeat_with(|| P::new(Symbol::default())).take(600).collect();
+        for (index, &symbol) in symbols.iter().enumerate() {
+            assert!(store.try_get_if_id_assigned(symbol).is_none());
+            let link = store.get(symbol);
+            link.set(index as u32 + 100);
+            assert_eq!(store.get(symbol), link, "symbol {index} changed links immediately");
+            assert!(ast::get_symbol_id(symbol).0 >= ast::BLOCK_ID_OFFSET);
+        }
+        assert_eq!(store.get(ordinary).get().get(), 7);
+        for (index, &symbol) in symbols.iter().enumerate() {
+            assert_eq!(store.get(symbol).get().get(), index as u32 + 100);
+            assert_eq!(
+                store.try_get_if_id_assigned(symbol).unwrap().get().get(),
+                index as u32 + 100
+            );
+        }
+    }
 
     // A narrow group stores slot offsets from its first slot in 16 bits. A group that gets a link again after more
     // than 2^16 other links must get its dense form and keep every earlier id's slot.

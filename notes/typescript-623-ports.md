@@ -2793,3 +2793,68 @@ for source 62 under the user's nonblocking migration policy. The new
 `esnext` library can affect projects that select it, so no numerical
 performance-equality claim follows. The measured source-11 regressions
 remain disclosed above. Evidence is under `target/port-623/0062-2d8450f9b5/`.
+
+## 63. `aa8149273b` — Dense link stores
+
+Upstream `aa8149273b23401f0a79a5f0384c42de51888693` gives each checker
+node and symbol link store a generator that reserves consecutive 256-ID
+blocks from process-wide counters. These IDs occupy the range starting at
+`0x1_0000_0000_0000`. Its paged store allocates values only for requested
+slots, and an untouched slot has no links. Rust already packed checker links
+densely in 32-ID inline node groups and 128-ID indirect symbol groups. The
+earlier measured dense-table work favored these packed layouts over larger
+page-granular approaches; this port keeps them. It routes reserved and
+ordinary IDs to separate dense tables, preserving stable links and preventing
+numeric collisions. The generic core `PagedLinkStore`, currently without
+production consumers, now allocates per slot and distinguishes an untouched
+slot from one with a value; it retains its sparse high-key fallback. As in Go,
+reserved IDs beyond 16 million use a hash-backed fallback rather than grow a
+dense index for a long-lived process. A node group may still report a
+default-valued link for another slot in the same group. Its only checker use
+reads `resolved_symbol`, whose default is `None`,
+so that distinction does not change observable behavior.
+
+Node and symbol AST objects remain compact rather than growing their
+ID field to Go's 64 bits. Bit 31 of the stored 32-bit ID tags reserved IDs;
+accessors reconstruct the full Go-visible number. Both ordinary and reserved
+ID counters are bounded at 2^31 per kind in this representation, far above
+the measured workload range. Reserved IDs matter to diagnostics: internal
+well-known-symbol property names include the symbol number, and the node
+builder counts their digits while truncating type text. In a public 66-case
+name-length probe, 37 diagnostics differed before the ID change and zero
+afterward. `unique-symbol-link-id-truncation` fixes the 35-character case as
+an exact-Go CLI regression. Focused AST, core store, and checker store tests
+cover ID decoding, untouched slots, stable links, and ordinary/reserved
+separation.
+
+All 18 Go-history, 18 canonical, and 36 emit pass/nonpass lists are byte
+identical to source 62: no lost passes, new failures, crashes, or timeouts.
+Go-history and canonical checker diagnostics pass 13,558 baselines;
+Go-history type/symbol passes 12,868, canonical 12,867. Emit passes 13,562
+diagnostics, 12,868 type/symbol, 13,488 JavaScript/declaration, 149
+JavaScript-map, and 156 source-map baselines. Exact-source Fourslash passes
+4,088 of 4,558 groups, skips 470, fails none, and preserves all 4,622 named
+source-62 outcomes. The ignored `ts-ref` checkout advances to source 63;
+the published TypeScript pin remains unchanged until the full upgrade.
+
+The full Rust workspace, 40 CLI regressions, WebAssembly target check,
+warnings-denied Clippy, source lint, formatting, and generated-code freshness
+pass. Fourslash and the workspace transport socket test used the established
+sandbox escalation after local Unix-socket binds were denied. On the same
+macOS host, four alternating source-62/source-63 release pairs per public
+project and mode measured these median wall time / peak RSS results:
+
+| Project | Mode | Wall source 62 → 63 | RSS source 62 → 63 |
+| --- | --- | ---: | ---: |
+| vscode | default | 0.973 → 0.984 s (+1.1%) | 2123.1 → 2111.5 MiB (-0.6%) |
+| vscode | single-threaded | 7.544 → 7.604 s (+0.8%) | 1612.0 → 1612.8 MiB (+0.0%) |
+| xstate-main | default | 0.129 → 0.127 s (-1.6%) | 259.0 → 258.0 MiB (-0.4%) |
+| xstate-main | single-threaded | 0.509 → 0.519 s (+1.9%) | 183.1 → 183.2 MiB (+0.0%) |
+| t3code-server | default | 1.358 → 1.334 s (-1.7%) | 2094.7 → 2090.9 MiB (-0.2%) |
+| t3code-server | single-threaded | 3.318 → 3.218 s (-3.0%) | 735.8 → 736.9 MiB (+0.2%) |
+
+The changes are within run-to-run noise. Deterministic retired-instruction
+counts are unavailable on this macOS host, so no instruction comparison is
+claimed. The release commands used `bench/measure.py` with `-p <project>
+--noEmit --incremental false --pretty false`, plus `--singleThreaded` for
+single-threaded rows. Evidence is under `target/port-623/0063-aa8149273b/`.

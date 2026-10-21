@@ -34,7 +34,7 @@ pub struct Symbol {
     pub check_flags: OwnedCell<CheckFlags>, // Non-zero only in transient symbols created by Checker
     name: OwnedTaggedStrCell,
     declarations: OwnedPSliceCell<P<Node>>, // Go slice: shared by copies, replaced (not mutated) on append
-    pub(crate) id: AtomicU32,               // Go uint64; ids above u32::MAX panic in get_symbol_id
+    pub(crate) id: AtomicU32, // Low 31 bits for ordinary ids; high bit tags Go's reserved block range.
     parent_or_tables: OwnedCell<PKey>, // parent, table tail, or instantiated symbol's source; 0 = none
 }
 

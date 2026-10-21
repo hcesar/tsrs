@@ -9,6 +9,87 @@ use crate::*;
 
 static NEXT_NODE_ID: AtomicU64 = AtomicU64::new(0);
 static NEXT_SYMBOL_ID: AtomicU64 = AtomicU64::new(0);
+static NEXT_NODE_BLOCK_ID: AtomicU64 = AtomicU64::new(0);
+static NEXT_SYMBOL_BLOCK_ID: AtomicU64 = AtomicU64::new(0);
+
+/// Go reserves this part of the 64-bit id space for ids assigned by the checker's dense link stores.
+pub const BLOCK_ID_OFFSET: u64 = 0x1_0000_0000_0000;
+pub const BLOCK_ID_SIZE: u32 = tsrs_core::LINK_PAGE_SIZE as u32;
+
+// Nodes and symbols keep a 32-bit id in the AST. The high bit tags a block id; the remaining bits are its
+// offset from BLOCK_ID_OFFSET. This preserves the Go-visible 64-bit id without enlarging every AST object.
+const BLOCK_ID_TAG: u32 = 1 << 31;
+
+#[inline]
+fn decode_id(stored: u32) -> u64 {
+    if stored & BLOCK_ID_TAG != 0 {
+        BLOCK_ID_OFFSET + u64::from(stored & !BLOCK_ID_TAG)
+    } else {
+        u64::from(stored)
+    }
+}
+
+#[derive(Default)]
+pub struct NodeIdGenerator {
+    block: Cell<(u32, u32)>,
+}
+
+#[derive(Default)]
+pub struct SymbolIdGenerator {
+    block: Cell<(u32, u32)>,
+}
+
+#[inline]
+fn next_block_id(counter: &AtomicU64, block: &Cell<(u32, u32)>) -> u32 {
+    let (mut next, mut last) = block.get();
+    if next == last {
+        // Relaxed: the counter only reserves disjoint id ranges, as for ordinary ids below.
+        let first = counter.fetch_add(u64::from(BLOCK_ID_SIZE), Ordering::Relaxed);
+        next = u32::try_from(first).expect("more than 2^31 block ids");
+        last = next.checked_add(BLOCK_ID_SIZE).expect("more than 2^31 block ids");
+        assert!(last <= BLOCK_ID_TAG, "more than 2^31 block ids");
+    }
+    block.set((next + 1, last));
+    BLOCK_ID_TAG | next
+}
+
+impl NodeIdGenerator {
+    #[inline]
+    pub fn get_node_id(&self, node: P<Node>) -> NodeId {
+        // Relaxed: an id is immutable once assigned and publishes no other node state.
+        let id = node.id.load(Ordering::Relaxed);
+        if id != 0 {
+            return NodeId(decode_id(id));
+        }
+        let candidate = next_block_id(&NEXT_NODE_BLOCK_ID, &self.block);
+        // Relaxed: competing generators only choose the node's one immutable id.
+        let id = match node.id.compare_exchange(0, candidate, Ordering::Relaxed, Ordering::Relaxed)
+        {
+            Ok(_) => candidate,
+            Err(winner) => winner,
+        };
+        NodeId(decode_id(id))
+    }
+}
+
+impl SymbolIdGenerator {
+    #[inline]
+    pub fn get_symbol_id(&self, symbol: P<Symbol>) -> SymbolId {
+        // Relaxed: an id is immutable once assigned and publishes no other symbol state.
+        let id = symbol.id.load(Ordering::Relaxed);
+        if id != 0 {
+            return SymbolId(decode_id(id));
+        }
+        let candidate = next_block_id(&NEXT_SYMBOL_BLOCK_ID, &self.block);
+        // Relaxed: competing generators only choose the symbol's one immutable id.
+        let id =
+            match symbol.id.compare_exchange(0, candidate, Ordering::Relaxed, Ordering::Relaxed) {
+                Ok(_) => candidate,
+                Err(winner) => winner,
+            };
+        SymbolId(decode_id(id))
+    }
+}
 
 /// Ids a thread in id-block mode (`use_id_blocks`) takes from a counter at a time.
 const ID_BLOCK: u64 = 1024;
@@ -53,63 +134,67 @@ fn next_id(counter: &AtomicU64, block: &'static std::thread::LocalKey<Cell<(u64,
 
 #[inline]
 pub fn get_node_id(node: P<Node>) -> NodeId {
+    // Relaxed: the id is immutable and does not publish any other node state.
     let id = node.id.load(Ordering::Relaxed);
     if id != 0 {
-        return NodeId(id as u64);
+        return NodeId(decode_id(id));
     }
     assign_node_id(node)
 }
 
 /// The node's id if it has one; unlike `get_node_id`, never assigns one.
 #[inline]
-pub fn get_assigned_node_id(node: P<Node>) -> Option<u32> {
+pub fn get_assigned_node_id(node: P<Node>) -> Option<NodeId> {
     // Relaxed, as in `get_node_id`: the id is the only data read, and it is written once.
     let id = node.id.load(Ordering::Relaxed);
-    (id != 0).then_some(id)
+    (id != 0).then(|| NodeId(decode_id(id)))
 }
 
 #[inline(never)]
 fn assign_node_id(node: P<Node>) -> NodeId {
     // Worst case, we burn a few ids if we have to CAS.
     let next = next_id(&NEXT_NODE_ID, &NODE_ID_BLOCK);
-    // Nodes store their id in 32 bits (memory); Go's ids are 64-bit but no program gets near 2^32.
-    let mut id = u32::try_from(next).expect("more than u32::MAX node ids");
+    // The high bit tags Go's reserved block range; ordinary ids use the lower 31 bits.
+    let mut id = u32::try_from(next).expect("more than 2^31 ordinary node ids");
+    assert!(id < BLOCK_ID_TAG, "more than 2^31 ordinary node ids");
     // Relaxed: the id is the only data published, and it is written once.
     if node.id.compare_exchange(0, id, Ordering::Relaxed, Ordering::Relaxed).is_err() {
         // Relaxed: only the winning id is needed.
         id = node.id.load(Ordering::Relaxed);
     }
-    NodeId(id as u64)
+    NodeId(decode_id(id))
 }
 
 #[inline]
 pub fn get_symbol_id(symbol: P<Symbol>) -> SymbolId {
+    // Relaxed: the id is immutable and does not publish any other symbol state.
     let id = symbol.id.load(Ordering::Relaxed);
     if id != 0 {
-        return SymbolId(id as u64);
+        return SymbolId(decode_id(id));
     }
     assign_symbol_id(symbol)
 }
 
 /// The symbol's id if it has one; unlike `get_symbol_id`, never assigns one.
 #[inline]
-pub fn get_assigned_symbol_id(symbol: P<Symbol>) -> Option<u32> {
+pub fn get_assigned_symbol_id(symbol: P<Symbol>) -> Option<SymbolId> {
     let id = symbol.id.load(Ordering::Relaxed);
-    (id != 0).then_some(id)
+    (id != 0).then(|| SymbolId(decode_id(id)))
 }
 
 #[inline(never)]
 fn assign_symbol_id(symbol: P<Symbol>) -> SymbolId {
     // Worst case, we burn a few ids if we have to CAS.
     let next = next_id(&NEXT_SYMBOL_ID, &SYMBOL_ID_BLOCK);
-    // Symbols store their id in 32 bits (memory); Go's ids are 64-bit but no program gets near 2^32.
-    let mut id = u32::try_from(next).expect("more than u32::MAX symbol ids");
+    // The high bit tags Go's reserved block range; ordinary ids use the lower 31 bits.
+    let mut id = u32::try_from(next).expect("more than 2^31 ordinary symbol ids");
+    assert!(id < BLOCK_ID_TAG, "more than 2^31 ordinary symbol ids");
     // Relaxed: the id is the only data published, and it is written once.
     if symbol.id.compare_exchange(0, id, Ordering::Relaxed, Ordering::Relaxed).is_err() {
         // Relaxed: only the winning id is needed.
         id = symbol.id.load(Ordering::Relaxed);
     }
-    SymbolId(id as u64)
+    SymbolId(decode_id(id))
 }
 
 pub fn get_symbol_table(data: &Cell<Option<P<SymbolTable>>>) -> P<SymbolTable> {
@@ -1760,4 +1845,35 @@ pub fn get_assigned_name(node: P<Node>) -> Option<P<Node>> {
 // utilities.go:80 (added for emit)
 pub fn range_is_synthesized(loc: tsrs_core::TextRange) -> bool {
     position_is_synthesized(loc.pos()) || position_is_synthesized(loc.end())
+}
+
+#[cfg(test)]
+mod id_generator_tests {
+    use super::*;
+
+    #[test]
+    fn block_ids_decode_without_colliding_with_ordinary_ids() {
+        let factory = NodeFactory::default();
+        let node = factory.new_token(Kind::EndOfFile);
+        let other_node = factory.new_token(Kind::EndOfFile);
+        let node_generator = NodeIdGenerator::default();
+        let block_node_id = node_generator.get_node_id(node);
+        let ordinary_node_id = get_node_id(other_node);
+        assert!(block_node_id.0 >= BLOCK_ID_OFFSET);
+        assert!(ordinary_node_id.0 < BLOCK_ID_OFFSET);
+        assert_eq!(node_generator.get_node_id(node), block_node_id);
+        assert_eq!(node_generator.get_node_id(other_node), ordinary_node_id);
+        assert_eq!(get_assigned_node_id(node), Some(block_node_id));
+
+        let symbol = P::new(Symbol::default());
+        let other_symbol = P::new(Symbol::default());
+        let symbol_generator = SymbolIdGenerator::default();
+        let block_symbol_id = symbol_generator.get_symbol_id(symbol);
+        let ordinary_symbol_id = get_symbol_id(other_symbol);
+        assert!(block_symbol_id.0 >= BLOCK_ID_OFFSET);
+        assert!(ordinary_symbol_id.0 < BLOCK_ID_OFFSET);
+        assert_eq!(symbol_generator.get_symbol_id(symbol), block_symbol_id);
+        assert_eq!(symbol_generator.get_symbol_id(other_symbol), ordinary_symbol_id);
+        assert_eq!(get_assigned_symbol_id(symbol), Some(block_symbol_id));
+    }
 }

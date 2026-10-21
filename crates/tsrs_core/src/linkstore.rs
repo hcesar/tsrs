@@ -1,6 +1,6 @@
-use crate::{P, PSlot};
+use crate::P;
 use rustc_hash::FxHashMap;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 // Links store
 //
@@ -50,17 +50,17 @@ impl<K, V> LinkStore<K, V> {
     }
 }
 
-const PAGE_SHIFT: u64 = 8;
-const PAGE_SIZE: usize = 1 << PAGE_SHIFT;
-const PAGE_MASK: u64 = PAGE_SIZE as u64 - 1;
+pub const LINK_PAGE_SHIFT: u64 = 8;
+pub const LINK_PAGE_SIZE: usize = 1 << LINK_PAGE_SHIFT;
+pub const LINK_PAGE_MASK: u64 = LINK_PAGE_SIZE as u64 - 1;
 const MAX_PAGE_COUNT: u64 = 65536;
 
-// Implements a sparse-array-like structure for storing elements keyed by dense uint64 keys. Elements are
-// stored in fixed-size pages of 256 entries and an index of pages is maintained in an array for lower valued
-// page indices and a map for higher valued page indices.
+// Implements a sparse-array-like structure for storing elements keyed by dense uint64 keys. Pages hold
+// optional handles to separately allocated values, so an untouched slot has no links and existing links keep
+// their address as pages and the index grow. The map preserves support for keys outside the dense range.
 pub struct PagedLinkStore<V: 'static> {
-    page_map: RefCell<FxHashMap<u64, &'static [PSlot<V>]>>, // Page map for page indices above maxPageCount
-    page_list: RefCell<Vec<Option<&'static [PSlot<V>]>>>, // Page table for page indices below maxPageCount
+    page_map: RefCell<FxHashMap<u64, &'static [Cell<Option<P<V>>>]>>,
+    page_list: RefCell<Vec<Option<&'static [Cell<Option<P<V>>>]>>>,
 }
 
 impl<V> Default for PagedLinkStore<V> {
@@ -73,12 +73,12 @@ impl<V> Default for PagedLinkStore<V> {
 }
 
 impl<V: Default> PagedLinkStore<V> {
-    fn new_page() -> &'static [PSlot<V>] {
-        crate::alloc_vec(std::iter::repeat_with(|| PSlot(V::default())).take(PAGE_SIZE).collect())
+    fn new_page() -> &'static [Cell<Option<P<V>>>] {
+        crate::alloc_vec(std::iter::repeat_with(|| Cell::new(None)).take(LINK_PAGE_SIZE).collect())
     }
 
     pub fn get(&self, key: u64) -> P<V> {
-        let page_index = key >> PAGE_SHIFT;
+        let page_index = key >> LINK_PAGE_SHIFT;
         let page = if page_index < MAX_PAGE_COUNT {
             let mut list = self.page_list.borrow_mut();
             if page_index as usize >= list.len() {
@@ -96,7 +96,13 @@ impl<V: Default> PagedLinkStore<V> {
             let mut map = self.page_map.borrow_mut();
             *map.entry(page_index).or_insert_with(Self::new_page)
         };
-        page[(key & PAGE_MASK) as usize].as_p()
+        let slot = &page[(key & LINK_PAGE_MASK) as usize];
+        if let Some(value) = slot.get() {
+            return value;
+        }
+        let value = P::new(V::default());
+        slot.set(Some(value));
+        value
     }
 }
 
@@ -106,13 +112,14 @@ impl<V> PagedLinkStore<V> {
     }
 
     pub fn try_get(&self, key: u64) -> Option<P<V>> {
-        let page_index = key >> PAGE_SHIFT;
+        let page_index = key >> LINK_PAGE_SHIFT;
         let page = if page_index < MAX_PAGE_COUNT {
             self.page_list.borrow().get(page_index as usize).copied().flatten()
         } else {
             self.page_map.borrow().get(&page_index).copied()
         };
-        page.map(|page| page[(key & PAGE_MASK) as usize].as_p())
+        let page = page?;
+        page[(key & LINK_PAGE_MASK) as usize].get()
     }
 }
 
@@ -137,9 +144,14 @@ mod tests {
 
         let paged: PagedLinkStore<Links> = PagedLinkStore::default();
         assert!(!paged.has(3));
-        paged.get(3).n.set(7);
-        assert!(paged.has(4)); // same page
+        let first = paged.get(3);
+        first.n.set(7);
+        assert!(!paged.has(4)); // A page does not create its other links.
         assert_eq!(paged.get(3).n.get(), 7);
+        paged.get(4).n.set(8);
+        assert_eq!(paged.try_get(4).unwrap().n.get(), 8);
+        paged.get(LINK_PAGE_SIZE as u64 + 3).n.set(10);
+        assert_eq!(first, paged.get(3)); // Growing the page index does not move existing links.
         paged.get(1 << 40).n.set(9);
         assert_eq!(paged.try_get(1 << 40).unwrap().n.get(), 9);
     }
