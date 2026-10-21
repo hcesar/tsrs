@@ -2939,3 +2939,42 @@ collected for source 65 under the user's nonblocking migration policy; no
 numerical performance-equality claim follows. The measured source-11
 regressions remain disclosed above. Evidence is under
 `target/port-623/0065-5b3a367c29/`.
+
+## 66. `71956e9735` — Check package reachability before using exports in declarations
+
+Upstream `71956e9735e923befa06b9477a3eeadbf762cb1d` moves the
+`node_modules` search-root and global typings-cache reachability checks ahead of
+`package.json` exports lookup in `tryGetModuleNameAsNodeModule`. Rust now makes
+the same checks before an exported bare module specifier can return. Its
+component-aware path check also handles root directories and avoids treating a
+sibling directory with the same textual prefix as reachable. Before the edit,
+both `declarationEmitUnreachablePackageExports` variants (NodeNext and Preserve)
+failed diagnostics and declaration output: `/packages/a/index.d.ts` contained
+unresolvable `c-root`, `c-subpath/Thing`, and `c-pattern/Thing` imports. After
+the edit, both variants match the exact upstream reference baselines: the
+unreachable declaration is withheld with three TS2883 diagnostics, while the
+reachable import from `/packages/s` still emits bare package names.
+
+All 18 Go-history, 18 canonical, and 36 emit outcome lists retain every
+source-65 passing outcome; there are no new failures, crashes, or timeouts. The
+two new variants add two diagnostic passes in each mode, two
+JavaScript/declaration passes in emit, and the expected type, symbol, and map
+skips. Go-history and canonical checker diagnostics pass 13,563 baselines;
+Go-history type/symbol passes 12,868 and canonical 12,867. Emit passes 13,567
+diagnostics, 12,868 type/symbol, 13,493 JavaScript/declaration, 149
+JavaScript-map, and 156 source-map baselines. Exact-source Fourslash passes
+4,088 of 4,558 groups, skips 470, fails none, and preserves all 4,622 named
+source-65 outcomes. The ignored `ts-ref` checkout advances to source 66; the
+published TypeScript pin remains unchanged until the full upgrade.
+
+The full Rust workspace, 40 CLI regressions, WebAssembly target check,
+warnings-denied Clippy, source lint, formatting, and generated-code freshness
+pass. Fourslash and the workspace transport socket test used the established
+sandbox escalation after local Unix-socket binds were denied. The compatibility
+table records the two new passes and package reachability behavior; the root
+and npm README compatibility summaries need no change because declaration emit
+remains supported. No release instruction-count, wall-time, or peak-RSS
+comparison was collected for source 66 under the user's nonblocking migration
+policy; no numerical performance-equality claim follows. The measured
+source-11 regressions remain disclosed above. Evidence is under
+`target/port-623/0066-71956e9735/`.

@@ -938,6 +938,26 @@ pub(crate) fn try_get_module_name_as_node_module(
         return String::new();
     };
 
+    let case_sensitive = host.use_case_sensitive_file_names();
+    let global_typings_cache_location = host.get_global_typings_cache_location();
+    // Check reachability before consulting package.json exports, which can return
+    // a bare specifier directly. An exported path is only usable if the importing
+    // file can reach the package through node_modules, and packages under the
+    // global typings cache are excluded.
+    let search_root_end =
+        parts.top_level_node_modules_index.max(tspath::get_root_length(&path_obj.file_name));
+    let search_root = &path_obj.file_name[..search_root_end];
+    let compare_options = tspath::ComparePathsOptions {
+        use_case_sensitive_file_names: case_sensitive,
+        current_directory: host.get_current_directory().to_string(),
+    };
+    if !tspath::contains_path(search_root, &info.source_directory, &compare_options)
+        || !global_typings_cache_location.is_empty()
+            && tspath::contains_path(search_root, &global_typings_cache_location, &compare_options)
+    {
+        return String::new();
+    }
+
     // Simplify the full file path to something that can be resolved by Node.
     let preferences = get_module_specifier_preferences(
         user_preferences,
@@ -949,7 +969,6 @@ pub(crate) fn try_get_module_name_as_node_module(
     let allowed_endings =
         preferences.get_allowed_endings_in_preferred_order(host, options, RESOLUTION_MODE_NONE);
 
-    let case_sensitive = host.use_case_sensitive_file_names();
     let mut module_specifier = path_obj.file_name.clone();
     let mut is_package_root_path = false;
     if !package_name_only {
@@ -999,25 +1018,6 @@ pub(crate) fn try_get_module_name_as_node_module(
     }
 
     if path_obj.is_redirect && !is_package_root_path {
-        return String::new();
-    }
-
-    let global_typings_cache_location = host.get_global_typings_cache_location();
-    // Get a path that's relative to node_modules or the importing file's path
-    // if node_modules folder is in this folder or any of its parent folders, no need to keep it.
-    let path_to_top_level_node_modules = &module_specifier[0..parts.top_level_node_modules_index];
-
-    if !stringutil::has_prefix(
-        &info.source_directory,
-        path_to_top_level_node_modules,
-        case_sensitive,
-    ) || !global_typings_cache_location.is_empty()
-        && stringutil::has_prefix(
-            &global_typings_cache_location,
-            path_to_top_level_node_modules,
-            case_sensitive,
-        )
-    {
         return String::new();
     }
 
