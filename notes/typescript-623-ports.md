@@ -4270,3 +4270,56 @@ repository's deterministic Linux instruction gate.
 there is no confirmed performance regression. The release binaries, raw
 paired samples, output hashes, and both measurement batches are in the
 evidence directory.
+
+## 92. `56ce7acfc8` — Keep optional symbol tables out of hot symbol records
+
+Upstream `56ce7acfc82bc4a465c0d65e7e18f6683cdf2f85` moves Go's `members`,
+`exports`, and `exportSymbol` from every `symbolData` into an optional
+`symbolExtra`. Binder and checker arenas batch those extra records; a write of
+nil to a symbol without an extra record does not allocate one. The new Go
+tests pin the hot-record layout and check lazy allocation, shared symbol data,
+and retention after garbage collection. There is no compiler fixture, library,
+or user-visible behavior change.
+
+Rust already has the equivalent optional `SymbolTables` tail. The compressed
+`Symbol` remains pinned at 32 bytes (40 bytes with plain 64-bit pointers),
+and its `parent_or_tables` word holds the parent until a non-`None` optional
+field needs the tail. The tail also holds the uncommon value declaration and
+lazy member list. Nil setters leave an absent tail absent; `get_members` and
+`get_exports` create tables on demand. Instantiated symbols share their data
+owner's tail while retaining separate flags and identity. A new focused Rust
+test verifies nil writes without tail allocation, parent preservation,
+single-tail reuse, and reads and clears through a shared-data alias. Rust's
+per-thread `P` arena owns the tail, so Go's explicit `SymbolExtraArena` has no
+separate Rust counterpart. The ignored `ts-ref` checkout advances to this
+exact source commit; the published TypeScript pin remains at the base revision
+until the full upgrade. The compatibility table and README summaries do not
+change.
+
+The existing tail design and its earlier measured memory saving are recorded
+in `notes/mem-small.md`. We also reviewed `docs/RUST.md` Techniques,
+`notes/perf-round2-followups.md` Measured and rejected, and the newest
+`notes/mem-round4.md`. The rejected frozen binder symbol-table design changes
+the table representation and lookup cost; it is different from the already
+shipped optional symbol tail. No new runtime layout or path is introduced
+here.
+
+Exact-source Go AST, binder, and checker package tests pass; the new Go symbol
+layout, nil-write, and shared-extra tests are included. The focused Rust test
+passes. Only Rust test code and this ledger change, so source 91's full 18
+Go-history, 18 canonical, and 36 emit named outcome lists apply unchanged,
+with no lost pass. Its exact-source Fourslash gate likewise remains 4,091
+exercised groups passing, 470 skipped, and none failing. A fresh release CLI
+build is byte-identical to source 91 (both SHA-256
+`f52427e87b719039264ffc48a37bb205b1cd2dcb52b4b30bc1e7090da6cbb405`).
+Thus source 91's paired public instructions-retired, peak-RSS, and wall-time
+numbers apply exactly to this runtime: source 92 introduces no performance
+regression for the same inputs.
+
+The dev CLI and testrunner build, warnings-denied Clippy, source lint, and
+formatting pass. The full workspace passes with its timing-sensitive macOS
+FSEvents load test run separately; that test passes in isolation but dropped
+one event in two otherwise passing full-workspace runs. The initial sandboxed
+workspace run also could not create the API transport's Unix socket, so the
+completed run used socket access. Release binary, package results, and gate
+logs are under `target/port-623/0092-56ce7acfc8/`.

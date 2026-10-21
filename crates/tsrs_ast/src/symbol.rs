@@ -1183,6 +1183,44 @@ mod tests {
     use super::*;
 
     #[test]
+    fn optional_symbol_tables_allocate_only_for_values() {
+        let source = Symbol::new(SymbolFlags::Class, "source");
+        let alias = Symbol::new_shared_data(source);
+        let parent = Symbol::new(SymbolFlags::Module, "parent");
+        source.set_parent(Some(parent));
+
+        alias.set_members(None);
+        source.set_exports(None);
+        alias.set_export_symbol(None);
+        assert!(source.tables().is_none());
+        assert!(alias.tables().is_none());
+        assert_eq!(alias.parent(), Some(parent));
+
+        let members = SymbolTable::new();
+        alias.set_members(Some(members));
+        let tail = source.tables().unwrap();
+        assert_eq!(alias.tables(), Some(tail));
+        assert_eq!(source.members(), Some(members));
+        assert_eq!(source.parent(), Some(parent));
+
+        let exports = SymbolTable::new();
+        let export_symbol = Symbol::new(SymbolFlags::Alias, "export");
+        source.set_exports(Some(exports));
+        alias.set_export_symbol(Some(export_symbol));
+        assert_eq!(source.tables(), Some(tail));
+        assert_eq!(alias.exports(), Some(exports));
+        assert_eq!(source.export_symbol(), Some(export_symbol));
+
+        source.set_members(None);
+        alias.set_exports(None);
+        source.set_export_symbol(None);
+        assert_eq!(source.tables(), Some(tail));
+        assert_eq!(alias.members(), None);
+        assert_eq!(source.exports(), None);
+        assert_eq!(alias.export_symbol(), None);
+    }
+
+    #[test]
     fn instantiated_symbol_shares_data_but_not_identity_or_flags() {
         let factory = NodeFactory::default();
         let first = factory.new_identifier("first");
