@@ -3954,3 +3954,41 @@ produced a byte-identical CLI executable to source 84 (both SHA-256
 Thus the source-84 public instruction, peak-RSS, and wall measurements apply
 unchanged; source 85 cannot introduce a runtime performance regression. The
 frozen source-85 executable is in its ignored evidence directory.
+
+## 86. `ce609c851b` — Batch common checker type allocations
+
+Upstream `ce609c851b5109a44579ee2cdc29545292dd654f` adds ten typed
+`core.Arena` fields to the Go checker and allocates its common literal,
+object, reference, interface, mapped, union, intersection, type-parameter,
+indexed-access, and conditional type payloads from those arenas instead of
+individual Go heap objects. Its diff changes only `tsc/internal/checker/checker.go`:
+no fixture, library, configuration, or language-server input changes. Rust
+already allocates **every** checker type in a per-thread arena. Specifically,
+`Checker::new_type` calls `Type::alloc`, which allocates a `TypeAlloc<T>` with
+the tagged header and payload together through `P::new`. This also avoids a
+second allocation per payload. The earlier analogous Go allocation change
+was reviewed in `notes/perf-tsgo-can1357-speedups.md` and found already
+covered in tsrs. No Rust runtime or capability change is needed. The ignored
+`ts-ref` checkout advances to this exact source commit; the published
+TypeScript pin remains at the base revision until the full upgrade.
+
+Exact-source Go's `./internal/checker` package passes with `go test -count=1`,
+and Rust's compact-payload arena-growth regression passes. Because the Rust
+production and conformance inputs are unchanged and the upstream
+commit adds no fixture or baseline, source 85's complete 18 Go-history, 18
+canonical, and 36 emit named outcome lists remain applicable with no lost
+passes. Its 4,627 Fourslash named outcomes, workspace, CLI regressions, and
+WASM evidence likewise carry forward. New dev and release builds, warnings-denied
+Clippy, source lint, formatting, and generator freshness pass for this entry.
+The root and npm
+compatibility summaries and `docs/COMPATIBILITY.md` need no update.
+
+Prior performance work was reviewed in `docs/RUST.md` Techniques,
+`notes/perf-round2-followups.md` Measured and rejected, and the latest
+`notes/mem-round4.md`. This entry changes no Rust executable or runtime
+assets. A release rebuild is byte-identical to source 85 (SHA-256
+`1f01b0c58a0b5cfa2d893aa97a3649203c32e80de957532aecbde5fda243559f`),
+so its instruction, peak-RSS, and wall-time results are exactly inherited from
+source 85 and ultimately source 84; no new performance regression is possible
+for the same inputs. Focused logs and identity evidence are under
+`target/port-623/0086-ce609c851b/`.
