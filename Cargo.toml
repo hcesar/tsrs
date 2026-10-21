@@ -58,6 +58,7 @@ tsrs_modulespecifiers = { path = "crates/tsrs_modulespecifiers" }
 tsrs_compiler = { path = "crates/tsrs_compiler" }
 tsrs_printer = { path = "crates/tsrs_printer" }
 tsrs_transformers = { path = "crates/tsrs_transformers" }
+tsrs_plugin_api = { path = "crates/tsrs_plugin_api" }
 tsrs_sourcemap = { path = "crates/tsrs_sourcemap" }
 tsrs_declarations = { path = "crates/tsrs_declarations" }
 tsrs_astnav = { path = "crates/tsrs_astnav" }

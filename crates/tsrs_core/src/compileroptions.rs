@@ -8,6 +8,27 @@ use std::sync::LazyLock;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PluginImport {
     pub name: String,
+    pub transform: String,
+    pub after: bool,
+    pub after_declarations: bool,
+}
+
+impl PluginImport {
+    /// Returns the dynamic library path if this plugin entry configures a native transformer.
+    pub fn transform_library_path(&self) -> Option<&str> {
+        if !self.transform.is_empty() {
+            return Some(&self.transform);
+        }
+        let name = self.name.as_str();
+        if std::path::Path::new(name).extension().is_some_and(|ext| {
+            ext.eq_ignore_ascii_case("dylib")
+                || ext.eq_ignore_ascii_case("so")
+                || ext.eq_ignore_ascii_case("dll")
+        }) {
+            return Some(name);
+        }
+        None
+    }
 }
 
 // CompilerOptions contains the compiler options exposed by the API.

@@ -1344,6 +1344,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "tsrs_plugin_api"
+version = "0.18.0"
+
+[[package]]
 name = "tsrs_printer"
 version = "0.18.0"
 dependencies = [
@@ -1461,6 +1465,7 @@ dependencies = [
  "tsrs_compiler",
  "tsrs_core",
  "tsrs_parser",
+ "tsrs_plugin_api",
  "tsrs_printer",
  "tsrs_scanner",
  "tsrs_tsoptions",
