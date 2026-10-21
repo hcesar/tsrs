@@ -3287,3 +3287,66 @@ compiler hot-path change. Release performance was not measured, and no
 numerical performance-equality claim follows; the user's nonblocking
 migration policy applies. Logs and complete outcome comparisons are under
 `target/port-623/0072-b5c34ba0c6/`.
+
+## 73. `a0a0ff55ca` — Simplify generic remapped `keyof` types
+
+Upstream `a0a0ff55cab4a1f81b7123ab219c97a2f1ed703d` resolves a generic
+mapped type's `keyof` when its keys have a name type and its declaration does
+not have a homomorphic `keyof` constraint. The Rust port adds
+`get_simplified_index_type` under the existing `TypeFlags::Index` simplification
+path and removes the old special remapping branch from indexed-access index
+validation. The index type is obtained inside the per-union-member check, as
+in Go. No additional semantic deviation was needed. The ignored `ts-ref`
+checkout advances to this source commit; the published TypeScript pin remains
+at the base revision until the full upgrade.
+
+Both changed upstream fixtures pass diagnostics, type/symbol, and JavaScript
+baselines. The new recursive indexed-access case and the added bare and
+template-literal `keyof` examples exercise the simplification. In the full
+suite, Go-history checking passes 13,568 diagnostic and 12,872 type/symbol
+baselines; canonical checking passes 13,568 and 12,871 respectively. Emit
+passes 13,572 diagnostics, 12,872 type/symbols, 13,498 JavaScript/declaration
+baselines, 149 JavaScript maps, and 156 source maps. All 18 Go-history, 18
+canonical, and 36 emit outcome lists preserve every source-72 result; the
+only additions are the new compiler fixture's pass results and its expected
+map skips. There are no new failures, crashes, or timeouts. Complete list
+comparisons are in `target/port-623/0073-a0a0ff55ca/`.
+
+Exact-source Fourslash passes 4,091 of 4,559 groups, skips 468, and fails
+none; all 4,623 named outcomes match source 72. The full Rust workspace,
+40 CLI regressions, WebAssembly target check, warnings-denied Clippy, source
+lint, and formatting pass. Fourslash and workspace transport tests required
+the established sandbox escalation for local Unix-socket binds. A concurrent
+workspace run hit the macOS FSEvents load stress assertion; the isolated
+stress case and an isolated full workspace rerun both passed. Generated-code
+freshness is checked after the corresponding commit, because that script
+compares the worktree with HEAD.
+
+Paired release measurements compared source 73 with the source-72 compiler
+binary (byte-identical to source 71) on three public projects, with five
+alternating pairs per cell. Each invocation used `-p <project> --noEmit
+--incremental false --pretty false`; single-threaded cells also used
+`--singleThreaded` and `RAYON_NUM_THREADS=1`. Instructions are macOS
+`/usr/bin/time -l` retired counts including kernel work; wall time surrounds
+the compiler process; peak RSS is the same `time -l` resident-set measure.
+Every before/after pair had the same stdout and exit status. Medians are
+before → after:
+
+| Public project | Mode | Instructions, billion | Wall, seconds | Peak RSS, MiB |
+| --- | --- | ---: | ---: | ---: |
+| Compiler-Unions | single | 3.273 → 3.273 (−0.007%) | 0.225 → 0.227 (+0.864%) | 59.5 → 59.6 (+0.079%) |
+| Compiler-Unions | default | 3.962 → 3.967 (+0.126%) | 0.106 → 0.107 (+1.185%) | 83.2 → 83.4 (+0.150%) |
+| webpack | single | 10.831 → 10.831 (−0.001%) | 0.891 → 0.890 (−0.120%) | 310.7 → 310.8 (+0.020%) |
+| webpack | default | 15.094 → 15.236 (+0.940%) | 0.185 → 0.188 (+1.802%) | 499.1 → 503.6 (+0.895%) |
+| vscode | single | 81.405 → 81.394 (−0.013%) | 7.698 → 7.726 (+0.366%) | 1606.7 → 1606.8 (+0.008%) |
+| vscode | default | 93.541 → 93.591 (+0.053%) | 1.037 → 1.047 (+0.962%) | 2109.0 → 2117.1 (+0.385%) |
+
+The five-pair webpack/default screen showed +0.940% instructions and
++1.802% wall. A separate ten-pair reversed-order confirmation against the
+same binaries measured 15.140 → 15.146 billion instructions (+0.042%),
+0.167 → 0.168 seconds (+0.627%) wall, and 501.1 → 500.1 MiB (−0.203%)
+peak RSS; the screen's larger increase did not reproduce. No threshold-level
+regression was confirmed in these local macOS runs, which are not the
+repository's two-publish Linux performance gate. The user's nonblocking
+migration policy applies. Raw samples, hashes, binaries, and the JavaScript
+collector are under `target/port-623/0073-a0a0ff55ca/perf/`.
