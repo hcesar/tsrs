@@ -3123,3 +3123,66 @@ wall-time, or peak-RSS comparison was collected for source 69 under the user's
 nonblocking migration policy; no numerical performance-equality claim follows.
 The earlier measured source-11 regressions remain disclosed above. Evidence
 is under `target/port-623/0069-fd871fcc3c/`.
+
+## 70. `d11c071957` — Fix decorator library examples
+
+Upstream `d11c0719574ac9124d58089cabea61bc346de3be` corrects two invalid
+`@example` blocks in `lib.decorators.d.ts`. The bundled Rust library now matches
+the exact upstream file byte for byte. Removing block comments from the old and
+new copies leaves identical bytes: no declaration signatures or executable
+TypeScript changed. Both revised examples, extracted from the library, compile
+without diagnostics with the exact-source Go compiler and tsrs. The ignored
+`ts-ref` checkout advances to source 70; the published TypeScript pin remains
+unchanged until the full upgrade.
+
+All 18 Go-history, 18 canonical, and 36 emit outcome lists are identical to
+source 69, with no lost passes, new crashes, or timeouts. Go-history and
+canonical checker diagnostics pass 13,566 of 13,570 baselines; Go-history
+type/symbol passes 12,870 and canonical passes 12,869. Emit passes 13,570
+diagnostics, 12,870 type/symbol, 13,496 JavaScript/declaration, 149 JavaScript
+map, and 156 source-map baselines. Exact-source Fourslash passes 4,088 of
+4,558 groups, skips 470, fails none, and preserves all 4,622 named source-69
+outcomes.
+
+The language-server `refs_smoke2` fixture initially held five old locations in
+the bundled decorators library. Regenerating its expected output with the
+source-70 Go language server changed only those five line positions in one of
+39 responses: one by three lines and four by seven lines, matching the added
+example lines. The full Rust workspace then passes, as do 40 CLI regressions,
+the WebAssembly target check, warnings-denied Clippy, source lint, formatting,
+and generated-code freshness. The Fourslash and workspace transport checks
+needed the established sandbox escalation for local Unix-socket binds.
+Neither the compatibility table nor README summaries change: the updated
+examples introduce no capability or pass-count change.
+
+Paired release measurements use the source-68 binary as the preceding code
+equivalent, because source 69 changed only a Rust comment and documentation.
+Five alternating public-project pairs per cell ran `-p <project> --noEmit
+--incremental false --pretty false`. Instructions are macOS `time -l` retired
+counts, wall time surrounds the compiler process, and peak RSS is the same
+`time -l` resident-set measure. Medians are before → after:
+
+| Public project | Mode | Instructions, billion | Wall, seconds | Peak RSS, MiB |
+| --- | --- | ---: | ---: | ---: |
+| Compiler-Unions | single | 3.273 → 3.273 (−0.001%) | 0.241 → 0.242 (+0.279%) | 59.5 → 59.5 (+0.000%) |
+| Compiler-Unions | default | 3.963 → 3.964 (+0.024%) | 0.131 → 0.132 (+0.597%) | 83.5 → 83.2 (−0.300%) |
+| webpack | single | 10.834 → 10.833 (−0.009%) | 0.893 → 0.938 (+4.971%) | 310.7 → 310.7 (+0.010%) |
+| webpack | default | 15.216 → 15.227 (+0.073%) | 0.186 → 0.188 (+0.826%) | 502.9 → 502.6 (−0.071%) |
+| vscode | single | 82.231 → 82.397 (+0.202%) | 7.809 → 8.205 (+5.078%) | 1606.6 → 1606.7 (+0.002%) |
+| vscode | default | 93.519 → 93.507 (−0.013%) | 1.005 → 1.059 (+5.445%) | 2114.8 → 2122.5 (+0.367%) |
+
+The five-pair screen showed mixed instructions and RSS, with +4.971%,
++5.078%, and +5.445% wall medians on webpack/single, vscode/single, and
+vscode/default. All five paired wall comparisons were positive in those
+three cells, so one reversed-order ten-pair confirmation batch was run for
+each. Its wall medians were +0.212%, −0.162%, and −0.916%, respectively;
+the screened multi-percent wall increases did not reproduce. Confirmation
+instruction medians were −0.010%, −0.013%, and +0.088%, respectively.
+Single-threaded peak RSS remained 32 KiB higher (+0.010% webpack,
++0.002% vscode), while vscode/default was −0.048% in confirmation.
+No further performance sampling was done for this source. These local results
+are not the repository's two-publish Linux performance gate.
+The user's nonblocking migration policy permits this correctness-valid port
+while measured changes remain disclosed. Raw samples, stdout and binary
+hashes, and all validation evidence are under
+`target/port-623/0070-d11c071957/`.
