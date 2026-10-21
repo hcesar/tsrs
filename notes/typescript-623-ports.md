@@ -3461,3 +3461,30 @@ with the tradeoff disclosed. These local macOS samples do not replace the
 repository's two-publish Linux gate. Raw paired samples, manifests,
 binaries, and JavaScript collectors are under
 `target/port-623/0075-b82cd139dc/perf/`.
+
+## 76. `09e0de0ade` — Build release platforms in parallel
+
+Upstream `09e0de0ade21319a358d8dcea11240c0a322bbef` changes only
+`Herebyfile.mjs` and `tools/pipelines/typescript-build.yml`. Its Azure
+pipeline creates one job per native platform package, builds the main package
+after those jobs, and assembles the platform artifacts for testing and
+publishing. tsrs has no Azure/Hereby release pipeline. Its GitHub Actions
+`release.yml` already builds the Unix targets in a matrix, plus independent
+Windows, musl, and WebAssembly jobs, each depending only on `version`.
+`publish` waits for them all, downloads the artifacts, requires every release
+binary, and assembles the npm packages. There is therefore no tsrs workflow
+change to make for this source commit. This is an evidence-only port; no
+semantic deviation or user-visible capability change was needed.
+
+The ignored `ts-ref` checkout advances from source 75 to this exact commit.
+The upstream diff touches neither `tsc/` nor compiler fixtures, and this
+tsrs commit changes only this ledger entry. Thus the compiler, Fourslash,
+workspace, and runtime inputs are identical to source 75; its full passing
+evidence is reused: 18 Go-history, 18 canonical, and 36 emit outcome lists
+had no changes from source 74; exact-source Fourslash passed 4,091 groups,
+skipped 468, failed none, with all 4,623 named outcomes unchanged. Workspace,
+40 CLI regressions, WebAssembly, warnings-denied Clippy, source lint, and
+formatting also passed at source 75. Evidence is under
+`target/port-623/0075-b82cd139dc/`. The published TypeScript pin remains at
+the base revision until the complete upgrade. No compiler runtime or release
+workflow code changed, so no new performance measurement applies.
