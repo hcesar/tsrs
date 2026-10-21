@@ -2102,13 +2102,13 @@ pub struct ConstrainedType {
 
 // StructuredType (base of all types with members)
 
-// Go's StructuredType embeds ConstrainedType; here the base constraint of a structured type (set for 4% of the 7.6M
-// on the private monorepo) is kept in `Checker::structured_type_base_constraints` (`resolved_base_constraint_of`), and
+// Go's StructuredType embeds ConstrainedType; here the base constraint of a structured type is kept in
+// `Checker::structured_type_base_constraints` (`resolved_base_constraint_of`), and
 // `try_as_constrained_type()` is None for structured types.
 //
-// The resolved members (Go's five fields) live in a `StructuredMembers` record allocated on the first write: most
-// structured types are never resolved (on the private monorepo 4.9M of 7.6M: type references answered by lazy member tables,
-// unions and intersections whose members nobody asks for), and those now carry one pointer instead of 48 bytes.
+// Go now keeps members and properties inline, with optional signatures, index infos, and abstract-construct cache
+// in a cold extra record. Rust keeps all resolved members in one `StructuredMembers` record allocated on first write.
+// Many remain unresolved through lazy tables or unqueried union/intersection members, carrying one pointer instead of 48 bytes.
 // Reads of an absent record return the zero values (nil members, empty slices, count 0), exactly like reading the
 // unset fields; once allocated, every getter returns exactly what was last set (except that an empty index info
 // list reads as `&[]` until a non-empty one is set, see `CountOrIndexInfos`).

@@ -4323,3 +4323,48 @@ one event in two otherwise passing full-workspace runs. The initial sandboxed
 workspace run also could not create the API transport's Unix socket, so the
 completed run used socket access. Release binary, package results, and gate
 logs are under `target/port-623/0092-56ce7acfc8/`.
+
+## 93. `82db71afa0` — Move optional structured type shape into cold storage
+
+Upstream `82db71afa079da1e0c8b09a72914c0e3f70e85d8` moves signatures,
+their call-signature count, index infos, and the cached type without abstract
+construct signatures into a lazily allocated Go `structuredTypeExtra`. Its
+new tests pin the smaller hot layout, absent-extra reads, writes, identity,
+and retention across garbage collection. There is no compiler fixture,
+library, or user-visible behavior change.
+
+Rust already keeps the entire resolved shape, including members and
+properties, behind a first-write `StructuredMembers` record. Its hot
+`StructuredType` is one optional pointer: four bytes with compressed handles
+or eight with plain pointers, both pinned by compile-time assertions. The
+cold record is 32 bytes on 64-bit targets. Call-signature count and the
+uncommon index-info tail share one word. The abstract-construct cache is a
+checker-owned map populated only when needed. Adding Go's extra tail to the
+Rust record would add an allocation and indirection without shrinking the
+hot type. This port corrects the Go-layout comment and retains the already
+measured Rust representation. The ignored `ts-ref` checkout advances to the
+exact upstream commit; the published TypeScript pin remains at the base
+revision until the full upgrade. The compatibility table and README
+summaries do not change.
+
+The existing layout and memory evidence are in `notes/mem-round3.md` and
+`notes/mem-layout3.md`. We also reviewed `docs/RUST.md` Techniques,
+`notes/perf-round2-followups.md` Measured and rejected, and the newest
+`notes/mem-round4.md`. Exact-source Go `./internal/checker` passes, including
+its new structured-type layout and extra-record tests. Existing Rust layout
+assertions and the payload-cast arena-growth test pass; the latter checks that
+arena growth preserves a type payload's address.
+
+Only a Rust comment and this ledger change; source 92's full 18 Go-history,
+18 canonical, and 36 emit named compiler outcome lists apply unchanged,
+with no lost pass. Its exact-source Fourslash result likewise remains 4,091
+exercised groups passing, 470 skipped, and none failing. Source 92's full
+workspace and 40 CLI regressions apply to the unchanged runtime. The release
+CLI is byte-identical to source 92, so its paired public instructions-retired,
+peak-RSS, and wall-time measurements apply unchanged: source 93 introduces
+no performance regression for the same inputs (both SHA-256
+`f52427e87b719039264ffc48a37bb205b1cd2dcb52b4b30bc1e7090da6cbb405`).
+The dev CLI and testrunner
+build, Rust checker unit tests, warnings-denied Clippy, source lint,
+formatting, and generator freshness pass. Evidence is under
+`target/port-623/0093-82db71afa0/`.
