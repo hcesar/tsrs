@@ -3688,3 +3688,56 @@ regression.
 
 The release binaries, paired samples, output manifests, and JavaScript
 collectors are under `target/port-623/0080-1d76970f7a/perf/`.
+
+## 81. `7856840543` — Name decorated anonymous class declarations
+
+Upstream `7856840543f3c536ac80e4b141c95a7946ddb8ac` fixes a crash when
+ES2022 decorator lowering encounters an anonymous class declaration that is
+not an `export default` declaration. The Rust runtime-syntax transformer now
+generates a name for a directly decorated anonymous class in that case, as
+Go does. It retains the existing path for valid `export default` classes.
+The new upstream fixture deliberately has two grammar errors (`@dec class {}`
+and `@dec default class {}`); both errors remain while their JavaScript emits
+with generated names. The ignored `ts-ref` checkout advances to this exact
+source commit; the published TypeScript pin stays at the base revision until
+the complete upgrade.
+
+Exact-source Go passes the new fixture's error, output, type, symbol, and
+other harness subtests. Rust passes its focused error, `.types`, `.symbols`,
+and `.js` baselines. All 18 Go-history, 18 canonical, and 36 emit outcome
+lists retain every source-80 passing name, with only the new fixture's
+expected passes and skipped maps added. Go-history checking passes 13,571
+diagnostic and 12,875 type/symbol baselines; canonical passes 13,571 and
+12,874. Emit passes 13,501 JavaScript, 149 JavaScript-map, and 156 source-map
+baselines. Exact-source Fourslash retains all 4,627 named outcomes: 4,091
+exercised groups pass, 470 groups skip, and none fail. The full Rust
+workspace, 40 CLI regressions, WASM target check, warnings-denied Clippy,
+source lint, and formatting pass. The workspace and Fourslash suites needed
+local Unix-socket access after sandboxed socket creation was denied. Evidence
+and the outcome-list comparator are under
+`target/port-623/0081-7856840543/`.
+
+Paired local macOS release measurements used the immediate source-80 binary
+and five alternating pairs per cell. All public-project stdout hashes and
+all emitted-file manifests for a 128-module decorated-class workload match.
+The exact invalid anonymous-class crash case cannot be measured in pairs
+because source 80 aborts on it; the emit workload uses valid anonymous
+decorated default classes. macOS `time -l` includes kernel work in retired
+instruction counts, so these results are a local regression screen, not
+the repository's deterministic Linux instruction gate. The largest measured
+instruction increase is +0.333% on the small decorator workload; the largest
+peak-RSS increase is +0.143% on webpack. Neither is material.
+
+| case | instructions, source 80 → 81 | peak RSS, MiB, source 80 → 81 | wall change |
+| --- | ---: | ---: | ---: |
+| Compiler-Unions, single | 3.273254G → 3.273150G | 59.64 → 59.61 | -0.59% |
+| Compiler-Unions, default | 3.965517G → 3.963499G | 83.38 → 83.38 | -2.41% |
+| webpack, single | 10.840964G → 10.840620G | 311.31 → 311.28 | -0.52% |
+| webpack, default | 15.205373G → 15.231194G | 501.72 → 502.44 | -0.01% |
+| VS Code, single | 81.495993G → 81.471324G | 1,602.98 → 1,602.95 | -0.74% |
+| VS Code, default | 93.687082G → 93.670161G | 2,111.36 → 2,102.00 | +0.15% |
+| Decorator emit, single | 0.349400G → 0.349675G | 22.27 → 22.28 | -0.21% |
+| Decorator emit, default | 0.511831G → 0.513536G | 39.77 → 39.72 | -0.61% |
+
+The release binaries, JavaScript collectors, raw paired samples, and output
+hashes are under `target/port-623/0081-7856840543/perf/`.

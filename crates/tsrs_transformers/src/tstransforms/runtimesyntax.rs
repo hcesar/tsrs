@@ -912,7 +912,14 @@ impl RuntimeSyntaxTransformer {
                     self.compiler_options.experimental_decorators.is_true(),
                     node,
                     None,
-                ))
+                )
+                || !node.modifier_flags().contains(ModifierFlags::ExportDefault)
+                    && ast::node_is_decorated(
+                        self.compiler_options.experimental_decorators.is_true(),
+                        node,
+                        None,
+                        None,
+                    ))
         {
             name = Some(f.new_generated_name_for_node(node));
         }
