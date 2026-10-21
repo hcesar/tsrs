@@ -4209,3 +4209,64 @@ The dev CLI and testrunner build, warnings-denied Clippy, source lint, and
 formatting pass. Generator freshness is checked after the commit because
 the generator script rejects the intentional dirty checker comment. The
 binary, hashes, and focused logs are in `target/port-623/0090-39b621793a/`.
+
+## 91. `14f7762dde` — Recover concrete AST nodes from embedded headers
+
+Upstream `14f7762dde8476906f84eb3a935268fd9d8c4420` removes the Go
+`Node.data any` field and recovers each concrete node through the header at
+offset zero, with kind-checked casts and constructors. Rust already
+coallocates the AST header and typed payload in `#[repr(C)] NodeAlloc<T>`;
+its 24-byte header precedes the payload at offset zero, and generated
+`NodeDataTag` dispatch and checked casts avoid an interface field. The
+missing safety behavior was rejection of invalid kinds passed to `new_token`
+and the six generated constructors that accept a kind argument. The Rust
+generator now derives canonical accepted kinds from the same schema ordering
+as Go and asserts them before allocation. `new_token` rejects non-token
+kinds; a preexisting header test now uses valid `Unknown` instead of
+`Count`. Focused Rust tests cover every valid kind in the six families,
+invalid kinds, cast rejection, and header offsets. Go's `Herebyfile.mjs`
+coverage-only `-dwarf=false` flag has no Rust build equivalent. The ignored `ts-ref`
+checkout advances to source 91; the published TypeScript pin remains at the
+base revision until the full upgrade. No user-visible capability or pass
+count changes, so the compatibility table and README summaries are unchanged.
+
+The exact-source Go AST package, including its new factory-kind, layout,
+cast, and payload-lifetime tests, passes. The dev CLI and testrunner build
+passes. All 18 Go-history, 18 canonical, and 36 emit named compiler outcome
+lists equal source 90's unchanged-runtime source 89 results: Go-history
+retains 13,572 diagnostic and 12,876 type/symbol passes, canonical retains
+13,572 and 12,875, and emit retains 13,502 JavaScript, 149 JavaScript-map,
+and 156 source-map passes. Exact-source Fourslash has 4,091 exercised groups
+passing, 470 skipped, and none failing. The full Rust workspace, 40 CLI
+regressions, `wasm32-wasip1` check, warnings-denied Clippy, source lint, and
+formatting pass. All generators were rerun; the generated AST output stayed
+byte-identical to the formatted candidate. The Fourslash and workspace runs
+used local Unix-socket access for their server tests.
+Evidence, including the JavaScript outcome comparator and exact-source
+Fourslash wrapper, is under `target/port-623/0091-14f7762dde/`.
+
+Prior work was reviewed in `docs/RUST.md` Techniques,
+`notes/perf-round2-followups.md` Measured and rejected, the newest
+`notes/mem-round4.md`, and the source-84 AST port. No rejected redesign was
+repeated: Rust's already compact allocation layout stays intact. Paired
+local macOS release runs used source 90's frozen binary and the source 91
+binary, five alternating pairs per public cell with matching exit codes and
+output hashes. macOS `/usr/bin/time -l` includes kernel work in retired
+instruction counts, so these are a local regression screen rather than the
+repository's deterministic Linux instruction gate.
+
+| public case | mode | instructions, source 90 → 91 | peak RSS MiB, source 90 → 91 | wall change |
+| --- | --- | ---: | ---: | ---: |
+| Compiler-Unions | single | 3.2719G → 3.2720G (+0.004%) | 59.59 → 59.63 (+0.052%) | -0.10% |
+| Compiler-Unions | default | 3.9644G → 3.9615G (-0.073%) | 83.58 → 83.20 (-0.449%) | -1.15% |
+| webpack | single | 10.8344G → 10.8356G (+0.011%) | 311.59 → 311.61 (+0.005%) | +0.30% |
+| webpack | default | 15.1066G → 15.2009G (+0.624%)* | 502.27 → 502.72 (+0.090%) | +1.67%* |
+| VS Code | single | 81.5784G → 81.5708G (-0.009%) | 1613.63 → 1613.63 (0%) | -0.16% |
+| VS Code | default | 93.7960G → 93.7902G (-0.006%) | 2109.94 → 2104.48 (-0.258%) | -0.81% |
+
+*A reversed ten-pair webpack/default confirmation changed instructions to
+15.2117G → 15.1904G (-0.140%), peak RSS to 503.70 → 502.61 MiB
+(-0.216%), and wall time to -3.68%. The initial increase did not repeat;
+there is no confirmed performance regression. The release binaries, raw
+paired samples, output hashes, and both measurement batches are in the
+evidence directory.

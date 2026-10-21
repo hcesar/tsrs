@@ -10920,6 +10920,7 @@ impl Node {
 
 impl NodeFactory {
     pub fn new_token(&self, kind: Kind) -> P<Node> {
+        assert!(is_token_kind(kind), "Invalid token kind");
         match kind {
             Kind::NumericLiteral => self.new_node(
                 kind,
@@ -11252,6 +11253,10 @@ impl NodeFactory {
         expression: P<Node>,
         statement: P<Node>,
     ) -> P<Node> {
+        assert!(
+            matches!(kind, Kind::ForInStatement | Kind::ForOfStatement),
+            "Invalid node kind for ForInOrOfStatement"
+        );
         self.new_node(
             kind,
             ForInOrOfStatement {
@@ -11430,6 +11435,10 @@ impl NodeFactory {
         expression: Option<P<Node>>,
         statements: P<NodeList>,
     ) -> P<Node> {
+        assert!(
+            matches!(kind, Kind::CaseClause | Kind::DefaultClause),
+            "Invalid node kind for CaseOrDefaultClause"
+        );
         self.new_node(
             kind,
             CaseOrDefaultClause {
@@ -11742,6 +11751,10 @@ impl NodeFactory {
     }
 
     pub fn new_binding_pattern(&self, kind: Kind, elements: P<NodeList>) -> P<Node> {
+        assert!(
+            matches!(kind, Kind::ObjectBindingPattern | Kind::ArrayBindingPattern),
+            "Invalid node kind for BindingPattern"
+        );
         self.new_node(kind, BindingPattern { elements })
     }
 
@@ -13307,6 +13320,18 @@ impl NodeFactory {
     }
 
     pub fn new_keyword_expression(&self, kind: Kind) -> P<Node> {
+        assert!(
+            matches!(
+                kind,
+                Kind::FalseKeyword
+                    | Kind::ImportKeyword
+                    | Kind::NullKeyword
+                    | Kind::SuperKeyword
+                    | Kind::ThisKeyword
+                    | Kind::TrueKeyword
+            ),
+            "Invalid node kind for KeywordExpression"
+        );
         self.new_node(
             kind,
             KeywordExpression { flow_node_base: FlowNodeBase { flow_node: OwnedCell::new(None) } },
@@ -14358,6 +14383,24 @@ impl NodeFactory {
     }
 
     pub fn new_keyword_type_node(&self, kind: Kind) -> P<Node> {
+        assert!(
+            matches!(
+                kind,
+                Kind::VoidKeyword
+                    | Kind::AnyKeyword
+                    | Kind::BooleanKeyword
+                    | Kind::IntrinsicKeyword
+                    | Kind::NeverKeyword
+                    | Kind::NumberKeyword
+                    | Kind::ObjectKeyword
+                    | Kind::StringKeyword
+                    | Kind::SymbolKeyword
+                    | Kind::UndefinedKeyword
+                    | Kind::UnknownKeyword
+                    | Kind::BigIntKeyword
+            ),
+            "Invalid node kind for KeywordTypeNode"
+        );
         self.new_empty_node(kind, NodeDataTag::KeywordTypeNode)
     }
 
@@ -16687,6 +16730,10 @@ impl NodeFactory {
         is_name_first: bool,
         comment: Option<P<NodeList>>,
     ) -> P<Node> {
+        assert!(
+            matches!(kind, Kind::JSDocParameterTag | Kind::JSDocPropertyTag),
+            "Invalid node kind for JSDocParameterOrPropertyTag"
+        );
         self.new_node(
             kind,
             JSDocParameterOrPropertyTag {
