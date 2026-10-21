@@ -4445,3 +4445,47 @@ disclosed, without claiming exact equality or a confirmed material
 regression. The deterministic Linux `bench/count.py` gate was unavailable on
 this macOS host. Raw pair measurements, outputs, release binaries, test logs,
 and the JavaScript collector are under `target/port-623/0094-158a0805fe/`.
+
+## 95. `e67b60e338` — Bound arena retention by bytes
+
+Upstream `e67b60e3388a08368f09acbde2efaf8e67cb511a` changes only Go's
+generic `core.Arena[T]` and adds three arena tests. Its growth limit is now
+`min(2 * len, 256, max(512 / max(sizeof(T), 1), 1))` values. This targets
+roughly 512 bytes before Go allocator size-class rounding: a surviving pointer
+into a typed backing array otherwise keeps the entire array and its referenced
+objects reachable to Go's garbage collector. The tests check large-value
+retention, mixed single-value/slice allocation with stable addresses, and
+zero-sized values. The exact-source Go `./internal/core` package passes,
+including all three new tests.
+
+Rust has no typed `Arena[T]` backing arrays or garbage-collector scanning of
+interior pointers. `P<T>` allocates in the shared per-thread bump arena, while
+explicitly owned regions release related objects together; its link stores
+allocate values through that model. The Rust arena's separate 512-byte limit
+is the maximum recycled-block size, not a chunk-retention limit. Shrinking
+Rust chunks to Go's new size would not reproduce the Go GC fix and would
+replace the measured Rust allocation design. This is therefore an
+evidence-only port, with no Rust code, fixture, library, generator, or
+user-visible capability change. The ignored `ts-ref` checkout advances to
+this exact source commit; the published TypeScript pin remains at the base
+revision until the full upgrade. The compatibility table and README summaries
+stay unchanged.
+
+We reviewed `docs/RUST.md` Techniques, the rejected ideas in
+`notes/perf-round2-followups.md`, the newest `notes/mem-round4.md`, and the
+arena/recycling evidence in `notes/mem-recycle.md` and
+`notes/mem-linux-residency-32.md`. Rust's focused arena suite passes nine
+tests; its deliberate Miri negative control remains ignored. The dev CLI and
+testrunner build, warnings-denied Clippy, source lint, formatting, and
+generator freshness pass. Because source 95 changes no Rust compiler inputs,
+source 94's full 18 Go-history, 18 canonical, and 36 emit named compiler
+outcome lists apply unchanged, with no lost pass. Its exact-source Fourslash
+result remains 4,091 exercised groups passing, 470 skipped, and none failing;
+its full workspace and 40 CLI regressions also apply to the identical runtime.
+
+The source 95 release CLI is byte-identical to source 94 (both SHA-256
+`ee7bf17ed86f870d4e042afe220855b2d745fa4e080946a2e6958a48378f0e99`).
+Thus source 94's public paired instructions-retired, peak-RSS, and wall-time
+measurements above apply unchanged to the same inputs: source 95 introduces no
+Rust performance regression. Logs and the binary comparison are under
+`target/port-623/0095-e67b60e338/`.
