@@ -2978,3 +2978,42 @@ comparison was collected for source 66 under the user's nonblocking migration
 policy; no numerical performance-equality claim follows. The measured
 source-11 regressions remain disclosed above. Evidence is under
 `target/port-623/0066-71956e9735/`.
+
+## 67. `bdc93bd987` — Keep function receivers in downleveled static blocks
+
+Upstream `bdc93bd98765f15016f0e36632863b7d9fea8619` passes the active
+visitor into `visitPropertyAccessExpressionForSubstitution`. Rust now does the
+same: the class-alias-only substitution visitor traverses property-access
+receivers in subtrees that need no class-field or lexical-`this` transform,
+while ordinary property accesses continue to use the full class-fields
+visitor. Before the edit, `classStaticBlock29(target=es2021)` emitted
+`_a.bar()` inside two regular functions nested in a downleveled static block,
+where Go emitted `this.bar()`. Afterward, both the ES2021 and ES2022 variants
+match exact-source diagnostics, types, symbols, and JavaScript output. The
+ES2021 variant changed from one JavaScript failure to a pass; ES2022 remained
+passing.
+
+All 18 Go-history, 18 canonical, and 36 emit outcome lists retain every
+source-66 passing outcome, with no new failures, crashes, or timeouts. The two
+new fixture variants add two diagnostics, type, symbol, and JavaScript passes
+in the corresponding modes; their JavaScript-map and source-map baselines are
+intentionally absent. Go-history and canonical checker diagnostics pass 13,565
+of 13,569 baselines; Go-history type/symbol passes 12,870 and canonical 12,869.
+Emit passes 13,569 diagnostics, 12,870 type/symbol, 13,495
+JavaScript/declaration, 149 JavaScript-map, and 156 source-map baselines.
+Exact-source Fourslash passes 4,088 of 4,558 groups, skips 470, fails none,
+and preserves all 4,622 named source-66 outcomes. The ignored `ts-ref`
+checkout advances to source 67; the published TypeScript pin remains
+unchanged until the full upgrade.
+
+The full Rust workspace, 40 CLI regressions, WebAssembly target check,
+warnings-denied Clippy, source lint, formatting, and generated-code freshness
+pass. Fourslash and the workspace transport socket test used the established
+sandbox escalation after local Unix-socket binds were denied. The
+compatibility table records the two new passes and the corrected JavaScript
+emit behavior; the root and npm README compatibility summaries need no change
+because JavaScript emit remains supported. No release instruction-count,
+wall-time, or peak-RSS comparison was collected for source 67 under the user's
+nonblocking migration policy; no numerical performance-equality claim
+follows. The measured source-11 regressions remain disclosed above. Evidence
+is under `target/port-623/0067-bdc93bd987/`.
