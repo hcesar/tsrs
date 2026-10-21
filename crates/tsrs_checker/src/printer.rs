@@ -1366,8 +1366,22 @@ pub const stKindGlobals: symbolTableID = 3 << stKindShift;
 pub const stKindResolvedExports: symbolTableID = 4 << stKindShift; // resolved/derived exports from getExportsOfSymbol, distinct from raw sym.Exports
 
 // stKindMask extracts the kind bits from a symbolTableID.
-// Go writes `(iota - 1) << stKindShift` as the sixth constant of the block, so iota is 5 here.
-pub const stKindMask: symbolTableID = (5 - 1) << stKindShift;
+pub const stKindMask: symbolTableID = !((1 << stKindShift) - 1);
+
+#[cfg(test)]
+mod symbol_table_kind_tests {
+    use super::*;
+
+    #[test]
+    fn mask_extracts_every_table_kind_without_source_id_bits() {
+        let source_id = 0x12345;
+        for kind in
+            [stKindLocals, stKindExports, stKindMembers, stKindGlobals, stKindResolvedExports]
+        {
+            assert_eq!((kind | source_id) & stKindMask, kind);
+        }
+    }
+}
 
 // symbolaccessibility.go:417
 pub(crate) fn symbol_table_id_from_locals(node: P<Node>) -> symbolTableID {

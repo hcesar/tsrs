@@ -3488,3 +3488,39 @@ formatting also passed at source 75. Evidence is under
 `target/port-623/0075-b82cd139dc/`. The published TypeScript pin remains at
 the base revision until the complete upgrade. No compiler runtime or release
 workflow code changed, so no new performance measurement applies.
+
+## 77. `3789ddb12a` — Fix symbol table kind mask
+
+Upstream `3789ddb12afb2ab5adc4f1148603bf3f38319f50` changes the
+checker’s symbol-table kind mask to select all three high kind bits. Rust had
+ported the old mask, which selected only the highest bit: exports, members,
+and globals were all classified as locals, bypassing export/global alias-list
+caching and the member-table early skip. The Rust mask now matches Go. A
+focused unit regression checks all five kinds with a nonzero source ID; the
+old mask fails for exports, members, and globals. Upstream adds no compiler
+fixture, and no semantic deviation was needed. The ignored `ts-ref` checkout
+advances to this source commit; the published TypeScript pin remains at the
+base revision until the full upgrade.
+
+The exact-source Go checker package test passes. All 18 Go-history, 18
+canonical, and 36 emit outcome lists are byte-for-byte unchanged from source
+75 (source 76 changed only release automation). Full Go-history checking
+passes 13,569 diagnostic and 12,873 type/symbol baselines; canonical
+checking passes 13,569 and 12,872; emit passes 13,573 diagnostics, 12,873
+type/symbols, 13,499 JavaScript/declaration baselines, 149 JavaScript maps,
+and 156 source maps. The initial emit attempt used the runner's short default
+timeout and timed out on the existing slow
+`intersectionConstructorReductionCrash` case; the complete run with
+`--timeout 120` has no timeouts or lost outcomes. Exact-source Fourslash
+passes 4,091 groups, skips 468, fails none, and all 4,623 named outcomes
+match source 75. The Rust workspace, 40 CLI regressions, WebAssembly target
+check, warnings-denied Clippy, source lint, and formatting pass. Fourslash
+and the workspace transport test needed the established sandbox escalation
+for local Unix-socket binds. Generated-code freshness is checked after the
+commit because that script compares the worktree with HEAD. Evidence is under
+`target/port-623/0077-3789ddb12a/`.
+
+This change alters alias caching and member-table scanning, but no paired
+release performance measurement was collected for this entry; no instruction,
+wall-time, or peak-RSS claim is made. The user's nonblocking migration policy
+applies.
