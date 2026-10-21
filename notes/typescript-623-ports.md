@@ -2858,3 +2858,45 @@ counts are unavailable on this macOS host, so no instruction comparison is
 claimed. The release commands used `bench/measure.py` with `-p <project>
 --noEmit --incremental false --pretty false`, plus `--singleThreaded` for
 single-threaded rows. Evidence is under `target/port-623/0063-aa8149273b/`.
+
+## 64. `95c9d99127` — Preserve decorated class names with private self-references
+
+Upstream `95c9d99127230f898e8edc0c75079ce9d3ad1ea9` changes the class-field
+transformer to compute `hasTransformableStatics` for decorated class declarations
+too, then enter their pending-statement path only when statics or pending
+expressions require it. Rust mirrors that branch structure. A decorated class
+with a private self-reference can reserve a constructor temporary, but without
+transformable statics or pending expressions the class expression must still be
+assigned directly to its named variable. Before the port, Rust emitted
+`var C = _a = class` where Go emitted `var C = class`, giving the anonymous
+class the wrong inferred name. The same branch also moved computed-field
+initialization unnecessarily. The upstream fixtures cover private fields,
+methods, accessors, and computed fields across ES2015, ES2022, and ESNext.
+Before the Rust edit, the six focused variants had two JavaScript passes,
+three failures, and one ES5 skip. Afterward all five emitted variants pass;
+the five updated upstream JavaScript baselines match exactly.
+
+All 18 Go-history, 18 canonical, and 36 emit pass/nonpass lists retain every
+source-63 passing outcome, with no new failure, crash, or timeout. The two new
+computed-field variants add two diagnostics and JavaScript passes; they skip
+type, symbol, JavaScript-map, and source-map baselines because upstream provides
+none. Go-history and canonical checker diagnostics pass 13,560 baselines;
+Go-history type/symbol passes 12,868 and canonical 12,867. Emit passes 13,564
+diagnostics, 12,868 type/symbol, 13,490 JavaScript/declaration, 149
+JavaScript-map, and 156 source-map baselines. Exact-source Fourslash passes
+4,088 of 4,558 groups, skips 470, fails none, and preserves all 4,622 named
+source-63 outcomes. The ignored `ts-ref` checkout advances to source 64; the
+published TypeScript pin remains unchanged until the full upgrade.
+
+The full Rust workspace, 40 CLI regressions, WebAssembly target check,
+warnings-denied Clippy, source lint, formatting, and generated-code freshness
+pass. Fourslash and the workspace transport socket test used the established
+sandbox escalation after local Unix-socket binds were denied. The compatibility
+table records the new emit evidence. The root and npm README compatibility
+summaries need no change because the existing JavaScript-emit capability stays
+supported.
+
+No release instruction-count, wall-time, or peak-RSS comparison was collected
+for source 64 under the user's nonblocking migration policy; no numerical
+performance-equality claim follows. The measured source-11 regressions remain
+disclosed above. Evidence is under `target/port-623/0064-95c9d99127/`.
