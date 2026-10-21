@@ -22,5 +22,4 @@ tsrs_vfs.workspace = true
 mimalloc-safe.workspace = true
 
 [lib]
-test = false
 doctest = false
