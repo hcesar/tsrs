@@ -156,6 +156,8 @@ pub enum CachedTypeKind {
     DecoratorContextStatic,
     DecoratorContextPrivate,
     DecoratorContextPrivateStatic,
+    SimplifiedConditionalTypeForReading,
+    SimplifiedConditionalTypeForWriting,
 }
 
 // CachedTypeKey

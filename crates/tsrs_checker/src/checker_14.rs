@@ -289,6 +289,27 @@ impl Checker {
 
     // checker.go:28476
     pub(crate) fn get_simplified_conditional_type(&mut self, t: P<Type>, writing: bool) -> P<Type> {
+        let key = CachedTypeKey {
+            kind: if_else(
+                writing,
+                CachedTypeKind::SimplifiedConditionalTypeForWriting,
+                CachedTypeKind::SimplifiedConditionalTypeForReading,
+            ),
+            type_id: t.id,
+        };
+        if let Some(&cached) = self.cached_types.get(&key) {
+            return cached;
+        }
+        let result = self.get_simplified_conditional_type_worker(t, writing);
+        self.cached_types.insert(key, result);
+        result
+    }
+
+    pub(crate) fn get_simplified_conditional_type_worker(
+        &mut self,
+        t: P<Type>,
+        writing: bool,
+    ) -> P<Type> {
         let check_type = t.as_conditional_type().check_type.get().unwrap();
         let extends_type = t.as_conditional_type().extends_type.get().unwrap();
         let true_type = self.get_true_type_from_conditional_type(t);

@@ -3792,3 +3792,59 @@ does not establish a material regression.
 to +0.84%; its instruction and RSS deltas were both below 0.05%.
 The release binaries, paired samples, output hashes, JavaScript collector,
 and confirmation runs are under `target/port-623/0082-3c1e603122/perf/`.
+
+## 83. `6aace8b1bb` — Cache simplified conditional types by read/write mode
+
+Upstream `6aace8b1bbe6c55eb8b4d01cd35487172905f8cc` caches the result of
+`getSimplifiedConditionalType` for a type ID and the reading or writing mode.
+The Rust checker adds the same two `CachedTypeKind` entries and keeps the
+original algorithm in a worker invoked only on a cache miss. The two modes
+must have separate keys: the new fixture reads a conditional type successfully
+but writes to it with TS2322. The ignored `ts-ref` checkout advances to this
+exact source commit; the published TypeScript pin stays at the base revision
+until the complete upgrade.
+
+Exact-source Go passes all nine new fixture subtests, and Rust passes the
+focused diagnostic, `.types`, `.symbols`, and `.js` baselines. All 18
+Go-history, 18 canonical, and 36 emit outcome lists retain every source-82
+result, with only the new fixture's expected passes and skipped maps added.
+Go-history checking passes 13,572 diagnostic and 12,876 type/symbol
+baselines; canonical passes 13,572 and 12,875. Emit passes 13,502 JavaScript,
+149 JavaScript-map, and 156 source-map baselines. Exact-source Fourslash
+retains all 4,627 named outcomes: 4,091 exercised groups pass, 470 groups
+skip, and none fail. The full Rust workspace, 40 CLI regressions, WASM target
+check, warnings-denied Clippy, source lint, and formatting pass. The workspace
+and Fourslash suites needed local Unix-socket access after sandboxed socket
+creation was denied. Full conformance comparisons and other evidence are under
+`target/port-623/0083-6aace8b1bb/`.
+
+Prior work was checked before this cache port: `docs/RUST.md` Techniques,
+`notes/perf-round2-followups.md` Measured and rejected, the newest
+`notes/mem-round4.md`, and the checker cache/history notes. None rejected
+this exact upstream cache. Cache history can change type IDs or budget errors,
+so the full named outcomes and exact Go fixture were checked rather than
+assuming a cached result is output-neutral.
+
+Paired local macOS release measurements used the immediate source-82 binary,
+five alternating pairs per public project and checker mode, and identical
+compiler output hashes. macOS `time -l` includes kernel work in its retired
+instruction counts, so this is a local regression screen rather than the
+repository's deterministic Linux instruction gate. The largest instruction
+increase was +0.261% and the largest peak-RSS increase was +0.662%. The
+webpack/default wall sample rose +9.92%, but ten reversed confirmation pairs
+showed -2.83% wall, +0.080% instructions, and +0.369% peak RSS. This does not
+establish a material regression or a qualifying performance gain.
+
+| public case | instructions, source 82 → 83 | peak RSS, MiB, source 82 → 83 | wall change |
+| --- | ---: | ---: | ---: |
+| Compiler-Unions, single | 3.2731G → 3.2731G | 59.58 → 59.61 | +0.26% |
+| Compiler-Unions, default | 3.9615G → 3.9658G | 83.42 → 83.31 | -1.75% |
+| webpack, single | 10.8566G → 10.8506G | 311.28 → 311.50 | -2.45% |
+| webpack, default | 15.2064G → 15.2461G | 502.97 → 503.95 | +9.92%* |
+| VS Code, single | 82.4446G → 82.4300G | 1,602.94 → 1,613.55 | -13.25% |
+| VS Code, default | 93.9029G → 93.7060G | 2,102.64 → 2,098.88 | -3.89% |
+
+*The reversed ten-pair confirmation changed the webpack/default wall delta
+to -2.83%. The release binaries, raw samples, output hashes, JavaScript
+collector, and confirmation runs are under
+`target/port-623/0083-6aace8b1bb/perf/`.
