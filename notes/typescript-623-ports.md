@@ -4167,3 +4167,45 @@ Thus source 88's public instruction, peak-RSS, and wall measurements apply
 unchanged: this commit cannot introduce a runtime performance regression for
 the same inputs. Generator freshness is checked after the commit because the
 generator script rejects the intentional dirty checker test edit.
+
+## 90. `39b621793a` — Move cold value-symbol links out of hot records
+
+Upstream `39b621793ab62a5ca57f97756a2308dddc70975f` reduces Go's
+`ValueSymbolLinks` from six inline pointers (48 bytes) to four (32 bytes).
+Its `writeType`, `nameType`, and `containingType` move into a lazily allocated
+three-pointer `valueSymbolExtra` (24 bytes); all checker access sites use
+getters and setters, and a new Go test checks layout, nil writes, identity,
+and retention across garbage collection. Rust already uses a smaller
+three-word `ValueSymbolLinks`: 16 bytes with compressed handles (24 with
+plain 64-bit pointers), with a lazily allocated rare-field tail. Synthetic
+symbols keep containing and name types in otherwise unused target and mapper
+words without allocating that tail. Compile-time size assertions, the
+`value_symbol_links_synthetic_mode_keeps_every_field` regression, and the
+checker-fork tail copy already cover its layout and field preservation.
+Changing the Rust representation again would repeat an existing optimization,
+so this port only updates the stale Go-layout comment and this ledger.
+
+The ignored `ts-ref` checkout advances to this exact source commit; the
+published TypeScript pin remains at the base revision until the complete
+upgrade. Exact-source Go's new layout test and full `./internal/checker`
+package pass. Rust's focused synthetic-mode test passes. The upstream diff
+changes no compiler fixture, baseline, library, or user-facing behavior.
+Rust's production and conformance inputs are unchanged, so source 89's full
+18 Go-history, 18 canonical, and 36 emit named outcome lists carry forward
+without a lost pass. Its exact-source Fourslash results likewise remain
+4,091 exercised groups passing, 470 skipped, and none failing. The source-89
+workspace, 40 CLI regressions, and `wasm32-wasip1` results apply to the same
+runtime inputs. The compatibility table and README summaries need no update.
+
+The prior compact-link measurements in `notes/mem-round3.md`, the rejected
+alternatives in `notes/mem-dense-link-tables.md` and
+`notes/perf-round2-followups.md`, `docs/RUST.md` Techniques, and the newest
+`notes/mem-round4.md` were reviewed. This entry changes no runtime path or
+asset. A fresh release build is byte-identical to source 89 (both SHA-256
+`106a23c08ca5a6a6041e5d49ac28784d4e120b66d0d351a62aece14980f3d42a`),
+so its public instruction, peak-RSS, and wall measurements apply unchanged:
+source 90 introduces no runtime performance regression for the same inputs.
+The dev CLI and testrunner build, warnings-denied Clippy, source lint, and
+formatting pass. Generator freshness is checked after the commit because
+the generator script rejects the intentional dirty checker comment. The
+binary, hashes, and focused logs are in `target/port-623/0090-39b621793a/`.

@@ -328,10 +328,10 @@ pub struct SignatureId(pub u32);
 
 // Links for value symbols
 //
-// Go's `ValueSymbolLinks` holds six fields inline (48 bytes). Here a record is three fields (`resolved_type`,
-// `first`, `second`): 16 bytes with compressed pointers (two 4-byte handles and a usize), 24 with plain pointers on
-// 64-bit targets, 12 on 32-bit. `resolved_type` and two fields whose meaning depends on the record's mode, kept in
-// the low two bits of `second` (every stored pointer is 8-aligned):
+// Go's `ValueSymbolLinks` holds four pointers inline (32 bytes on 64-bit): `resolvedType`, `target`, `mapper`,
+// and lazy `valueSymbolExtra` for `writeType`, `nameType`, `containingType`. Rust stores (`resolved_type`, `first`,
+// `second`) in 16 bytes with compressed pointers (two 4-byte handles and a usize), 24 with plain pointers on
+// 64-bit targets, 12 on 32-bit. The mode is in low two bits of `second` (every stored pointer is 8-aligned):
 //
 // - plain (the common case: instantiated symbols and most others): `target`, `mapper`;
 // - synthetic: `containing_type`, `name_type`, for records that set those but never `target` / `mapper` (union and
