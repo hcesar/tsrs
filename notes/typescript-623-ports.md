@@ -3524,3 +3524,33 @@ This change alters alias caching and member-table scanning, but no paired
 release performance measurement was collected for this entry; no instruction,
 wall-time, or peak-RSS claim is made. The user's nonblocking migration policy
 applies.
+
+## 78. `6656c1c12c` — Update GitHub Actions dependency pins
+
+Upstream `6656c1c12c9049974a9adcd4653a895f26ab16ce` updates pinned
+`actions/setup-node` 7.0.0 to 7.1.0, `actions/upload-artifact` 7.0.1 to
+7.0.2, `actions/download-artifact` 8.0.1 to 8.0.2, and three
+`github/codeql-action` references 4.38.1 to 4.38.3 across ten workflows.
+The corresponding tsrs port updates the one matching setup-node reference,
+16 upload-artifact references, and 12 download-artifact references in five
+active workflows to the exact upstream SHA pins and version comments. tsrs
+has no CodeQL action, so there is no matching reference to update. Its
+separate artifact v4 references remain unchanged. No compiler behavior,
+user-visible capability, or semantic deviation is involved. The ignored
+`ts-ref` checkout advances to this exact source commit; the published
+TypeScript pin remains at the base revision until the full upgrade.
+
+The upstream diff is confined to `.github/workflows/`; it changes no `tsc/`
+source, libraries, or fixtures. The tsrs diff changes only workflow pins and
+this ledger, so source 77's complete compiler and Fourslash conformance
+evidence is reusable: all 18 Go-history, 18 canonical, and 36 emit outcome
+lists are unchanged from source 75, and exact-source Fourslash passes 4,091
+groups, skips 468, fails none, with all 4,623 named outcomes unchanged.
+Source 77 also passed the workspace, 40 CLI regressions, and WebAssembly
+checks. For this entry, all 11 active workflow YAML files parse; a static
+scan verifies all 29 matching references use the new SHA/version pairs and
+none use the old pairs. Warnings-denied Clippy, source lint, formatting,
+generated-code freshness, and `git diff --check` pass. Evidence is under
+`target/port-623/0078-6656c1c12c/`; the reused full conformance evidence
+is under `target/port-623/0077-3789ddb12a/`. No release performance
+measurement is needed because compiler and runtime inputs are unchanged.

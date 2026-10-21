@@ -124,7 +124,7 @@ jobs:
           "$work/dist/bun" check --help > /dev/null
           sha256sum "$work/dist/tsrs" "$work/dist/bun"
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: benchmark-compilers
           path: ${{ runner.temp }}/benchmark-build/dist
@@ -180,7 +180,7 @@ jobs:
       - name: Set up project
         run: python3 bench/run.py --setup-only --projects "$PROJECT"
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: benchmark-compilers
           path: ${{ runner.temp }}/benchmark-compilers
@@ -194,7 +194,7 @@ jobs:
             --tsrs "$bin/tsrs" --tsrs-build pgo-dist --rustc "$(cat "$bin/rustc.txt")" --bun "$bin/bun" \
             --out-dir "$RUNNER_TEMP/bench-partial/$PROJECT" --reps 10 --tsgo-reps 3
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: bench-partial-${{ matrix.project }}
           path: ${{ runner.temp }}/bench-partial/${{ matrix.project }}
@@ -203,7 +203,7 @@ jobs:
 
       - name: Upload compiler logs
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: bench-logs-${{ matrix.project }}
           path: bench/.work/logs
@@ -219,7 +219,7 @@ jobs:
       - name: Fetch benchmark history
         run: git fetch --unshallow origin main
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: bench-partial-*
           path: ${{ runner.temp }}/bench-partials
@@ -227,7 +227,7 @@ jobs:
       - name: Merge results
         run: python3 bench/run.py --merge "$RUNNER_TEMP"/bench-partials/*/*.json --out-dir "$RUNNER_TEMP/bench-merged"
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: bench-result
           path: ${{ runner.temp }}/bench-merged
