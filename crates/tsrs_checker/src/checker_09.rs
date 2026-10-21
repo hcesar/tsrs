@@ -462,20 +462,21 @@ impl CacheHashKey {
 impl keyBuilder {
     // checker.go:17713
     #[inline]
-    pub(crate) fn hash(&self) -> CacheHashKey {
-        match &self.overflow_buffer {
-            None => CacheHashKey::hash_128(&self.inline_buffer[..self.inline_length]),
-            Some(overflow) => self.hash_spilled(overflow),
+    pub(crate) fn hash(&mut self) -> CacheHashKey {
+        if self.overflow_buffer.is_none() {
+            return CacheHashKey::hash_128(&self.inline_buffer[..self.inline_length]);
         }
+        self.hash_spilled()
     }
 
     /// `hash` of a key longer than the inline buffer (rare).
     #[cold]
     #[inline(never)]
-    fn hash_spilled(&self, overflow: &[u8]) -> CacheHashKey {
-        let mut buf = overflow.to_vec();
-        buf.extend_from_slice(&self.inline_buffer[..self.inline_length]);
-        CacheHashKey::hash_128(&buf)
+    fn hash_spilled(&mut self) -> CacheHashKey {
+        let overflow = self.overflow_buffer.as_mut().unwrap();
+        overflow.extend_from_slice(&self.inline_buffer[..self.inline_length]);
+        self.inline_length = 0;
+        CacheHashKey::hash_128(overflow)
     }
 
     // spill moves the buffered bytes onto the end of overflowBuffer, so the key's byte
@@ -488,6 +489,14 @@ impl keyBuilder {
         let inline = self.inline_buffer;
         self.overflow_buffer.get_or_insert_with(Vec::new).extend_from_slice(&inline[..n]);
         self.inline_length = 0;
+    }
+
+    // checker.go:17829
+    #[inline]
+    fn reserve(&mut self, size: usize) {
+        if self.overflow_buffer.is_some() || self.inline_length + size > self.inline_buffer.len() {
+            self.overflow_buffer.get_or_insert_with(Vec::new).reserve(self.inline_length + size);
+        }
     }
 
     // checker.go:17727
@@ -558,6 +567,7 @@ impl keyBuilder {
     // checker.go:17774
     #[inline]
     pub(crate) fn write_types(&mut self, types: &[P<Type>]) {
+        self.reserve(8 + 4 * types.len());
         self.write_usize(types.len());
         for &t in types {
             self.write_type(t);
@@ -4291,4 +4301,76 @@ pub(crate) struct ResolvedPropertySource {
     t: P<Type>,
     members: Option<P<SymbolTable>>,
     epoch: u32,
+}
+
+#[cfg(test)]
+mod key_builder_tests {
+    use super::*;
+
+    fn types(count: usize) -> Vec<P<Type>> {
+        (0..count)
+            .map(|i| {
+                Type::alloc(
+                    TypeFlags::Any,
+                    ObjectFlags::None,
+                    TypeId(u32::try_from(i + 1).unwrap()),
+                    IntrinsicType::default(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn type_list_keys_keep_the_go_byte_stream_across_spills() {
+        for count in [0, 1, 46, 47, 256, 4096] {
+            let types = types(count);
+            let prefix = "x".repeat(count);
+            let mut expected = prefix.as_bytes().to_vec();
+            expected.push(17);
+            expected.extend_from_slice(&123u32.to_le_bytes());
+            expected.extend_from_slice(&(count as u64).to_le_bytes());
+            for t in &types {
+                expected.extend_from_slice(&t.id.0.to_le_bytes());
+            }
+            expected.extend_from_slice(b"suffix");
+
+            let mut builder = keyBuilder::default();
+            builder.write_string(&prefix);
+            builder.write_byte(17);
+            builder.write_uint32(123);
+            builder.write_types(&types);
+            builder.write_string("suffix");
+            let hash = CacheHashKey::hash_128(&expected);
+            assert_eq!(builder.hash(), hash, "type count {count}");
+            assert_eq!(builder.hash(), hash, "repeat hash, type count {count}");
+
+            builder.write_byte(b'!');
+            expected.push(b'!');
+            assert_eq!(builder.hash(), CacheHashKey::hash_128(&expected));
+        }
+    }
+
+    #[test]
+    fn type_list_keys_reserve_before_spilling() {
+        for count in [0, 1, 8, 46, 47, 256, 4096] {
+            let types = types(count);
+            let size = 8 + 4 * count;
+            let mut builder = keyBuilder::default();
+            builder.write_types(&types);
+            assert_eq!(builder.overflow_buffer.is_some(), size > builder.inline_buffer.len());
+            let pointer = builder.overflow_buffer.as_ref().map(Vec::as_ptr);
+            if let Some(overflow) = &builder.overflow_buffer {
+                assert!(overflow.capacity() >= size, "type count {count}");
+            }
+            let mut expected = Vec::with_capacity(size);
+            expected.extend_from_slice(&(count as u64).to_le_bytes());
+            for t in &types {
+                expected.extend_from_slice(&t.id.0.to_le_bytes());
+            }
+            assert_eq!(builder.hash(), CacheHashKey::hash_128(&expected));
+            assert_eq!(builder.overflow_buffer.as_ref().map(Vec::as_ptr), pointer);
+            assert_eq!(builder.hash(), CacheHashKey::hash_128(&expected));
+            assert_eq!(get_type_list_key(&types), CacheHashKey::hash_128(&expected));
+        }
+    }
 }

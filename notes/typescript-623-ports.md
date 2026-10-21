@@ -3992,3 +3992,62 @@ so its instruction, peak-RSS, and wall-time results are exactly inherited from
 source 85 and ultimately source 84; no new performance regression is possible
 for the same inputs. Focused logs and identity evidence are under
 `target/port-623/0086-ce609c851b/`.
+
+## 87. `9eedcb0dd7` — Presize checker type-list cache keys
+
+Upstream `9eedcb0dd7257f8a1a175adbef28f3b6d3492d7a` reserves the complete
+8-byte length plus 4-byte type IDs before `keyBuilder.writeTypes`. In Go this
+keeps type-list keys of up to 46 entries inline and makes longer keys use one
+overflow allocation. The Rust builder already has the same 192-byte inline
+buffer and key bytes, but its spilled `hash` copied the overflow buffer into a
+second allocation. The port reserves before `write_types` and appends the
+remaining inline bytes to that reserved overflow buffer when hashing. Hashing
+twice is still idempotent, and writing more bytes afterward still appends to
+the same logical key. The focused Rust tests cover exact xxh3-128 bytes with
+prefix and suffix, repeated hashing, later writes, the 46/47-type spill
+boundary, and capacity/pointer stability through the hash for 256 and 4,096
+types. Exact-source Go `TestKeyBuilder` and `TestTypeListKeyAllocations` pass.
+The ignored `ts-ref` checkout advances to this source commit; the published
+TypeScript pin remains at the base until the full upgrade.
+
+All 18 Go-history, 18 canonical, and 36 emit named compiler outcome lists
+are byte-for-byte identical to source 85/86, with no lost passes. Go-history
+checking retains 13,572 diagnostic and 12,876 type/symbol passes; canonical
+checking retains 13,572 and 12,875. Emit retains 13,502 JavaScript, 149
+JavaScript-map, and 156 source-map passes. Exact-source Fourslash has 4,091
+exercised groups passing, 470 skipped, and none failing. The full Rust
+workspace, 40 CLI regressions, `wasm32-wasip1` check, warnings-denied Clippy,
+source lint, and formatting pass. Fourslash and workspace Unix-socket checks
+needed a socket-enabled rerun after sandbox denial. The generator freshness
+check runs after this entry is committed because it checks the entire dirty
+worktree, including the intentional checker edit. No user-visible capability
+or compatibility count changes. Evidence is under
+`target/port-623/0087-9eedcb0dd7/`.
+
+Prior work was reviewed in `docs/RUST.md` Techniques,
+`notes/perf-round2-followups.md` Measured and rejected, the newest
+`notes/mem-round4.md`, and checker cache-key notes. None rejects this exact
+upstream type-list presizing. Paired local macOS release measurements used the
+immediate source-86 executable, five alternating pairs per public project and
+checker mode, with identical compiler output hashes. macOS `time -l` includes
+kernel work in retired instructions, so this is a local regression screen
+rather than the deterministic Linux instruction gate. The small single-thread
+instruction reductions and sub-0.5% RSS changes do not meet the repository's
+standalone performance-change bar; this change is included to satisfy the
+requested source-by-source port, with its performance evidence disclosed.
+
+| public case | mode | instructions, source 86 → 87 | peak RSS, MiB, source 86 → 87 | wall change |
+| --- | --- | ---: | ---: | ---: |
+| Compiler-Unions | single | 3.2737G → 3.2719G (-0.055%) | 59.64 → 59.59 (-0.079%) | -0.77% |
+| Compiler-Unions | default | 3.9664G → 3.9638G (-0.064%) | 83.55 → 83.50 (-0.056%) | -1.26% |
+| webpack | single | 10.8588G → 10.8554G (-0.031%) | 311.59 → 311.59 (0.000%) | -0.37% |
+| webpack | default | 15.1517G → 15.2679G (+0.767%) | 500.75 → 503.03 (+0.456%) | -0.71%* |
+| VS Code | single | 81.6347G → 81.6323G (-0.003%) | 1,613.66 → 1,613.63 (-0.002%) | -0.95% |
+| VS Code | default | 93.9105G → 93.9110G (+0.001%) | 2,113.92 → 2,112.27 (-0.078%) | +0.26% |
+
+*Webpack/default's reversed ten-pair confirmation changed instructions to
+-0.372%, RSS to -0.152%, and wall to +5.69%; a further twenty alternating
+pairs measured +0.245% instructions, +0.404% RSS, and -2.08% wall. The
+direction changes do not establish a material regression. Frozen release
+binaries, raw paired samples, output hashes, and the JavaScript collector are
+under `target/port-623/0087-9eedcb0dd7/perf/`.
