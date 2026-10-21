@@ -123,6 +123,7 @@ impl LanguageService {
                         self.format_options(),
                         &self.converters,
                         self.user_preferences(),
+                        false, /*include_symbol_name_in_description*/
                     );
             item.additional_text_edits = Some(edits);
             item.detail = str_ptr_to(&description);

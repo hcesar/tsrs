@@ -57,10 +57,11 @@ pub(crate) static IMPORT_FIX_PROVIDER: std::sync::LazyLock<CodeFixProvider> =
         get_all_code_actions: Some(get_all_import_code_actions),
     });
 
-// codeactions_importfixes.go:55 (Go's errorIdentifierText field is never read)
+// codeactions_importfixes.go:55
 struct fixInfo {
     fix: Arc<autoimport::Fix>,
     symbol_name: String,
+    error_identifier_text: String,
     is_jsx_namespace_fix: bool,
 }
 
@@ -90,6 +91,7 @@ fn get_import_code_actions(
             fix_context.ls.format_options(),
             &fix_context.ls.converters,
             fix_context.ls.user_preferences(),
+            fix_info.symbol_name != fix_info.error_identifier_text,
         );
 
         if ok {
@@ -227,7 +229,12 @@ fn get_fix_infos(
             if !sn.is_type_only {
                 return None;
             }
-            get_type_only_promotion_fix(fix_context.source_file, symbol_token, &sn.name, ch).map(|fix| fixInfo { fix: Arc::new(fix), symbol_name: sn.name.clone(), is_jsx_namespace_fix: false })
+            get_type_only_promotion_fix(fix_context.source_file, symbol_token, &sn.name, ch).map(|fix| fixInfo {
+                fix: Arc::new(fix),
+                symbol_name: sn.name.clone(),
+                error_identifier_text: symbol_token.text().to_string(),
+                is_jsx_namespace_fix: false,
+            })
         }));
 
         // For JSX opening tags, there can be separate type-only errors for both the tag name
@@ -276,7 +283,16 @@ fn get_fixes_info_for_umd_import(token: P<Node>, view: &View, ch: &mut Checker) 
     let mut result = Vec::new();
     result.extend(
         view.get_fixes(&export, false, is_valid_type_only_use_site, None).into_iter().map(|fix| {
-            fixInfo { fix, symbol_name: umd_symbol.name().to_string(), is_jsx_namespace_fix: false }
+            fixInfo {
+                fix,
+                symbol_name: umd_symbol.name().to_string(),
+                error_identifier_text: if ast::is_identifier(token) {
+                    token.text().to_string()
+                } else {
+                    String::new()
+                },
+                is_jsx_namespace_fix: false,
+            }
         }),
     );
     result
@@ -377,6 +393,7 @@ fn get_fixes_info_for_non_umd_import(
             all_info.extend(fixes.into_iter().map(|fix| fixInfo {
                 fix,
                 symbol_name: symbol_name.clone(),
+                error_identifier_text: symbol_token.text().to_string(),
                 is_jsx_namespace_fix: symbol_name != symbol_token.text(),
             }));
         }

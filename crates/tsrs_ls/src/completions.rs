@@ -126,6 +126,7 @@ impl LanguageService {
                     self.format_options(),
                     &self.converters,
                     self.user_preferences(),
+                    false, /*include_symbol_name_in_description*/
                 );
             if !ok {
                 return None;

@@ -3247,3 +3247,43 @@ nonblocking migration policy permits the correctness-valid port while
 all observed differences remain disclosed. The earlier measured source-11
 regressions remain disclosed above. Raw samples, stdout and binary hashes,
 and all validation evidence are under `target/port-623/0071-ba1819f3f9/`.
+
+## 72. `b5c34ba0c6` — Restore symbol names in JSX import action titles
+
+Upstream `b5c34ba0c61a756c8abaf133236dddf982c27f45` makes an import
+code action name the required symbol when it differs from the identifier in
+the diagnostic. For example, a JSX `<Text>` tag needing the React namespace
+now offers `Import 'React' from "react"`; a normal `Text` import keeps the
+generic `Add import from "react-native"` title. The Rust port adds the Go
+`errorIdentifierText` field and the `includeSymbolNameInDescription` argument
+to auto-import edits. Completion details continue to request generic titles.
+The Go UMD path's empty text for a nonidentifier is preserved independently
+of the JSX sorting flag. No other semantic deviation was needed. The ignored
+`ts-ref` checkout advances to source 72; the published TypeScript pin stays
+unchanged until the full upgrade.
+
+All three exact-source upstream Fourslash cases pass: previously skipped
+`jsx4` and `jsx6` plus new `jsx8`, which adds the React default import beside
+an existing named import. Full exact-source Fourslash passes 4,091 of 4,559
+groups, skips 468, fails none; across 4,623 named outcomes there are no lost
+passes, one new passing case, and two skip-to-pass changes. All 18
+Go-history, 18 canonical, and 36 emit compiler outcome lists are byte-identical
+to source 71, including pass sets, failures, crashes, and timeouts. The
+Go-history checker retains 13,567 diagnostic and 12,871 type/symbol passes;
+canonical retains 13,567 and 12,870; emit retains 13,571 diagnostics, 12,871
+type/symbols, 13,497 JavaScript/declaration, 149 JavaScript-map, and 156
+source-map passes. The compatibility table's cited Fourslash count is updated;
+the root and npm README summaries cite no count to change.
+
+The full Rust workspace, 40 CLI regressions, warnings-denied Clippy, source
+lint, formatting, and the WebAssembly crate check pass. Exact-source
+Fourslash and the workspace transport tests needed the established sandbox
+escalation for local Unix-socket binds. The full WebAssembly packaging script
+could not complete because `wasm-opt` is unavailable locally; its Rust release
+build passed before that external tool was invoked. Generated-code freshness
+was checked after committing, because that script compares the working tree
+with HEAD. This is a language-service code-action title change with no
+compiler hot-path change. Release performance was not measured, and no
+numerical performance-equality claim follows; the user's nonblocking
+migration policy applies. Logs and complete outcome comparisons are under
+`target/port-623/0072-b5c34ba0c6/`.
