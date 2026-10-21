@@ -266,6 +266,15 @@ impl Identifier {
 impl NodeFactory {
     pub fn new_identifier(&self, text: &'static str) -> P<Node> {
         self.text_count.set(self.text_count.get() + 1);
+        self.new_identifier_with_text(text)
+    }
+
+    // NewToken(Identifier) makes a zero-valued Identifier without counting text.
+    pub(crate) fn new_identifier_token(&self) -> P<Node> {
+        self.new_identifier_with_text("")
+    }
+
+    fn new_identifier_with_text(&self, text: &'static str) -> P<Node> {
         self.new_node(
             Kind::Identifier,
             IdentifierWithText {

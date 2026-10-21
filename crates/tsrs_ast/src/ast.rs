@@ -3077,6 +3077,32 @@ mod tests {
     }
 
     #[test]
+    fn token_factory_uses_canonical_payloads() {
+        let f = NodeFactory::default();
+
+        let identifier = f.new_token(Kind::Identifier);
+        assert_eq!(identifier.as_identifier().text(), "");
+        assert!(identifier.has_flow_node_data());
+
+        let literal = f.new_token(Kind::StringLiteral);
+        assert_eq!(literal.as_string_literal().text(), "");
+        assert!(literal.literal_like_data().is_some());
+
+        let keyword = f.new_token(Kind::NullKeyword);
+        assert!(matches!(keyword.data(), NodeData::KeywordExpression(_)));
+        assert!(keyword.has_flow_node_data());
+        assert!(matches!(keyword.clone_node(&f).data(), NodeData::KeywordExpression(_)));
+
+        let type_keyword = f.new_token(Kind::NumberKeyword);
+        assert!(matches!(type_keyword.data(), NodeData::KeywordTypeNode));
+        assert!(type_keyword.subtree_facts().contains(SubtreeFacts::ContainsTypeScript));
+
+        assert!(matches!(f.new_token(Kind::PlusToken).data(), NodeData::Token));
+        assert_eq!(f.text_count(), 0);
+        assert_eq!(f.node_count(), 6);
+    }
+
+    #[test]
     #[should_panic(expected = "as_binary_expression called on")]
     fn cast_mismatch_panics() {
         let f = NodeFactory::default();

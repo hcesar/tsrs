@@ -3848,3 +3848,62 @@ establish a material regression or a qualifying performance gain.
 to -2.83%. The release binaries, raw samples, output hashes, JavaScript
 collector, and confirmation runs are under
 `target/port-623/0083-6aace8b1bb/perf/`.
+
+## 84. `67a1c76aac` — Generate concrete AST accessors and token payloads
+
+Upstream `67a1c76aacdeed279c72a87347e41c1b12a26a0f` removes the Go
+`nodeData` method interface and generates kind-dispatched node accessors,
+visitors, cloning, and subtree-fact calls. It also makes `NewToken` allocate
+the canonical node payload for kinds shared with literals, identifiers, and
+keyword expression/type nodes. Rust already has generated concrete dispatch:
+its compact `NodeDataTag` selects typed payloads, and generated constant-offset
+tables implement the shared accessors. Its two synthetic flow payloads already
+have distinct data tags, so Go's new private flow kinds are unnecessary in
+the Rust representation. The missing behavior was `new_token`: it still made
+a generic token for every kind, so `new_token(NullKeyword)` lacked the
+`KeywordExpression` flow slot. The Rust AST generator now derives the same
+canonical cases from the schema, and an Identifier-only helper preserves
+Go's zero-text `NewToken` without incrementing the factory's text count.
+The ignored `ts-ref` checkout advances to this source commit; the published
+TypeScript pin stays at the base revision until the complete upgrade.
+
+The exact-source Go AST accessor tests pass. A focused Rust AST test verifies
+identifier and literal text, keyword flow data, keyword-type subtree facts,
+cloning, ordinary punctuation, and the unchanged text count. All 18
+Go-history, 18 canonical, and 36 emit outcome lists match source 83 exactly.
+Go-history checking retains 13,572 diagnostic and 12,876 type/symbol passes;
+canonical checking retains 13,572 and 12,875. Emit retains 13,502 JavaScript,
+149 JavaScript-map, and 156 source-map passes. Exact-source Fourslash retains
+all 4,627 named outcomes: 4,091 exercised groups pass, 470 skip, and none
+fail. Full workspace tests, 40 CLI regressions, WASM target check,
+warnings-denied Clippy, source lint, formatting, and generator freshness pass.
+The workspace and Fourslash suites needed local Unix-socket access after
+sandboxed socket creation was denied. Evidence, comparators, and gate logs
+are under `target/port-623/0084-67a1c76aac/`.
+
+Prior performance work was checked in `docs/RUST.md` Techniques,
+`notes/perf-round2-followups.md` Measured and rejected, and the newest
+`notes/mem-round4.md`. None rejected this required upstream representation
+change. Paired local macOS release measurements used the immediate source-83
+binary, five alternating pairs for each public project and checker mode, and
+identical compiler-output hashes. macOS `time -l` includes kernel work in its
+retired instruction count, so this is a local regression screen rather than
+the repository's deterministic Linux instruction gate.
+
+| public case | instructions, source 83 → 84 | peak RSS MiB, source 83 → 84 | wall change |
+| --- | ---: | ---: | ---: |
+| Compiler-Unions, single | 3.2733G → 3.2739G | 59.59 → 59.64 | -0.29% |
+| Compiler-Unions, default | 3.9660G → 3.9643G | 83.31 → 83.31 | +3.82%* |
+| webpack, single | 10.8537G → 10.8544G | 311.52 → 311.59 | +0.26% |
+| webpack, default | 15.1365G → 15.3887G | 502.00 → 506.72 | -1.61%† |
+| VS Code, single | 81.6137G → 81.6526G | 1,613.55 → 1,613.66 | +0.92% |
+| VS Code, default | 93.9813G → 93.7960G | 2,102.31 → 2,109.79 | -1.58% |
+
+*A reversed ten-pair confirmation changed Compiler-Unions/default wall time
+to -1.18%, with -0.022% instructions and unchanged peak RSS. †The initial
+webpack/default +1.666% instruction and +0.940% RSS changes fell to +0.155%
+and +0.071% in a reversed ten-pair confirmation; a further 20-pair run
+measured -0.173% instructions, +0.178% peak RSS, and +1.36% wall time. The
+initial wall directions also reversed. The measurements do not establish a
+material performance regression. Raw paired samples and the frozen release
+binaries are under `target/port-623/0084-67a1c76aac/perf/`.

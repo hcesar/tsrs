@@ -478,7 +478,44 @@ function hasTextContent(node: NodeType): boolean {
     return schemaMembers(node).some(m => !m.isKindParam() && !m.goOnly && isStringType(rustType(m)));
 }
 
+// NewToken must use the canonical payload for kinds also owned by a concrete node.
+// The generated accessors dispatch through NodeDataTag, so a generic Token payload
+// would make, for example, a NullKeyword lack KeywordExpression's flow data.
+function genNewTokenFactory(token: NodeType) {
+    const tokenKinds = new Set(token.allKinds().map(kind => kind.name));
+    const canonicalByKind = new Map<string, NodeType>();
+    for (const node of nodes) {
+        for (const kind of node.allKinds()) canonicalByKind.set(kind.name, node);
+    }
+    const kindsByNode = new Map<NodeType, string[]>();
+    for (const [kind, node] of canonicalByKind) {
+        if (!tokenKinds.has(kind) || node === token) continue;
+        const kinds = kindsByNode.get(node) ?? [];
+        kinds.push(kind);
+        kindsByNode.set(node, kinds);
+    }
+
+    w("    pub fn new_token(&self, kind: Kind) -> P<Node> {");
+    w("        match kind {");
+    for (const [node, kinds] of kindsByNode) {
+        const payload = node.name === "Identifier"
+            ? "self.new_identifier_token()"
+            : isEmptyLayout(layouts.get(node.name)!)
+            ? `self.new_empty_node(kind, NodeDataTag::${node.name})`
+            : `self.new_node(kind, ${structLiteral(layouts.get(node.name)!, new Map(), "                ")})`;
+        w(`            ${kinds.map(kind => `Kind::${kind}`).join(" | ")} => ${payload},`);
+    }
+    w("            _ => self.new_empty_node(kind, NodeDataTag::Token),");
+    w("        }");
+    w("    }");
+    w();
+}
+
 function genNewFactory(node: NodeType) {
+    if (node.name === "Token") {
+        genNewTokenFactory(node);
+        return;
+    }
     if (HAND_WRITTEN_DATA.has(node.name)) return;
     const l = layouts.get(node.name)!;
     const params = factoryParams(node);

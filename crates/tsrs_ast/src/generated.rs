@@ -10920,7 +10920,135 @@ impl Node {
 
 impl NodeFactory {
     pub fn new_token(&self, kind: Kind) -> P<Node> {
-        self.new_empty_node(kind, NodeDataTag::Token)
+        match kind {
+            Kind::NumericLiteral => self.new_node(
+                kind,
+                NumericLiteral {
+                    literal_like_node_base: LiteralLikeNodeBase {
+                        text: PackedStr::new(""),
+                        token_flags: OwnedCell::new(TokenFlags::None),
+                    },
+                },
+            ),
+            Kind::BigIntLiteral => self.new_node(
+                kind,
+                BigIntLiteral {
+                    literal_like_node_base: LiteralLikeNodeBase {
+                        text: PackedStr::new(""),
+                        token_flags: OwnedCell::new(TokenFlags::None),
+                    },
+                },
+            ),
+            Kind::StringLiteral => self.new_node(
+                kind,
+                StringLiteral {
+                    literal_like_node_base: LiteralLikeNodeBase {
+                        text: PackedStr::new(""),
+                        token_flags: OwnedCell::new(TokenFlags::None),
+                    },
+                },
+            ),
+            Kind::JsxText => self.new_node(
+                kind,
+                JsxText {
+                    literal_like_node_base: LiteralLikeNodeBase {
+                        text: PackedStr::new(""),
+                        token_flags: OwnedCell::new(TokenFlags::None),
+                    },
+                    contains_only_trivia_white_spaces: false,
+                },
+            ),
+            Kind::RegularExpressionLiteral => self.new_node(
+                kind,
+                RegularExpressionLiteral {
+                    literal_like_node_base: LiteralLikeNodeBase {
+                        text: PackedStr::new(""),
+                        token_flags: OwnedCell::new(TokenFlags::None),
+                    },
+                },
+            ),
+            Kind::NoSubstitutionTemplateLiteral => self.new_node(
+                kind,
+                NoSubstitutionTemplateLiteral {
+                    template_literal_like_node_base: TemplateLiteralLikeNodeBase {
+                        literal_like_node_base: LiteralLikeNodeBase {
+                            text: PackedStr::new(""),
+                            token_flags: OwnedCell::new(TokenFlags::None),
+                        },
+                        raw_text: "",
+                        template_flags: TokenFlags::None,
+                    },
+                    declaration_base: DeclarationBase { symbol: OwnedCell::new(None) },
+                },
+            ),
+            Kind::TemplateHead => self.new_node(
+                kind,
+                TemplateHead {
+                    template_literal_like_node_base: TemplateLiteralLikeNodeBase {
+                        literal_like_node_base: LiteralLikeNodeBase {
+                            text: PackedStr::new(""),
+                            token_flags: OwnedCell::new(TokenFlags::None),
+                        },
+                        raw_text: "",
+                        template_flags: TokenFlags::None,
+                    },
+                },
+            ),
+            Kind::TemplateMiddle => self.new_node(
+                kind,
+                TemplateMiddle {
+                    template_literal_like_node_base: TemplateLiteralLikeNodeBase {
+                        literal_like_node_base: LiteralLikeNodeBase {
+                            text: PackedStr::new(""),
+                            token_flags: OwnedCell::new(TokenFlags::None),
+                        },
+                        raw_text: "",
+                        template_flags: TokenFlags::None,
+                    },
+                },
+            ),
+            Kind::TemplateTail => self.new_node(
+                kind,
+                TemplateTail {
+                    template_literal_like_node_base: TemplateLiteralLikeNodeBase {
+                        literal_like_node_base: LiteralLikeNodeBase {
+                            text: PackedStr::new(""),
+                            token_flags: OwnedCell::new(TokenFlags::None),
+                        },
+                        raw_text: "",
+                        template_flags: TokenFlags::None,
+                    },
+                },
+            ),
+            Kind::Identifier => self.new_identifier_token(),
+            Kind::PrivateIdentifier => {
+                self.new_node(kind, PrivateIdentifier { text: PackedStr::new("") })
+            }
+            Kind::FalseKeyword
+            | Kind::ImportKeyword
+            | Kind::NullKeyword
+            | Kind::SuperKeyword
+            | Kind::ThisKeyword
+            | Kind::TrueKeyword => self.new_node(
+                kind,
+                KeywordExpression {
+                    flow_node_base: FlowNodeBase { flow_node: OwnedCell::new(None) },
+                },
+            ),
+            Kind::VoidKeyword
+            | Kind::AnyKeyword
+            | Kind::BooleanKeyword
+            | Kind::IntrinsicKeyword
+            | Kind::NeverKeyword
+            | Kind::NumberKeyword
+            | Kind::ObjectKeyword
+            | Kind::StringKeyword
+            | Kind::SymbolKeyword
+            | Kind::UndefinedKeyword
+            | Kind::UnknownKeyword
+            | Kind::BigIntKeyword => self.new_empty_node(kind, NodeDataTag::KeywordTypeNode),
+            _ => self.new_empty_node(kind, NodeDataTag::Token),
+        }
     }
 
     pub fn new_private_identifier(&self, text: &'static str) -> P<Node> {
