@@ -3404,6 +3404,129 @@ mod tests {
     use super::*;
 
     #[test]
+    fn compact_type_payload_casts_survive_arena_growth() {
+        let mut next_id = 1;
+        macro_rules! type_case {
+            ($payload:ty, $cast:ident, $bases:expr) => {{
+                let t = Type::alloc(
+                    TypeFlags::Any,
+                    ObjectFlags::None,
+                    TypeId(next_id),
+                    <$payload>::default(),
+                );
+                next_id += 1;
+                let payload = std::ptr::from_ref(t.$cast()).addr();
+                let expected = std::ptr::from_ref(t.get()).addr()
+                    + std::mem::offset_of!(TypeAlloc<$payload>, data);
+                assert_eq!(payload, expected);
+                assert_eq!(t.data_tag(), <$payload as TypePayload>::TAG);
+                // The kind must not be inferred from mutable semantic flags.
+                t.flags.set(TypeFlags::Never);
+                assert_eq!(std::ptr::from_ref(t.$cast()).addr(), payload);
+                (t, $bases)
+            }};
+        }
+
+        // constrained, structured, object, reference, interface, union/intersection.
+        // Rust keeps structured base constraints in the checker, rather than in the payload.
+        let cases = [
+            type_case!(
+                IntrinsicType,
+                as_intrinsic_type,
+                [false, false, false, false, false, false]
+            ),
+            type_case!(LiteralType, as_literal_type, [false, false, false, false, false, false]),
+            type_case!(
+                UniqueESSymbolType,
+                as_unique_es_symbol_type,
+                [false, false, false, false, false, false]
+            ),
+            type_case!(TypeParameter, as_type_parameter, [true, false, false, false, false, false]),
+            type_case!(IndexType, as_index_type, [true, false, false, false, false, false]),
+            type_case!(
+                IndexedAccessType,
+                as_indexed_access_type,
+                [true, false, false, false, false, false]
+            ),
+            type_case!(
+                TemplateLiteralType,
+                as_template_literal_type,
+                [true, false, false, false, false, false]
+            ),
+            type_case!(
+                StringMappingType,
+                as_string_mapping_type,
+                [true, false, false, false, false, false]
+            ),
+            type_case!(
+                SubstitutionType,
+                as_substitution_type,
+                [true, false, false, false, false, false]
+            ),
+            type_case!(
+                ConditionalType,
+                as_conditional_type,
+                [true, false, false, false, false, false]
+            ),
+            type_case!(ObjectType, as_object_type, [false, true, true, false, false, false]),
+            type_case!(TypeReference, as_type_reference, [false, true, true, true, false, false]),
+            type_case!(InterfaceType, as_interface_type, [false, true, true, true, true, false]),
+            type_case!(TupleType, as_tuple_type, [false, true, true, true, true, false]),
+            type_case!(
+                InstantiationExpressionType,
+                as_instantiation_expression_type,
+                [false, true, true, false, false, false]
+            ),
+            type_case!(MappedType, as_mapped_type, [false, true, true, false, false, false]),
+            type_case!(
+                ReverseMappedType,
+                as_reverse_mapped_type,
+                [false, true, true, false, false, false]
+            ),
+            type_case!(
+                EvolvingArrayType,
+                as_evolving_array_type,
+                [false, true, true, false, false, false]
+            ),
+            type_case!(UnionType, as_union_type, [false, true, false, false, false, true]),
+            type_case!(
+                IntersectionType,
+                as_intersection_type,
+                [false, true, false, false, false, true]
+            ),
+        ];
+        for (t, expected) in cases {
+            assert_eq!(
+                [
+                    t.try_as_constrained_type().is_some(),
+                    t.try_as_structured_type().is_some(),
+                    t.try_as_object_type().is_some(),
+                    t.try_as_type_reference().is_some(),
+                    t.try_as_interface_type().is_some(),
+                    t.try_as_union_or_intersection_type().is_some(),
+                ],
+                expected,
+                "{:?}",
+                t.data_tag()
+            );
+        }
+
+        let first = cases[0].0;
+        let first_payload = std::ptr::from_ref(first.as_intrinsic_type());
+        for _ in 0..1024 {
+            let _ = Type::alloc(
+                TypeFlags::Any,
+                ObjectFlags::None,
+                TypeId(next_id),
+                IntrinsicType::default(),
+            );
+            next_id += 1;
+        }
+        assert_eq!(first.id(), TypeId(1));
+        assert_eq!(std::ptr::from_ref(first.as_intrinsic_type()), first_payload);
+    }
+
+    #[test]
     fn value_symbol_links_synthetic_mode_keeps_every_field() {
         let t1 =
             Type::alloc(TypeFlags::Any, ObjectFlags::None, TypeId(1), IntrinsicType::default());

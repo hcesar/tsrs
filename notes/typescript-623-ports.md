@@ -3907,3 +3907,50 @@ measured -0.173% instructions, +0.178% peak RSS, and +1.36% wall time. The
 initial wall directions also reversed. The measurements do not establish a
 material performance regression. Raw paired samples and the frozen release
 binaries are under `target/port-623/0084-67a1c76aac/perf/`.
+
+## 85. `f3a9375b53` — Compact checker type metadata
+
+Upstream `f3a9375b53f80533a4bb1f6809155d8f0459e860` removes the Go
+`TypeData` interface field from every checker type. A `typeKind` byte in the
+header identifies the concrete type for casts, separate from mutable semantic
+flags; all concrete Go types embed the header at offset zero. The constructors
+and trace adapter use the tag, and Go adds cast, arena-growth, and header-size
+tests. Rust already has the corresponding compact representation:
+`TypeAlloc<T>` puts the tagged `Type` header and its payload in one arena
+allocation, concrete casts check `TypeDataTag`, and the header is pinned at
+24 bytes (the new Go header is 40 bytes on 64-bit). Rust's `TypeData` enum is
+only a temporary view of that in-place payload, not a stored interface field.
+For memory savings, structured base constraints intentionally live in the
+checker rather than an embedded `ConstrainedType`, so Rust's structured
+`try_as_constrained_type` returns `None` while Go's returns a pointer.
+
+The Rust port adds a focused safety test for all 20 concrete type kinds:
+direct payload address and tag, six shared-base cast categories, kind
+independence from mutable flags, and pointer stability after 1,024 further
+arena allocations. Exact-source Go's `TestTypeCasts`, `TestTypeHeaderSize`,
+and `TestTypeAllocationAcrossCheckerGrowth` pass. The ignored `ts-ref`
+checkout advances to this exact source commit; the published TypeScript pin
+stays at the base revision until the complete upgrade.
+
+All 18 Go-history, 18 canonical, and 36 emit named outcome lists match source
+84 exactly, with no lost passes. Go-history checking retains 13,572 diagnostic
+and 12,876 type/symbol passes; canonical retains 13,572 and 12,875. Emit
+retains 13,502 JavaScript, 149 JavaScript-map, and 156 source-map passes.
+Source 85 changes no TypeScript fixture, library, or language-server file,
+and Rust runtime code is unchanged, so source 84's 4,627 Fourslash named
+outcomes remain applicable. The full Rust workspace, 40 CLI regressions,
+WASM target check, warnings-denied Clippy, source lint, and formatting pass.
+The workspace needed local Unix-socket access after sandboxed socket
+creation was denied. Outcome lists, comparator, and exact-source Go test
+cache are under `target/port-623/0085-f3a9375b53/`.
+
+Prior performance work was reviewed in `docs/RUST.md` Techniques,
+`notes/perf-round2-followups.md` Measured and rejected, the latest
+`notes/mem-round4.md`, and the measured 32-to-24-byte Rust type-header
+reduction in `notes/mem-small.md`. There is no new Rust runtime layout or
+allocation path to benchmark in this port. A fresh `cargo build --release`
+produced a byte-identical CLI executable to source 84 (both SHA-256
+`1f01b0c58a0b5cfa2d893aa97a3649203c32e80de957532aecbde5fda243559f`).
+Thus the source-84 public instruction, peak-RSS, and wall measurements apply
+unchanged; source 85 cannot introduce a runtime performance regression. The
+frozen source-85 executable is in its ignored evidence directory.
