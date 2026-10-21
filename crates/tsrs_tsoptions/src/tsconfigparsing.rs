@@ -1668,7 +1668,7 @@ fn parse_config(
     if let Some(extended_config_paths) = own_config.extended_config_path.clone() {
         // copy the resolution stack so it is never reused between branches in potential diamond-problem scenarios.
         let mut resolution_stack = resolution_stack.to_vec();
-        resolution_stack.push(resolved_path);
+        resolution_stack.push(resolved_path.clone());
         let mut result = ExtendsResult {
             options: tsrs_core::CompilerOptions::default(),
             include: None,
@@ -1719,6 +1719,14 @@ fn parse_config(
                 reason = "each file is inserted at its sorted position"
             )]
             for extended_source_file in result.extended_source_files {
+                if tspath::to_path(
+                    &extended_source_file,
+                    &base_path,
+                    host.fs().use_case_sensitive_file_names(),
+                ) == resolved_path
+                {
+                    continue;
+                }
                 let i = extended_source_files
                     .binary_search(&extended_source_file)
                     .unwrap_or_else(|i| i);

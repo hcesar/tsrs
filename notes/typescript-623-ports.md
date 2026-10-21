@@ -3741,3 +3741,54 @@ peak-RSS increase is +0.143% on webpack. Neither is material.
 
 The release binaries, JavaScript collectors, raw paired samples, and output
 hashes are under `target/port-623/0081-7856840543/perf/`.
+
+## 82. `3c1e603122` — Exclude a config from its own extended source files
+
+Upstream `3c1e6031220cbdf65ba9a749d3dcde7b70aa042a` prevents a
+configuration file from listing itself among its extended source files when a
+cached `extends` chain loops back to it. The Rust config parser now compares
+each extended file's case-sensitive or case-insensitive path key with the
+current config's resolved path before adding it to the sorted list. The
+ignored `ts-ref` checkout advances to this exact source commit; the published
+TypeScript pin remains at the base revision until the complete upgrade.
+
+The direct Rust config-parser regression reproduced the old self-entry before
+the fix and passes after it. A Rust API regression opens p1 and then p2 in one
+session through the same circular shared config and checks that p2 reports
+only TS18000, matching the new exact-source Go API test. All 18 Go-history,
+18 canonical, and 36 emit pass/nonpass lists are byte-for-byte identical to
+source 81: Go-history checking passes 13,571 diagnostic and 12,875 type/symbol
+baselines; canonical checking passes 13,571 and 12,874; emit passes 13,501
+JavaScript, 149 JavaScript-map, and 156 source-map baselines. Exact-source
+Fourslash retains all 4,627 named outcomes: 4,091 exercised groups pass,
+470 groups skip, and none fail. The full Rust workspace, 40 CLI regressions,
+`wasm32-wasip1` target check, warnings-denied Clippy, source lint, formatting,
+and generator freshness pass. The workspace and Fourslash suites needed local
+Unix-socket access after sandboxed socket creation was denied. The API test,
+full conformance comparisons, and gate logs are under
+`target/port-623/0082-3c1e603122/`.
+
+Paired local macOS release measurements used the immediate source-81 binary,
+five alternating pairs per public project and checker mode, and identical
+compiler output hashes. macOS `time -l` includes kernel work in its retired
+instruction counts, so this is a local regression screen rather than the
+repository's deterministic Linux instruction gate. Across those six cells,
+the largest instruction increase was +0.046% and the largest peak-RSS increase
+was +0.225%. VS Code/default initially showed +7.81% wall time despite only
++0.072% instructions and -0.078% peak RSS. Ten reversed confirmation pairs
+showed +0.84% wall time, -0.028% instructions, and +0.040% peak RSS. This
+does not establish a material regression.
+
+| public case | instructions, source 81 → 82 | peak RSS, MiB, source 81 → 82 | wall change |
+| --- | ---: | ---: | ---: |
+| Compiler-Unions, single | 3.2748G → 3.2732G | 59.61 → 59.59 | +0.12% |
+| Compiler-Unions, default | 3.9619G → 3.9633G | 83.45 → 83.64 | -1.13% |
+| webpack, single | 10.8553G → 10.8603G | 311.28 → 311.28 | -0.08% |
+| webpack, default | 15.3091G → 15.3111G | 502.95 → 503.56 | +1.75% |
+| VS Code, single | 82.5845G → 81.7292G | 1,602.95 → 1,602.94 | -0.90% |
+| VS Code, default | 93.8988G → 93.9664G | 2,109.95 → 2,108.31 | +7.81%* |
+
+*The reversed ten-pair confirmation reduced the VS Code/default wall delta
+to +0.84%; its instruction and RSS deltas were both below 0.05%.
+The release binaries, paired samples, output hashes, JavaScript collector,
+and confirmation runs are under `target/port-623/0082-3c1e603122/perf/`.

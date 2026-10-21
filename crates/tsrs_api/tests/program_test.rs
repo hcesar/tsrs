@@ -379,6 +379,41 @@ fn config_file_parsing_diagnostics_round_trip() {
     assert_eq!(str_of(get(&d, "0.text")), "Unknown compiler option 'x'.");
 }
 
+// session_apistate_test.go: TestOpenProjectsWithCircularExtendsReportCircularity
+#[test]
+fn open_projects_with_circular_extends_report_circularity() {
+    let dir = TempDir::new("circular_extends");
+    let first = dir.write("p1/tsconfig.json", r#"{ "extends": "../shared/base.json" }"#);
+    let second = dir.write("p2/tsconfig.json", r#"{ "extends": "../shared/base.json" }"#);
+    dir.write("shared/base.json", r#"{ "extends": "../p2/tsconfig.json" }"#);
+    dir.write("p1/a.ts", "export const a = 1;");
+    dir.write("p2/b.ts", "export const b = 1;");
+    let s = session(&dir.dir(), false);
+
+    call(&s, "createSnapshot", &format!(r#"{{"openProjects":[{}]}}"#, quote(&first)));
+    let response =
+        call(&s, "createSnapshot", &format!(r#"{{"openProjects":[{}]}}"#, quote(&second)));
+    let snapshot = get(&response, "snapshot");
+    let project = arr(get(&response, "projects"))
+        .iter()
+        .find(|project| {
+            matches!(project, Value::Object(fields) if matches!(fields.get("configFileName"), Some(Value::String(file)) if file == &second))
+        })
+        .expect("second configured project");
+    let diagnostics = call(
+        &s,
+        "getConfigFileParsingDiagnostics",
+        &format!(
+            r#"{{"snapshot":{},"project":{}}}"#,
+            json::marshal(snapshot).unwrap(),
+            quote(str_of(get(project, "id")))
+        ),
+    );
+    let codes: Vec<Value> =
+        arr(&diagnostics).iter().map(|diagnostic| get(diagnostic, "code").clone()).collect();
+    assert_eq!(codes, [Value::Number(18000.0)]);
+}
+
 #[test]
 fn config_file_names_and_source_file_metadata() {
     let dir = TempDir::new("meta");

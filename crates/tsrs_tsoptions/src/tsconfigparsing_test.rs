@@ -2324,6 +2324,24 @@ fn test_extended_config_errors_appear_on_cache_hit() {
 }
 
 #[test]
+fn test_circular_extended_config_does_not_include_itself() {
+    let files: &[(&str, &str)] = &[
+        ("/home/projects/p1/tsconfig.json", r#"{ "extends": "../shared/base.json" }"#),
+        ("/home/projects/p2/tsconfig.json", r#"{ "extends": "../shared/base.json" }"#),
+        ("/home/projects/shared/base.json", r#"{ "extends": "../p2/tsconfig.json" }"#),
+        ("/home/projects/p1/a.ts", "export const a = 1;"),
+        ("/home/projects/p2/b.ts", "export const b = 1;"),
+    ];
+    let host = new_vfs_parse_config_host(files, "/home/projects", true);
+    let cache = MemoCache::default();
+    let first = parse_config_with_cache(host, "/home/projects/p1/tsconfig.json", &cache);
+    assert_eq!(first.errors.iter().map(|e| e.code()).collect::<Vec<_>>(), vec![18000]);
+    let second = parse_config_with_cache(host, "/home/projects/p2/tsconfig.json", &cache);
+    assert_eq!(second.errors.iter().map(|e| e.code()).collect::<Vec<_>>(), vec![18000]);
+    assert_eq!(second.extended_source_files(), vec!["/home/projects/shared/base.json".to_string()]);
+}
+
+#[test]
 fn test_extended_config_config_dir_paths_are_not_cached() {
     let files: &[(&str, &str)] = &[
         (
