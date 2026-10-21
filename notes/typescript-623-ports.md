@@ -3554,3 +3554,73 @@ generated-code freshness, and `git diff --check` pass. Evidence is under
 `target/port-623/0078-6656c1c12c/`; the reused full conformance evidence
 is under `target/port-623/0077-3789ddb12a/`. No release performance
 measurement is needed because compiler and runtime inputs are unchanged.
+
+## 79. `c9b2c8e29c` — Add content mapper output extensions
+
+Upstream `c9b2c8e29c934895a720c14d8e424580d2e56721` lets a content
+mapper declare default `outputExtensions` in its package manifest and lets a
+project override them in `contentMappers`. The tsrs port validates these maps,
+preserves an explicitly empty override, selects the longest matching suffix,
+and carries extension rewrites through output paths, module emit, helper
+injection, declaration emit, and checker diagnostics. A mapped `.vue` source
+whose external output is `.js` now has a `.d.ts` declaration path; static and
+dynamic imports use the rewritten JavaScript path, including in declarations.
+The compiler also checks collisions against mapper-produced external outputs
+and diagnoses unsafe or omitted relative rewrites. The LSP protocol and npm
+`tsrs/vscode` manifest type accept `outputExtensions` in mapper contributions;
+the language-server contribution handler remains unported, as before. The
+ignored `ts-ref` checkout advances to
+this exact source commit; the published TypeScript pin remains at the base
+revision until the complete upgrade.
+
+The direct Rust regressions cover manifest defaults, project overrides and
+empty overrides, invalid maps, overlapping suffixes, mapped declaration and
+JavaScript emit, dynamic import and helper rewriting, collisions, unsafe
+rewrites, and repeated incremental/build invocations after a manifest edit.
+Focused tests in exact-source Go pass for the new output-extension and
+content-mapper paths; its own compiler harness passes the 13 new
+`contentMapperOutputExtensions*` variants and their baseline subtests. A
+watch-session manifest-edit probe leaves an already emitted `.js` import stale
+in both Rust and this exact Go revision; this is an
+upstream behavior, while the repeated-invocation regression passes. The full
+Rust workspace, 40 CLI regressions, `wasm32-wasip1` target check,
+warnings-denied Clippy, source lint, formatting, both real-process
+content-mapper e2e fixtures, and the npm SDK build/declaration check pass.
+
+All 18 Go-history check, 18 canonical check, and 36 emit pass-set lists have
+zero lost or new passing names relative to source 77 (source 78 changed only
+workflows). Go-history passes 13,569 diagnostic and 12,873 type/symbol
+baselines; canonical passes 13,569 and 12,872; emit passes 13,499 JavaScript,
+149 JavaScript-map, and 156 source-map baselines. The runner still skips all
+25 `contentMapper*.ts` compiler fixture files: this upstream commit adds 10
+files with 13 variants, all `@runExternalCode` and all skipped, so those are
+not conformance passes. Exact-source Fourslash passes 4,091 groups, skips
+470, and fails none. Its two new output-extension project-reference groups
+skip because the Go subprocess runner cannot carry mapper callbacks across
+the process boundary; all previous named outcomes are unchanged. Evidence
+and the JavaScript pass-set comparator are under
+`target/port-623/0079-c9b2c8e29c/`.
+
+Paired local macOS release measurements used five alternating source-78/source-79
+pairs per cell, the same public inputs and output hashes, and the immediate
+source-78 binary built from `b7dc9667d8`. macOS `time -l` counts instructions
+including kernel work, so these are a regression screen rather than the
+repository's Linux `bench/count.py` instruction gate or two-publish wall-time
+gate. The largest no-emit increase was +0.307% instructions and +0.518% peak
+RSS on VS Code's default mode; wall time there was -0.23%. The forced
+five-project build/emit workload was -0.110% instructions and -0.427% RSS.
+No material performance regression was observed; the small per-cell changes
+are within this local counter's run-to-run variation.
+
+| public case | instructions, source 78 → 79 | peak RSS, MiB, source 78 → 79 | wall change |
+| --- | ---: | ---: | ---: |
+| Compiler-Unions, single | 3.2734G → 3.2731G | 59.5 → 59.6 | +1.09% |
+| Compiler-Unions, default | 3.9626G → 3.9616G | 83.4 → 83.5 | -2.13% |
+| webpack, single | 10.8349G → 10.8421G | 310.7 → 310.8 | -0.62% |
+| webpack, default | 15.1869G → 15.1853G | 503.3 → 502.4 | -0.85% |
+| VS Code, single | 81.4433G → 81.6074G | 1,606.7 → 1,607.3 | -0.27% |
+| VS Code, default | 93.4560G → 93.7425G | 2,107.1 → 2,118.0 | -0.23% |
+| Forced multi-project build/emit | 3.6159G → 3.6120G | 124.5 → 124.0 | -1.87% |
+
+The release binaries, input fixture, raw paired samples, and JavaScript
+collectors are under `target/port-623/0079-c9b2c8e29c/perf/`.

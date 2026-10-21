@@ -2,6 +2,7 @@
 
 use tsrs_core::collections::OrderedMap;
 use tsrs_core::tspath::ComparePathsOptions;
+use tsrs_core::tspath::ExtensionRewrite;
 use tsrs_core::{CompilerOptions, JsxEmit, P, ScriptTarget, Tristate};
 use tsrs_diagnostics as diagnostics;
 
@@ -100,6 +101,115 @@ fn test_get_output_file_names_excludes_mapper_owned_outputs() {
     assert_eq!(command_line.get_output_file_names(), vec!["/dist/Component.d.vue.ts".to_string()]);
 }
 
+#[test]
+fn test_content_mapper_extension_rewrites_preserve_longest_extension() {
+    let mut command_line = new_parsed_command_line(
+        P::new(CompilerOptions {
+            out_dir: "/dist".into(),
+            declaration: Tristate::True,
+            ..Default::default()
+        }),
+        vec![
+            "/src/Widget.y.z".into(),
+            "/src/Widget.identity.y.z".into(),
+            "/src/Widget.unmapped.y.z".into(),
+        ],
+        Vec::new(),
+        ComparePathsOptions { current_directory: "/".into(), use_case_sensitive_file_names: true },
+    );
+    let mut mapper = mapper("", &[".z", ".y.z", ".identity.y.z", ".unmapped.y.z"]);
+    mapper.definition.output_extensions = [
+        (".z".into(), ".js".into()),
+        (".y.z".into(), ".mjs".into()),
+        (".identity.y.z".into(), ".identity.y.z".into()),
+    ]
+    .into_iter()
+    .collect();
+    command_line.parsed_config.content_mappers = vec![mapper].into();
+    let rewrites = command_line.content_mapper_extension_rewrites();
+    assert_eq!(rewrites.len(), 4);
+    assert!(rewrites.windows(2).all(|pair| pair[0].source.len() >= pair[1].source.len()));
+    for file in ["./Widget.identity.y.z", "./Widget.unmapped.y.z"] {
+        assert_eq!(
+            tsrs_core::tspath::rewrite_extension(file, rewrites, true),
+            (file.into(), false)
+        );
+    }
+    assert_eq!(
+        command_line.get_output_file_names(),
+        vec![
+            "/dist/Widget.d.mts",
+            "/dist/Widget.d.identity.y.z.ts",
+            "/dist/Widget.d.unmapped.y.z.ts",
+        ]
+    );
+    assert_eq!(
+        tsrs_core::tspath::rewrite_extension("./Widget.y.z", rewrites, true),
+        ("./Widget.mjs".into(), true),
+    );
+    assert!(std::ptr::eq(
+        rewrites.as_ptr(),
+        command_line.content_mapper_extension_rewrites().as_ptr(),
+    ));
+}
+
+#[test]
+fn test_content_mapper_output_paths_case_insensitive() {
+    let mut command_line = new_parsed_command_line(
+        P::new(CompilerOptions { out_dir: "/dist".into(), ..Default::default() }),
+        vec!["/src/Widget.Y.Z".into()],
+        Vec::new(),
+        ComparePathsOptions { current_directory: "/".into(), use_case_sensitive_file_names: false },
+    );
+    let mut mapper = mapper("", &[".y.z"]);
+    mapper.definition.output_extensions.insert(".y.z".into(), ".mjs".into());
+    command_line.parsed_config.content_mappers = vec![mapper].into();
+    assert_eq!(
+        command_line.content_mapper_extension_rewrites(),
+        &[ExtensionRewrite { source: ".y.z".into(), target: ".mjs".into() }]
+    );
+    let options = command_line.compiler_options().unwrap();
+    assert_eq!(
+        crate::outputpaths::get_external_output_file_name(
+            "/src/Widget.Y.Z",
+            &options,
+            &command_line
+        ),
+        "/dist/Widget.mjs"
+    );
+    assert_eq!(
+        crate::outputpaths::get_output_declaration_file_name_worker(
+            "/src/Widget.Y.Z",
+            &options,
+            &command_line
+        ),
+        "/dist/Widget.d.mts"
+    );
+}
+
+#[test]
+fn test_transform_identity_includes_output_extensions() {
+    let mut mapper = mapper("vue", &[".vue"]);
+    mapper.manifest.name = "vue".into();
+    let original = mapper.transform_identity(None);
+    mapper.definition.output_extensions.insert(".vue".into(), ".js".into());
+    assert_ne!(mapper.transform_identity(None), original);
+    let mapped = mapper.transform_identity(None);
+    mapper.manifest.default_output_extensions.insert(".vue".into(), ".cjs".into());
+    assert_eq!(mapper.transform_identity(None), mapped);
+}
+
+#[test]
+fn test_empty_output_extension_map_differs_from_missing_in_mapper_equality() {
+    let missing = Mapper::default();
+    let mut explicit_empty = missing.clone();
+    explicit_empty.definition.output_extensions_present = true;
+    assert_ne!(missing, explicit_empty);
+    let mut manifest_empty = missing.clone();
+    manifest_empty.manifest.default_output_extensions_present = true;
+    assert_ne!(missing, manifest_empty);
+}
+
 // contentmappers_test.go:68
 #[test]
 fn test_resolve_content_mapper_manifest() {
@@ -110,7 +220,7 @@ fn test_resolve_content_mapper_manifest() {
                 r#"{
             "name": "vue-ts-mapper",
             "version": "1.2.3",
-            "typescript": { "contentMapper": { "exec": ["node", "./dist/mapper.js"], "compilerOptions": ["target", "jsx"] } }
+            "typescript": { "contentMapper": { "exec": ["node", "./dist/mapper.js"], "compilerOptions": ["target", "jsx"], "outputExtensions": { ".vue": ".js" } } }
         }"#,
             ),
             (
@@ -160,6 +270,8 @@ fn test_resolve_content_mapper_manifest() {
     assert_eq!(package_directory, "/home/project/node_modules/vue-ts-mapper");
     assert_eq!(manifest.exec, ["node", "./dist/mapper.js"]);
     assert_eq!(manifest.compiler_options, ["target", "jsx"]);
+    assert_eq!(manifest.default_output_extensions.get(".vue").map(String::as_str), Some(".js"));
+    assert!(manifest.default_output_extensions_present);
 
     // Resolution walks up node_modules; a package with no version resolves to a name and empty version.
     let (manifest, _, diagnostic) = resolve_content_mapper_manifest(
@@ -208,6 +320,33 @@ fn test_resolve_content_mapper_manifest() {
             diagnostic.code(),
             diagnostics::The_typescript_contentMapper_exec_of_the_content_mapper_package_0_must_be_a_non_empty_array_of_strings.code()
         );
+    }
+}
+
+#[test]
+fn test_resolve_content_mapper_manifest_rejects_malformed_output_extensions() {
+    let values = [
+        (r#""invalid""#, 18122),
+        ("null", 18122),
+        ("[]", 18122),
+        (r#"{".vue": 1}"#, 18122),
+        (r#"{".vue": null}"#, 18121),
+        (r#"{".vue/foo": ".js"}"#, 18123),
+        (r#"{".vue": ".js/foo"}"#, 18123),
+        (r#"{".vue": "js"}"#, 18121),
+    ];
+    for (value, expected_code) in values {
+        let package_json = format!(
+            r#"{{"name":"mapper","typescript":{{"contentMapper":{{"exec":["run"],"outputExtensions":{value}}}}}}}"#
+        );
+        let host = new_vfs_parse_config_host(
+            &[("/home/project/node_modules/mapper/package.json", package_json.leak())],
+            "/home/project",
+            true,
+        );
+        let (_, _, diagnostic) =
+            resolve_content_mapper_manifest(host, "/home/project/tsconfig.json", "mapper");
+        assert_eq!(diagnostic.expect(value).code(), expected_code, "{value}");
     }
 }
 

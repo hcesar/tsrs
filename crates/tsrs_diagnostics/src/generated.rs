@@ -16474,6 +16474,35 @@ pub static A_deferred_import_must_specify_a_namespace_binding: Message = Message
     reports_deprecated: false,
 };
 
+pub static Content_mapper_output_extension_0_must_be_non_empty_and_begin_with_a: Message =
+    Message {
+        code: 18118,
+        category: Category::Error,
+        key: Key("Content_mapper_output_extension_0_must_be_non_empty_and_begin_with_a_18118"),
+        text: "Content mapper output extension '{0}' must be non-empty and begin with a '.'.",
+        reports_unnecessary: false,
+        elided_in_compatibility_pyramid: false,
+        reports_deprecated: false,
+    };
+
+pub static Content_mapper_output_extension_mapping_source_0_is_not_registered_by_this_content_mapper: Message = Message { code: 18119, category: Category::Error, key: Key("Content_mapper_output_extension_mapping_source_0_is_not_registered_by_this_content_mapper_18119"), text: "Content mapper output extension mapping source '{0}' is not registered by this content mapper.", reports_unnecessary: false, elided_in_compatibility_pyramid: false, reports_deprecated: false };
+
+pub static Content_mapper_output_extension_mapping_from_0_to_1_requires_rewriteRelativeImportExtensions_to_be_enabled: Message = Message { code: 18120, category: Category::Error, key: Key("Content_mapper_output_extension_mapping_from_0_to_1_requires_rewriteRelativeImportExtensions_to_be_e_18120"), text: "Content mapper output extension mapping from '{0}' to '{1}' requires 'rewriteRelativeImportExtensions' to be enabled.", reports_unnecessary: false, elided_in_compatibility_pyramid: false, reports_deprecated: false };
+
+pub static The_typescript_contentMapper_outputExtensions_of_the_content_mapper_package_0_contains_an_invalid_mapping_from_1_to_2_Extensions_must_be_non_empty_and_begin_with_a: Message = Message { code: 18121, category: Category::Error, key: Key("The_typescript_contentMapper_outputExtensions_of_the_content_mapper_package_0_contains_an_invalid_ma_18121"), text: "The 'typescript.contentMapper.outputExtensions' of the content mapper package '{0}' contains an invalid mapping from '{1}' to '{2}'. Extensions must be non-empty and begin with a '.'.", reports_unnecessary: false, elided_in_compatibility_pyramid: false, reports_deprecated: false };
+
+pub static The_typescript_contentMapper_outputExtensions_of_the_content_mapper_package_0_must_be_an_object_with_string_values: Message = Message { code: 18122, category: Category::Error, key: Key("The_typescript_contentMapper_outputExtensions_of_the_content_mapper_package_0_must_be_an_object_with_18122"), text: "The 'typescript.contentMapper.outputExtensions' of the content mapper package '{0}' must be an object with string values.", reports_unnecessary: false, elided_in_compatibility_pyramid: false, reports_deprecated: false };
+
+pub static Content_mapper_extension_0_must_not_contain_path_separators: Message = Message {
+    code: 18123,
+    category: Category::Error,
+    key: Key("Content_mapper_extension_0_must_not_contain_path_separators_18123"),
+    text: "Content mapper extension '{0}' must not contain path separators.",
+    reports_unnecessary: false,
+    elided_in_compatibility_pyramid: false,
+    reports_deprecated: false,
+};
+
 pub static X_nodenext_if_module_is_nodenext_node16_if_module_is_node16_or_node18_otherwise_bundler: Message = Message { code: 69010, category: Category::Message, key: Key("nodenext_if_module_is_nodenext_node16_if_module_is_node16_or_node18_otherwise_bundler_69010"), text: "`nodenext` if `module` is `nodenext`; `node16` if `module` is `node16` or `node18`; otherwise, `bundler`.", reports_unnecessary: false, elided_in_compatibility_pyramid: false, reports_deprecated: false };
 
 pub static File_is_a_CommonJS_module_it_may_be_converted_to_an_ES_module: Message = Message {
@@ -19170,7 +19199,7 @@ pub static JSDoc_comment: Message = Message {
     reports_deprecated: false,
 };
 
-pub(crate) static ALL_MESSAGES: [&Message; 2222] = [
+pub(crate) static ALL_MESSAGES: [&Message; 2228] = [
     &Unterminated_string_literal,
     &Identifier_expected,
     &X_0_expected,
@@ -21123,6 +21152,12 @@ pub(crate) static ALL_MESSAGES: [&Message; 2222] = [
     &Source_phase_imports_are_not_allowed_on_statements_that_compile_to_CommonJS_require_calls,
     &This_initializer_has_a_Symbol_asyncDispose_method_Did_you_mean_to_use_await_using,
     &A_deferred_import_must_specify_a_namespace_binding,
+    &Content_mapper_output_extension_0_must_be_non_empty_and_begin_with_a,
+    &Content_mapper_output_extension_mapping_source_0_is_not_registered_by_this_content_mapper,
+    &Content_mapper_output_extension_mapping_from_0_to_1_requires_rewriteRelativeImportExtensions_to_be_enabled,
+    &The_typescript_contentMapper_outputExtensions_of_the_content_mapper_package_0_contains_an_invalid_mapping_from_1_to_2_Extensions_must_be_non_empty_and_begin_with_a,
+    &The_typescript_contentMapper_outputExtensions_of_the_content_mapper_package_0_must_be_an_object_with_string_values,
+    &Content_mapper_extension_0_must_not_contain_path_separators,
     &X_nodenext_if_module_is_nodenext_node16_if_module_is_node16_or_node18_otherwise_bundler,
     &File_is_a_CommonJS_module_it_may_be_converted_to_an_ES_module,
     &This_constructor_function_may_be_converted_to_a_class_declaration,

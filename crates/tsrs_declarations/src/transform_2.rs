@@ -384,6 +384,30 @@ impl DeclarationTransformer {
             self.result_has_external_module_indicator.get()
                 || (parent.kind() != Kind::ModuleDeclaration && parent.kind() != Kind::ImportType),
         );
+        if ast::is_string_literal(input)
+            && self.compiler_options.rewrite_relative_import_extensions.is_true()
+        {
+            let rewrites = self.host.content_mapper_extension_rewrites();
+            let use_case_sensitive_file_names = self.host.use_case_sensitive_file_names();
+            if !tspath::should_rewrite_extension(
+                input.text(),
+                &rewrites,
+                use_case_sensitive_file_names,
+            ) {
+                return Some(input);
+            }
+            let (rewritten, changed) =
+                tspath::rewrite_extension(input.text(), &rewrites, use_case_sensitive_file_names);
+            if changed {
+                let result = self.factory().new_string_literal(
+                    alloc_str(&rewritten),
+                    input.as_string_literal().token_flags(),
+                );
+                self.emit_context().set_original(result, input);
+                self.emit_context().assign_comment_and_source_map_ranges(result, input);
+                return Some(result);
+            }
+        }
         Some(input)
     }
 

@@ -165,6 +165,8 @@ impl CommonJSModuleTransformer {
                     self.emit_context(),
                     Some(module_name),
                     &self.compiler_options,
+                    &self.content_mapper_extension_rewrites,
+                    self.use_case_sensitive_file_names,
                 )
                 .unwrap(),
             );

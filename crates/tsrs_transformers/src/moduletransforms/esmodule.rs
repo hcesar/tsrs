@@ -6,6 +6,8 @@ pub struct ESModuleTransformer {
     get_emit_module_format_of_file: Rc<dyn Fn(P<SourceFile>) -> ModuleKind>,
     current_source_file: Cell<Option<P<SourceFile>>>,
     import_require_statements: RefCell<Option<importRequireStatements>>,
+    content_mapper_extension_rewrites: Vec<tspath::ExtensionRewrite>,
+    use_case_sensitive_file_names: bool,
 }
 
 #[derive(Clone)]
@@ -27,6 +29,8 @@ pub fn new_es_module_transformer(opts: &TransformOptions) -> Option<P<Transforme
         get_emit_module_format_of_file: Rc::clone(&opts.get_emit_module_format_of_file),
         current_source_file: Cell::new(None),
         import_require_statements: RefCell::new(None),
+        content_mapper_extension_rewrites: opts.content_mapper_extension_rewrites.clone(),
+        use_case_sensitive_file_names: opts.use_case_sensitive_file_names,
     });
     Some(tx.get().base.new_transformer(
         Rc::new(move |_: &mut NodeVisitor, n: P<Node>| tx.visit(n)),
@@ -142,6 +146,8 @@ impl ESModuleTransformer {
             self.emit_context(),
             Some(n.module_specifier),
             &self.compiler_options,
+            &self.content_mapper_extension_rewrites,
+            self.use_case_sensitive_file_names,
         );
         let mut v = self.visitor();
         self.factory().update_import_declaration(
@@ -248,6 +254,8 @@ impl ESModuleTransformer {
             self.emit_context(),
             Some(module_specifier),
             &self.compiler_options,
+            &self.content_mapper_extension_rewrites,
+            self.use_case_sensitive_file_names,
         );
         if self.compiler_options.module > ModuleKind::ES2015
             || n.export_clause.is_none_or(|c| !ast::is_namespace_export(c))
@@ -328,12 +336,20 @@ impl ESModuleTransformer {
 
         let first = n.arguments.nodes()[0];
         let argument = if ast::is_string_literal_like(first) {
-            rewrite_module_specifier(self.emit_context(), Some(first), &self.compiler_options)
-                .unwrap()
+            rewrite_module_specifier(
+                self.emit_context(),
+                Some(first),
+                &self.compiler_options,
+                &self.content_mapper_extension_rewrites,
+                self.use_case_sensitive_file_names,
+            )
+            .unwrap()
         } else {
             f.new_rewrite_relative_import_extensions_helper(
                 first,
                 self.compiler_options.jsx == tsrs_core::JsxEmit::Preserve,
+                &self.content_mapper_extension_rewrites,
+                self.use_case_sensitive_file_names,
             )
         };
 
@@ -374,8 +390,14 @@ impl ESModuleTransformer {
         let mut args: Vec<P<Node>> = Vec::new();
         if let Some(module_name) = module_name {
             args.push(
-                rewrite_module_specifier(emit_context, Some(module_name), &self.compiler_options)
-                    .unwrap(),
+                rewrite_module_specifier(
+                    emit_context,
+                    Some(module_name),
+                    &self.compiler_options,
+                    &self.content_mapper_extension_rewrites,
+                    self.use_case_sensitive_file_names,
+                )
+                .unwrap(),
             );
         }
 

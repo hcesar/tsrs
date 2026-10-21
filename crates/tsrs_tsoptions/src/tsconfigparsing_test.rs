@@ -1698,6 +1698,172 @@ fn test_unresolved_content_mapper_does_not_register_extensions() {
     }
 }
 
+#[test]
+fn test_content_mapper_output_extensions_reset() {
+    let cases = [
+        ("omitted", "", true, "/dist/Card.d.ts", Some(".js")),
+        ("null", r#", "outputExtensions": null"#, false, "/dist/Card.d.astro.ts", None),
+        ("empty object", r#", "outputExtensions": {}"#, false, "/dist/Card.d.astro.ts", None),
+        (
+            "replacement",
+            r#", "outputExtensions": {".astro": ".mjs"}"#,
+            true,
+            "/dist/Card.d.mts",
+            Some(".mjs"),
+        ),
+    ];
+    for (name, override_value, rewrite, expected_declaration, expected_output_extension) in cases {
+        let json_text: &'static str = format!(
+            r#"{{
+            "compilerOptions": {{ "declaration": true, "rootDir": "/src", "outDir": "/dist",
+                "rewriteRelativeImportExtensions": {rewrite} }},
+            "contentMappers": [{{ "package": "mapper", "extensions": [".astro"]{override_value} }}],
+            "files": ["/src/Card.astro"]
+        }}"#
+        )
+        .leak();
+        let files: &'static [(&'static str, &'static str)] = vec![
+            ("/tsconfig.json", json_text),
+            ("/src/Card.astro", "export {};"),
+            (
+                "/node_modules/mapper/package.json",
+                r#"{
+                "name": "mapper", "typescript": { "contentMapper": {
+                    "exec": ["mapper"], "outputExtensions": {".astro": ".js"}
+                } }
+            }"#,
+            ),
+        ]
+        .leak();
+        let config = TestConfig {
+            json_text,
+            config_file_name: "tsconfig.json",
+            base_path: "/",
+            all_file_list: files,
+            existing_options: Some(CompilerOptions {
+                run_external_code: Tristate::True,
+                ..Default::default()
+            }),
+        };
+        for (api_name, get_parsed) in [
+            ("json api", get_parsed_with_json_api as GetParsed),
+            ("jsonSourceFile api", get_parsed_with_json_source_file_api),
+        ] {
+            let host = new_vfs_parse_config_host(files, "/", true);
+            let parsed = get_parsed(&config, host, "/");
+            assert!(parsed.errors.is_empty(), "{name}/{api_name}: {:?}", parsed.errors);
+            assert_eq!(parsed.content_mappers().len(), 1, "{name}/{api_name}");
+            let mapper = &parsed.content_mappers()[0];
+            assert_eq!(
+                mapper.definition.output_extensions.get(".astro").map(String::as_str),
+                expected_output_extension,
+                "{name}/{api_name}"
+            );
+            assert_eq!(
+                mapper.definition.output_extensions_present,
+                name != "null",
+                "{name}/{api_name}"
+            );
+            assert_eq!(
+                parsed.content_mapper_extension_rewrites().is_empty(),
+                !rewrite,
+                "{name}/{api_name}"
+            );
+            assert_eq!(parsed.get_output_file_names(), [expected_declaration], "{name}/{api_name}");
+            let options = parsed.compiler_options().unwrap();
+            let expected_external = expected_output_extension
+                .map_or_else(String::new, |extension| format!("/dist/Card{extension}"));
+            assert_eq!(
+                crate::outputpaths::get_external_output_file_name(
+                    "/src/Card.astro",
+                    &options,
+                    &parsed
+                ),
+                expected_external,
+                "{name}/{api_name}"
+            );
+            assert_eq!(
+                mapper.manifest.default_output_extensions.get(".astro").map(String::as_str),
+                Some(".js")
+            );
+            assert!(mapper.manifest.default_output_extensions_present);
+        }
+    }
+}
+
+#[test]
+fn test_content_mapper_output_extension_validation() {
+    let cases = [
+        ("source slash", r#""extensions":[".astro/foo"]"#, 18123),
+        ("reserved compound source", r#""extensions":[".component.ts"]"#, 18066),
+        (
+            "output key slash",
+            r#""extensions":[".astro"],"outputExtensions":{".astro/foo":".js"}"#,
+            18123,
+        ),
+        (
+            "output value slash",
+            r#""extensions":[".astro"],"outputExtensions":{".astro":".js/foo"}"#,
+            18123,
+        ),
+        (
+            "output key invalid",
+            r#""extensions":[".astro"],"outputExtensions":{"astro":".js"}"#,
+            18118,
+        ),
+        (
+            "output value invalid",
+            r#""extensions":[".astro"],"outputExtensions":{".astro":"js"}"#,
+            18118,
+        ),
+        (
+            "output source unregistered",
+            r#""extensions":[".astro"],"outputExtensions":{".other":".js"}"#,
+            18119,
+        ),
+        (
+            "output mapping needs rewrite",
+            r#""extensions":[".astro"],"outputExtensions":{".astro":".mjs"}"#,
+            18120,
+        ),
+        ("invalid output object", r#""extensions":[".astro"],"outputExtensions":[".js"]"#, 5024),
+    ];
+    for (name, mapper_properties, expected_code) in cases {
+        let json_text: &'static str = format!(r#"{{"compilerOptions":{{"rewriteRelativeImportExtensions":false}},"contentMappers":[{{"package":"mapper",{mapper_properties}}}],"files":["/src/Card.astro"]}}"#).leak();
+        let files: &'static [(&'static str, &'static str)] = vec![
+            ("/tsconfig.json", json_text),
+            ("/src/Card.astro", "export {};"),
+            (
+                "/node_modules/mapper/package.json",
+                r#"{"name":"mapper","typescript":{"contentMapper":{"exec":["mapper"]}}}"#,
+            ),
+        ]
+        .leak();
+        let config = TestConfig {
+            json_text,
+            config_file_name: "tsconfig.json",
+            base_path: "/",
+            all_file_list: files,
+            existing_options: Some(CompilerOptions {
+                run_external_code: Tristate::True,
+                ..Default::default()
+            }),
+        };
+        for (api_name, get_parsed) in [
+            ("json api", get_parsed_with_json_api as GetParsed),
+            ("jsonSourceFile api", get_parsed_with_json_source_file_api),
+        ] {
+            let host = new_vfs_parse_config_host(files, "/", true);
+            let parsed = get_parsed(&config, host, "/");
+            assert!(
+                parsed.errors.iter().any(|diagnostic| diagnostic.code() == expected_code),
+                "{name}/{api_name}: {:?}",
+                parsed.errors
+            );
+        }
+    }
+}
+
 // tsconfigparsing_test.go:1306
 #[test]
 fn test_content_mappers_validation() {

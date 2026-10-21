@@ -33,6 +33,8 @@ pub struct TransformOptions {
     pub resolver: ReferenceResolverRef,
     pub emit_resolver: Option<Resolver>,
     pub get_emit_module_format_of_file: Rc<dyn Fn(P<SourceFile>) -> ModuleKind>,
+    pub content_mapper_extension_rewrites: Vec<tspath::ExtensionRewrite>,
+    pub use_case_sensitive_file_names: bool,
 }
 
 // chain.go:34

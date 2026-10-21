@@ -52,6 +52,8 @@ fn emit(files: &[(&str, &str)], file: &str, transforms: &[TransformerFactory]) -
             resolver: ReferenceResolverRef::Emit(resolver),
             emit_resolver: Some(resolver),
             get_emit_module_format_of_file: Rc::new(|_| tsrs_core::ModuleKind::ESNext),
+            content_mapper_extension_rewrites: Vec::new(),
+            use_case_sensitive_file_names: true,
         };
         let mut result = source_file;
         result = transforms.iter().fold(result, |mut result, t| {

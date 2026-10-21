@@ -45,6 +45,11 @@ impl OutputPathsHost for EmitHost {
         OutputPathsHost::content_mapper_extensions(self.program)
     }
 
+    fn content_mapper_extension_rewrites(&self) -> Vec<tsrs_core::tspath::ExtensionRewrite> {
+        let _outer = tsrs_core::arena::escape_scratch();
+        OutputPathsHost::content_mapper_extension_rewrites(self.program)
+    }
+
     fn get_current_directory(&self) -> &str {
         let _outer = tsrs_core::arena::escape_scratch();
         OutputPathsHost::get_current_directory(self.program)
@@ -194,6 +199,11 @@ impl tsrs_transformers::EmitHost for EmitHost {
     fn source_files(&self) -> &'static [P<SourceFile>] {
         let _outer = tsrs_core::arena::escape_scratch();
         self.program.source_files()
+    }
+
+    fn content_mapper_extension_rewrites(&self) -> Vec<tsrs_core::tspath::ExtensionRewrite> {
+        let _outer = tsrs_core::arena::escape_scratch();
+        self.program.content_mapper_extension_rewrites()
     }
 
     // emitHost.go:122

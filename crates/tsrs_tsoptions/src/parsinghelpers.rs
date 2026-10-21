@@ -144,6 +144,19 @@ pub(crate) fn parse_content_mapper(
             &[&"contentMapper.extensions", &"string[]"],
         ));
     }
+    if let Some(output_extensions) = v.get("outputExtensions") {
+        if !matches!(output_extensions, CompilerOptionsValue::Null) {
+            if let Some(values) = parse_string_string_map_strict(output_extensions) {
+                mapper.definition.output_extensions = values;
+                mapper.definition.output_extensions_present = true;
+            } else {
+                errors.push(new_compiler_diagnostic(
+                    &diagnostics::Compiler_option_0_requires_a_value_of_type_1,
+                    &[&"contentMapper.outputExtensions", &"object or null"],
+                ));
+            }
+        }
+    }
     if let Some(options) = v.get("options") {
         if !matches!(options, CompilerOptionsValue::Object(_)) {
             errors.push(new_compiler_diagnostic(
@@ -158,6 +171,22 @@ pub(crate) fn parse_content_mapper(
         return (None, errors);
     }
     (Some(mapper), errors)
+}
+
+fn parse_string_string_map_strict(
+    value: &CompilerOptionsValue,
+) -> Option<rustc_hash::FxHashMap<String, String>> {
+    let CompilerOptionsValue::Object(map) = value else {
+        return None;
+    };
+    let mut result = rustc_hash::FxHashMap::default();
+    for (key, value) in map {
+        let CompilerOptionsValue::String(value) = value else {
+            return None;
+        };
+        result.insert(key.clone(), value.clone());
+    }
+    Some(result)
 }
 
 // parseStringArrayStrict returns the string slice and true only if value is an array whose

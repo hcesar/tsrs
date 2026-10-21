@@ -1867,7 +1867,30 @@ impl NodeBuilderImpl {
                 result.import_attributes_type = Some(import_attributes_type);
             }
         }
+        if let Some(specifier) = self.rewrite_content_mapped_module_specifier(c, result.specifier) {
+            result.specifier = self.f.alloc_text(&specifier);
+        }
         result
+    }
+
+    pub(crate) fn rewrite_content_mapped_module_specifier(
+        &self,
+        c: &Checker,
+        specifier: &str,
+    ) -> Option<String> {
+        let ctx = self.ctx();
+        if !ctx.internal_flags.get().intersects(InternalFlags::RewriteModuleSpecifiers)
+            || !c.compiler_options.rewrite_relative_import_extensions.is_true()
+        {
+            return None;
+        }
+        let rewrites = ctx.host.content_mapper_extension_rewrites();
+        let case_sensitive = ctx.host.use_case_sensitive_file_names();
+        if tspath::should_rewrite_extension(specifier, &rewrites, case_sensitive) {
+            let (rewritten, _) = tspath::rewrite_extension(specifier, &rewrites, case_sensitive);
+            return Some(rewritten);
+        }
+        None
     }
 
     // nodebuilderimpl.go:1347

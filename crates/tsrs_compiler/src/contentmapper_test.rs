@@ -1,6 +1,7 @@
 // contentmapper_test.go: program construction with content-mapped files, through a fake content mapper project.
 
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use tsrs_ast::{Diagnostic, MappedDiagnosticDirective, MappedDiagnosticDirectivePolicy};
 use tsrs_contentmapper::{
@@ -92,6 +93,22 @@ fn new_content_mapper_program_with_options(
     root_files: &[&str],
     options: CompilerOptions,
 ) -> Option<&'static Program> {
+    new_content_mapper_program_with_output_extensions(
+        content_mapper_project,
+        files,
+        root_files,
+        options,
+        &[],
+    )
+}
+
+fn new_content_mapper_program_with_output_extensions(
+    content_mapper_project: Arc<dyn contentmapper::Project>,
+    files: &[(&str, &str)],
+    root_files: &[&str],
+    options: CompilerOptions,
+    output_extensions: &[(&str, &str)],
+) -> Option<&'static Program> {
     if !bundled::EMBEDDED {
         return None;
     }
@@ -110,6 +127,11 @@ fn new_content_mapper_program_with_options(
         definition: Definition {
             package: "vue".to_string(),
             extensions: vec![".vue".to_string()],
+            output_extensions: output_extensions
+                .iter()
+                .map(|&(source, target)| (source.to_string(), target.to_string()))
+                .collect(),
+            output_extensions_present: !output_extensions.is_empty(),
             options: String::new(),
         },
         manifest: Manifest {
@@ -448,4 +470,116 @@ fn test_content_mapper_project_error_diagnostics() {
         assert_eq!(message.code(), code);
         assert_eq!(message.localize(&[]), message_text);
     }
+}
+
+// The exact-source Go compiler's contentMapperOutputExtensions baseline rewrites static imports in both JavaScript
+// and declarations, and passes custom extensions to the dynamic-import helper.
+#[test]
+fn content_mapper_output_extensions_rewrite_emit_and_declarations() {
+    let Some(program) = new_content_mapper_program_with_output_extensions(
+        fake_host(|_, _| {
+            Ok(result(
+                "export interface CardProps { title: string }\nexport const Card = (props: CardProps) => props.title;\n",
+                ".ts",
+                tsrs_spanmap::new(&[]),
+            ))
+        }),
+        &[
+            ("/src/Component.vue", "<template />"),
+            (
+                "/src/main.ts",
+                "export { Card } from './Component.vue';\nexport type { CardProps } from './Component.vue';\nconst path = './Component.vue';\nvoid import(path);\nexport async function load() { return import('./Component.vue'); }\n",
+            ),
+        ],
+        &["/src/main.ts", "/src/Component.vue"],
+        CompilerOptions {
+            target: tsrs_core::ScriptTarget::ESNext,
+            rewrite_relative_import_extensions: Tristate::True,
+            declaration: Tristate::True,
+            ..options(ModuleKind::Preserve, ModuleResolutionKind::Bundler)
+        },
+        &[(".vue", ".js")],
+    ) else {
+        return;
+    };
+
+    let written = Mutex::new(Vec::<(String, String)>::new());
+    let write_file = |name: &str, body: &str, _: &mut crate::WriteFileData| {
+        written.lock().unwrap().push((name.to_string(), body.to_string()));
+        Ok(())
+    };
+    let emitted = program.emit(
+        &Context::default(),
+        &crate::EmitOptions { write_file: Some(&write_file), ..Default::default() },
+    );
+    assert!(!emitted.emit_skipped, "{:#?}", emitted.diagnostics);
+    let written = written.lock().unwrap();
+    let main_js = written.iter().find(|(name, _)| name.ends_with("main.js")).unwrap().1.as_str();
+    let main_dts = written.iter().find(|(name, _)| name.ends_with("main.d.ts")).unwrap().1.as_str();
+    assert!(main_js.contains("from './Component.js'"), "{main_js}");
+    assert!(main_js.contains("import('./Component.js')"), "{main_js}");
+    assert!(
+        main_js
+            .contains("__rewriteRelativeImportExtension(path, false, { \".vue\": \".js\" }, true)"),
+        "{main_js}"
+    );
+    assert!(main_dts.contains("from './Component.js'"), "{main_dts}");
+    assert!(main_dts.contains("import(\"./Component.js\")"), "{main_dts}");
+}
+
+// Go's output-path collision check includes external output files, even when the mapped source has no JS emit.
+#[test]
+fn content_mapper_output_extension_collision_is_reported() {
+    let Some(program) = new_content_mapper_program_with_output_extensions(
+        fake_host(|_, _| Ok(result("export const Card = 1;", ".ts", tsrs_spanmap::new(&[])))),
+        &[("/src/Card.vue", "<template />"), ("/src/Card.ts", "export const Card = 2;")],
+        &["/src/Card.vue", "/src/Card.ts"],
+        options(ModuleKind::ESNext, ModuleResolutionKind::Bundler),
+        &[(".vue", ".js")],
+    ) else {
+        return;
+    };
+
+    let diagnostics = program.get_program_diagnostics();
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.code()
+                == diagnostics::Cannot_write_file_0_because_it_would_be_overwritten_by_multiple_input_files.code()
+        }),
+        "expected the external output collision diagnostic: {diagnostics:#?}"
+    );
+}
+
+// A path ending in a mapped extension can resolve to a directory; rewriting that specifier would change the target.
+#[test]
+fn content_mapper_output_extension_unsafe_directory_rewrite_is_reported() {
+    let Some(program) = new_content_mapper_program_with_output_extensions(
+        fake_host(|_, _| Ok(result("export {};", ".ts", tsrs_spanmap::new(&[])))),
+        &[
+            ("/src/components.vue/index.ts", "export const directory = 1;"),
+            (
+                "/src/main.ts",
+                "import { directory } from './components.vue';\nconsole.log(directory);\n",
+            ),
+        ],
+        &["/src/main.ts"],
+        CompilerOptions {
+            target: tsrs_core::ScriptTarget::ESNext,
+            rewrite_relative_import_extensions: Tristate::True,
+            allow_arbitrary_extensions: Tristate::True,
+            ..options(ModuleKind::Preserve, ModuleResolutionKind::Bundler)
+        },
+        &[(".vue", ".js")],
+    ) else {
+        return;
+    };
+
+    let diagnostics = collect_content_mapper_diagnostics(program);
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.code()
+                == diagnostics::This_relative_import_path_is_unsafe_to_rewrite_because_it_looks_like_a_file_name_but_actually_resolves_to_0.code()
+        }),
+        "expected an unsafe extension rewrite diagnostic: {diagnostics:#?}"
+    );
 }

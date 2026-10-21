@@ -24,10 +24,10 @@ scenarios) with the in-process test mappers of `testutil/contentmappertest`.
 
 ## Scope
 
-Phase 1 (this branch): the compiler, `tsrs` (tsc), `tsrs -b`, incremental build info, and `tsrs --api
---runExternalCode` accepting the flag. Phase 2 (later): the language server and the API project system
-(`project/`, `lsp/server.go`, `ls` span-map features; 55 fourslash tests). `--watch` is not ported in tsrs, so the
-watch hooks (`execute/watcher.go`, `tsctests/contentmapper_watch_test.go`) stay out.
+Phase 1 (the original content-mapper port): the compiler, `tsrs` (tsc), `tsrs -b`, incremental build info, and
+`tsrs --api --runExternalCode` accepting the flag. Phase 2 (later): the language server and the API project system
+(`project/`, `lsp/server.go`, `ls` span-map features; now 57 skipped Fourslash groups). Watch mode was ported after
+the original phase-1 work, including content-mapper file watching.
 
 ## Crate layout
 
@@ -62,11 +62,13 @@ the other parser-set fields); span maps are arena objects (`P<SpanMap>`), origin
 - The language server and the API project system (phase 2): `project/`, `lsp/server.go`, the `ls` span-map features.
   The project system's compiler host has no mapper host, so a file with a mapper's extension takes Go's
   `ErrProjectUnavailable` path (`tsrs_project/src/compilerhost.rs`); `custom/setContentMapperContributions` answers
-  "not yet ported"; the 55 content-mapper fourslash tests stay among the fourslash gate's 63 failures. `tsrs --api
+  "not yet ported"; the 57 content-mapper fourslash groups (including two from source 79) stay skipped by the Go
+  subprocess runner. `tsrs --api
   --runExternalCode` accepts the flag and nothing more.
-- `--watch` hooks (`execute/watcher.go`, `tsctests/contentmapper_watch_test.go`): tsrs has no watch mode.
-  `BuildTask::refresh_content_mapper_project` is ported but only Go's watch update calls it.
-- The 15 `compiler/contentMapper*.ts` conformance cases (`@runExternalCode: true`): `tsrs_testrunner` still skips them
+- This note's original phase-1 scope excluded `--watch`; tsrs later gained watch mode and content-mapper file
+  watching. Source 79's output-extension edit is tested through repeated incremental and build invocations.
+- The 25 `compiler/contentMapper*.ts` conformance fixture files (`@runExternalCode: true`), including source 79's
+  10 new files and 13 variants: `tsrs_testrunner` still skips them
   (`crates/tsrs_testrunner/src/compile.rs:347`). Running them needs Go's harness side: a host with the test spawner
   (`harnessutil.go:190-253`) and the mapped-text baseline (`compiler_runner.go:343`). The conformance gate counts do
   not include them. The same behavior is covered by the tsctests scenarios and the unit tests below.

@@ -13,6 +13,20 @@ fn error_text<T: Json>(input: &str) -> String {
     }
 }
 
+#[test]
+fn content_mapper_manifest_output_extensions_round_trip() {
+    let input =
+        r#"{"name":"mapper","exec":["mapper"],"outputExtensions":{".vue":".js",".svelte":".mjs"}}"#;
+    let manifest = unmarshal_str::<ContentMapperManifest>(input).unwrap();
+    assert_eq!(marshal(&manifest).unwrap(), input);
+    assert!(
+        error_text::<ContentMapperManifest>(
+            r#"{"name":"mapper","exec":[],"outputExtensions":{".vue":1}}"#
+        )
+        .contains("outputExtensions")
+    );
+}
+
 // lsp_json_test.go:12
 #[test]
 fn test_unmarshal_rejects_null_for_optional_non_nullable_fields() {

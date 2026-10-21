@@ -117,7 +117,11 @@ The rest of factory.go is `tsrs_printer/src/factory_2.rs` (`PrivateIdentifierKin
 
 Content mappers work in `tsc` and `tsc -b` ([content-mapper note](../notes/contentmappers.md)): a content-mapped file is not
 emitted unless declarations are, and declaration maps point into the original text through the span map. The
-conformance runner still skips the `runExternalCode` cases.
+`outputExtensions` map from a mapper manifest or project configuration sets the expected path of a mapper-produced
+file, changes its declaration path, and rewrites matching import specifiers in JavaScript and declarations. The
+compiler diagnoses rewrites that cannot be
+made safely and output paths that collide with another input. The conformance runner still skips the
+`runExternalCode` cases; source-79 behavior is covered by direct compiler and incremental/build tests.
 
 ### Checker history
 

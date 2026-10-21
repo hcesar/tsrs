@@ -20,17 +20,28 @@ pub(crate) fn rewrite_module_specifier(
     emit_context: P<EmitContext>,
     node: Option<P<Node>>,
     compiler_options: &CompilerOptions,
+    rewrites: &[tspath::ExtensionRewrite],
+    use_case_sensitive_file_names: bool,
 ) -> Option<P<Node>> {
     let node = node?;
     if !ast::is_string_literal(node)
-        || !tsrs_core::should_rewrite_module_specifier(node.text(), compiler_options)
+        || !compiler_options.rewrite_relative_import_extensions.is_true()
     {
         return Some(node);
     }
-    let updated_text = tspath::change_extension(
-        node.text(),
-        tsrs_tsoptions::outputpaths::get_output_extension(node.text(), compiler_options.jsx),
-    );
+    if !tspath::should_rewrite_extension(node.text(), rewrites, use_case_sensitive_file_names) {
+        return Some(node);
+    }
+    let (rewritten, has_rewrite) =
+        tspath::rewrite_extension(node.text(), rewrites, use_case_sensitive_file_names);
+    let updated_text = if has_rewrite {
+        rewritten
+    } else {
+        tspath::change_extension(
+            node.text(),
+            tsrs_tsoptions::outputpaths::get_output_extension(node.text(), compiler_options.jsx),
+        )
+    };
     if updated_text != node.text() {
         let updated = emit_context
             .factory

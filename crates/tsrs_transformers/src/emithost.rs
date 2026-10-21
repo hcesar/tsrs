@@ -8,6 +8,7 @@ use crate::*;
 pub trait EmitHost {
     fn options(&self) -> P<CompilerOptions>;
     fn source_files(&self) -> &'static [P<SourceFile>];
+    fn content_mapper_extension_rewrites(&self) -> Vec<tsrs_core::tspath::ExtensionRewrite>;
     fn use_case_sensitive_file_names(&self) -> bool;
     fn get_current_directory(&self) -> &str;
     fn common_source_directory(&self) -> String;

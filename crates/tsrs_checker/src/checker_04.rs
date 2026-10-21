@@ -3141,6 +3141,14 @@ impl Checker {
             return self.create_promise_return_type(node, any_type);
         }
         let specifier = args[0];
+        if self.compiler_options.rewrite_relative_import_extensions.is_true()
+            && !is_string_literal_like(specifier)
+        {
+            self.check_external_emit_helpers(
+                node,
+                ExternalEmitHelpers::RewriteRelativeImportExtension,
+            );
+        }
         let specifier_type = self.check_expression_cached(specifier);
         let mut options_type: Option<P<Type>> = None;
         if args.len() > 1 {
@@ -3237,6 +3245,16 @@ impl Checker {
         node: P<Node>,
         check_mode: CheckMode,
     ) -> P<Type> {
+        if self.compiler_options.rewrite_relative_import_extensions.is_true()
+            && is_in_js_file(node)
+            && is_require_call(node, false /*requireStringLiteralLikeArgument*/)
+            && !is_string_literal_like(node.arguments()[0])
+        {
+            self.check_external_emit_helpers(
+                node,
+                ExternalEmitHelpers::RewriteRelativeImportExtension,
+            );
+        }
         self.check_grammar_type_arguments(node, node.type_argument_list());
         let signature =
             self.get_resolved_signature(node, None /*candidatesOutArray*/, check_mode);

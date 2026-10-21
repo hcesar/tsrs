@@ -728,11 +728,15 @@ impl CommonJSModuleTransformer {
                     self.emit_context(),
                     Some(first_argument),
                     &self.compiler_options,
+                    &self.content_mapper_extension_rewrites,
+                    self.use_case_sensitive_file_names,
                 )
             } else {
                 Some(f.new_rewrite_relative_import_extensions_helper(
                     first_argument,
                     self.compiler_options.jsx == tsrs_core::JsxEmit::Preserve,
+                    &self.content_mapper_extension_rewrites,
+                    self.use_case_sensitive_file_names,
                 ))
             }
         } else {
@@ -844,6 +848,8 @@ impl CommonJSModuleTransformer {
                     self.emit_context(),
                     Some(first_argument),
                     &self.compiler_options,
+                    &self.content_mapper_extension_rewrites,
+                    self.use_case_sensitive_file_names,
                 )
                 .unwrap();
                 first_argument_changed = rewritten != first_argument;
@@ -852,6 +858,8 @@ impl CommonJSModuleTransformer {
                 first_argument = f.new_rewrite_relative_import_extensions_helper(
                     first_argument,
                     self.compiler_options.jsx == tsrs_core::JsxEmit::Preserve,
+                    &self.content_mapper_extension_rewrites,
+                    self.use_case_sensitive_file_names,
                 );
                 first_argument_changed = true;
             }

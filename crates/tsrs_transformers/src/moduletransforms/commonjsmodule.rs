@@ -19,6 +19,8 @@ pub struct CommonJSModuleTransformer {
     pub(crate) current_module_info: RefCell<Option<Rc<externalModuleInfo>>>,
     pub parent_node: Cell<Option<P<Node>>>, // used for ancestor tracking via pushNode/popNode to detect expression identifiers
     pub current_node: Cell<Option<P<Node>>>, // used for ancestor tracking via pushNode/popNode to detect expression identifiers
+    pub content_mapper_extension_rewrites: Vec<tspath::ExtensionRewrite>,
+    pub use_case_sensitive_file_names: bool,
 }
 
 // commonjsmodule.go:32
@@ -44,6 +46,8 @@ pub fn new_common_js_module_transformer(opts: &TransformOptions) -> Option<P<Tra
         current_module_info: RefCell::new(None),
         parent_node: Cell::new(None),
         current_node: Cell::new(None),
+        content_mapper_extension_rewrites: opts.content_mapper_extension_rewrites.clone(),
+        use_case_sensitive_file_names: opts.use_case_sensitive_file_names,
     });
     let _ =
         tx.top_level_visitor.set(emit_context.new_node_visitor(Rc::new(

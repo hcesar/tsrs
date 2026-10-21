@@ -18,6 +18,61 @@ const BUILD_APP: &[&str] = &["--b", "app", "-w", "--runExternalCode"];
 const CORE_CONFIG: &str = r#"{ "compilerOptions": { "composite": true, "target": "esnext" } }"#;
 const APP_CONFIG: &str = r#"{ "compilerOptions": { "composite": true, "target": "esnext" }, "references": [{ "path": "../core" }] }"#;
 
+// The mapper's runtime extension is part of the program's incremental output contract. A second invocation after
+// changing its manifest default or project override must discard stale build info and rewrite imports in both
+// JavaScript and declarations, in the same four combinations as the Go test.
+#[test]
+fn content_mapper_output_extension_edit_reemits_imports() {
+    let manifest = |extension: &str| {
+        format!(
+            r#"{{ "name": "mapper", "version": "1.0.0", "typescript": {{ "contentMapper": {{ "exec": ["verbatim-mapper"], "outputExtensions": {{ ".vue": "{extension}" }} }} }} }}"#
+        )
+    };
+    let config = |override_extension: Option<&str>| {
+        let override_field = override_extension
+            .map(|extension| format!(r#", "outputExtensions": {{ ".vue": "{extension}" }}"#))
+            .unwrap_or_default();
+        format!(
+            r#"{{
+                "compilerOptions": {{ "composite": true, "module": "preserve", "rewriteRelativeImportExtensions": true, "outDir": "dist" }},
+                "contentMappers": [{{ "package": "mapper", "extensions": [".vue"]{override_field} }}]
+            }}"#
+        )
+    };
+    for (mode, args) in [
+        ("incremental", &["-p", "app", "--runExternalCode"][..]),
+        ("build", &["--b", "app", "--runExternalCode"][..]),
+    ] {
+        for override_extension in [false, true] {
+            let initial_config = config(override_extension.then_some(".js"));
+            let edit = if override_extension {
+                write("app/tsconfig.json", &config(Some(".jsx")))
+            } else {
+                write("app/node_modules/mapper/package.json", &manifest(".jsx"))
+            };
+            let baseline = run(
+                &format!("content-mapper-output-extension-edit-{mode}-{override_extension}"),
+                args,
+                &[
+                    ("app/tsconfig.json", &initial_config),
+                    ("app/node_modules/mapper/package.json", &manifest(".js")),
+                    ("app/app.vue", "export const app = 1;\n"),
+                    ("app/main.ts", "export { app } from \"./app.vue\";\n"),
+                ],
+                vec![("mapper output extension changed", vec![edit])],
+            );
+            assert!(
+                baseline.contains("\"./app.js\""),
+                "{mode}/{override_extension}: initial output extension is used\n{baseline}"
+            );
+            assert!(
+                baseline.contains("\"./app.jsx\""),
+                "{mode}/{override_extension}: edited output extension is used\n{baseline}"
+            );
+        }
+    }
+}
+
 #[test]
 fn one_file_edits_build_what_a_fresh_build_does() {
     let main = |rest: &str| format!("import {{ f }} from \"../core/a\";\n{rest}");

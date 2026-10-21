@@ -184,7 +184,7 @@ fn test_parse() {
         r#"{
 				"name": "test-package",
 				"typescript": {
-					"contentMapper": { "exec": ["mapper"], "dynamicConfig": true }
+					"contentMapper": { "exec": ["mapper"], "dynamicConfig": true, "outputExtensions": { ".astro": ".js" } }
 				}
 			}"#,
     )
@@ -196,6 +196,9 @@ fn test_parse() {
             content_mapper: expected_of(ContentMapperFields {
                 exec: expected_of(vec!["mapper".to_string()]),
                 dynamic_config: expected_of(true),
+                output_extensions: expected_of(
+                    std::iter::once((".astro".to_string(), ".js".to_string())).collect()
+                ),
                 ..Default::default()
             }),
             ..Default::default()

@@ -21,7 +21,10 @@ use crate::commandlineoption::{
     CommandLineOption, CommandLineOptionKind, CompilerOptionsValue, ExtraValidation,
 };
 use crate::commandlineparser::{convert_json_option_of_enum_type, try_read_file};
-use crate::contentmappers::{Mapper, OptionPathSegment, resolve_content_mapper_manifest};
+use crate::contentmappers::{
+    Mapper, OptionPathSegment, has_reserved_source_extension, is_valid_extension,
+    resolve_content_mapper_manifest,
+};
 use crate::declscompiler::{OPTIONS_DECLARATIONS, OPTIONS_FOR_COMPILER};
 use crate::declstypeacquisition::TYPE_ACQUISITION_DECLARATION;
 use crate::errors::{
@@ -31,6 +34,7 @@ use crate::errors::{
     get_compiler_option_value_type_string,
 };
 use crate::parsedcommandline::ParsedCommandLine;
+use crate::parsedcommandline::get_content_mapper_output_extension;
 use crate::parsedoptions::ParsedOptions;
 use crate::parsinghelpers::{
     CompilerOptionsParser, OptionParser, TypeAcquisitionParser, merge_compiler_options,
@@ -2100,8 +2104,6 @@ fn parse_json_config_file_content_worker(
     );
     let mut content_mapper_extensions: Vec<String> =
         Vec::with_capacity(total_content_mapper_extensions);
-    let native_extensions: Vec<&str> =
-        tspath::ALL_SUPPORTED_EXTENSIONS_WITH_JSON.iter().flat_map(|g| g.iter().copied()).collect();
     let canonical_extension = |extension: &str| {
         tspath::get_canonical_file_name(extension, host.fs().use_case_sensitive_file_names())
     };
@@ -2124,10 +2126,16 @@ fn parse_json_config_file_content_worker(
                     content_mapper_source_file,
                     ext_node,
                 ));
-            } else if native_extensions
-                .iter()
-                .any(|native_extension| tsrs_core::stringutil::equal_fold(native_extension, ext))
-            {
+            } else if ext.contains('/') || ext.contains('\\') {
+                errors.push(set_content_mapper_diagnostic_location(
+                    new_compiler_diagnostic(
+                        &diagnostics::Content_mapper_extension_0_must_not_contain_path_separators,
+                        &[ext],
+                    ),
+                    content_mapper_source_file,
+                    ext_node,
+                ));
+            } else if has_reserved_source_extension(ext) {
                 errors.push(set_content_mapper_diagnostic_location(
                     new_compiler_diagnostic(
                         &diagnostics::Content_mapper_file_extension_0_is_a_built_in_extension_and_cannot_be_registered_by_a_content_mapper,
@@ -2151,6 +2159,49 @@ fn parse_json_config_file_content_worker(
             }
         }
         mapper.definition.extensions = valid_extensions;
+        let mut output_extensions: Vec<_> = mapper.definition.output_extensions.iter().collect();
+        output_extensions.sort_unstable_by(|a, b| a.0.cmp(b.0));
+        for (source_extension, output_extension) in output_extensions {
+            let output_extensions_node = get_content_mapper_syntax(
+                content_mapper_source_file,
+                Some(content_mapper_indices[j]),
+                "outputExtensions",
+            );
+            for extension in [source_extension, output_extension] {
+                let diagnostic = if extension.contains('/') || extension.contains('\\') {
+                    Some(new_compiler_diagnostic(
+                        &diagnostics::Content_mapper_extension_0_must_not_contain_path_separators,
+                        &[extension],
+                    ))
+                } else if !is_valid_extension(extension) {
+                    Some(new_compiler_diagnostic(
+                        &diagnostics::Content_mapper_output_extension_0_must_be_non_empty_and_begin_with_a,
+                        &[extension],
+                    ))
+                } else {
+                    None
+                };
+                if let Some(diagnostic) = diagnostic {
+                    errors.push(set_content_mapper_diagnostic_location(
+                        diagnostic,
+                        content_mapper_source_file,
+                        output_extensions_node,
+                    ));
+                }
+            }
+            if !mapper.definition.extensions.iter().any(|extension| {
+                canonical_extension(extension) == canonical_extension(source_extension)
+            }) {
+                errors.push(set_content_mapper_diagnostic_location(
+                    new_compiler_diagnostic(
+                        &diagnostics::Content_mapper_output_extension_mapping_source_0_is_not_registered_by_this_content_mapper,
+                        &[source_extension],
+                    ),
+                    content_mapper_source_file,
+                    output_extensions_node,
+                ));
+            }
+        }
     }
     if !content_mappers.is_empty()
         && !parsed_config.options.as_ref().is_some_and(|o| o.run_external_code.is_true())
@@ -2190,6 +2241,51 @@ fn parse_json_config_file_content_worker(
                 continue;
             }
             mapper.manifest = manifest;
+            let has_explicit_output_extensions = content_mappers_of_raw
+                .slice_value
+                .as_ref()
+                .and_then(|values| values.get(content_mapper_indices[j]))
+                .and_then(CompilerOptionsValue::as_object)
+                .is_some_and(|raw_mapper| raw_mapper.contains_key("outputExtensions"));
+            if !has_explicit_output_extensions {
+                mapper
+                    .definition
+                    .output_extensions
+                    .clone_from(&mapper.manifest.default_output_extensions);
+                mapper.definition.output_extensions_present =
+                    mapper.manifest.default_output_extensions_present;
+            }
+            for source_extension in &mapper.definition.extensions {
+                let Some(output_extension) = get_content_mapper_output_extension(
+                    &mapper.definition.output_extensions,
+                    source_extension,
+                    !host.fs().use_case_sensitive_file_names(),
+                ) else {
+                    continue;
+                };
+                let identity = source_extension == output_extension
+                    || !host.fs().use_case_sensitive_file_names()
+                        && tsrs_core::stringutil::equal_fold(source_extension, output_extension);
+                if !identity
+                    && !parsed_config
+                        .options
+                        .as_ref()
+                        .is_some_and(|options| options.rewrite_relative_import_extensions.is_true())
+                {
+                    errors.push(set_content_mapper_diagnostic_location(
+                        new_compiler_diagnostic(
+                            &diagnostics::Content_mapper_output_extension_mapping_from_0_to_1_requires_rewriteRelativeImportExtensions_to_be_enabled,
+                            &[source_extension, output_extension],
+                        ),
+                        content_mapper_source_file,
+                        get_content_mapper_syntax(
+                            content_mapper_source_file,
+                            Some(content_mapper_indices[j]),
+                            "",
+                        ),
+                    ));
+                }
+            }
             resolved_content_mappers.push(mapper);
         }
         content_mappers = resolved_content_mappers;

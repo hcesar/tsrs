@@ -1461,13 +1461,39 @@ impl crate::NodeFactory {
         &self,
         first_argument: P<Node>,
         preserve_jsx: bool,
+        extra_extensions: &[tspath::ExtensionRewrite],
+        use_case_sensitive_file_names: bool,
     ) -> P<Node> {
         self.emit_context().request_emit_helper(helper(&REWRITE_RELATIVE_IMPORT_EXTENSIONS_HELPER));
-        let arguments = if preserve_jsx {
-            vec![first_argument, self.new_token(Kind::TrueKeyword)]
+        let mut arguments = vec![first_argument];
+        if extra_extensions.is_empty() {
+            if preserve_jsx {
+                arguments.push(self.new_token(Kind::TrueKeyword));
+            }
+            return self.new_helper_call("__rewriteRelativeImportExtension", arguments);
+        }
+
+        arguments.push(self.new_token(if preserve_jsx {
+            Kind::TrueKeyword
         } else {
-            vec![first_argument]
-        };
+            Kind::FalseKeyword
+        }));
+        let properties = extra_extensions
+            .iter()
+            .map(|extension| {
+                self.new_property_assignment(
+                    None,
+                    self.new_string_literal(alloc_str(&extension.source), TokenFlags::None),
+                    None,
+                    None,
+                    self.new_string_literal(alloc_str(&extension.target), TokenFlags::None),
+                )
+            })
+            .collect();
+        arguments.push(self.new_object_literal_expression(self.new_node_list(properties), false));
+        if !use_case_sensitive_file_names {
+            arguments.push(self.new_token(Kind::TrueKeyword));
+        }
         self.new_helper_call("__rewriteRelativeImportExtension", arguments)
     }
 }

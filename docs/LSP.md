@@ -251,7 +251,7 @@ retains the translated runner's historical results and verify-family breakdown.
 
 ## Known gaps
 
-- Content mappers are not loaded by the language server; 55 fourslash groups are explicitly skipped.
+- Content mappers are not loaded by the language server; 57 fourslash groups are explicitly skipped after source 79 adds two output-extension project-reference groups. The protocol accepts `outputExtensions` in mapper contributions, but the contribution handler is not ported.
   CLI checks and builds support them ([content-mapper note](../notes/contentmappers.md)). The language service's
   span-map branches are retained but receive no content-mapped scripts.
 - LSP-attached API sessions, automatic type acquisition, performance/project telemetry, profiling requests and

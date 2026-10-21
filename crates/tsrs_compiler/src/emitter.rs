@@ -848,6 +848,8 @@ mod emit {
             get_emit_module_format_of_file: std::rc::Rc::new(move |file| {
                 host.get_emit_module_format_of_file(file)
             }),
+            content_mapper_extension_rewrites: host.content_mapper_extension_rewrites(),
+            use_case_sensitive_file_names: host.use_case_sensitive_file_names(),
         };
 
         // transform TypeScript syntax

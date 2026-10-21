@@ -4,7 +4,7 @@ use rustc_hash::FxHashMap;
 use tsrs_ast::Diagnostic;
 use tsrs_core::collections::OrderedMap;
 use tsrs_core::glob::{self, Glob};
-use tsrs_core::tspath::{self, ComparePathsOptions, Path};
+use tsrs_core::tspath::{self, ComparePathsOptions, ExtensionRewrite, Path};
 use tsrs_core::{
     CompilerOptions, P, ProjectReference, TypeAcquisition, resolve_project_reference_path,
 };
@@ -66,6 +66,7 @@ pub struct ParsedCommandLine {
 
     pub(crate) literal_file_names_len: usize,
     pub(crate) file_names_by_path: OnceLock<FxHashMap<Path, String>>, // maps file names to their paths, used for quick lookups
+    pub(crate) content_mapper_extension_rewrites: OnceLock<Vec<ExtensionRewrite>>,
 }
 
 impl ParsedCommandLine {
@@ -85,6 +86,7 @@ impl ParsedCommandLine {
             resolved_project_reference_paths: OnceLock::new(),
             literal_file_names_len: 0,
             file_names_by_path: OnceLock::new(),
+            content_mapper_extension_rewrites: OnceLock::new(),
         }
     }
 }
@@ -441,6 +443,43 @@ impl ParsedCommandLine {
             .collect()
     }
 
+    pub fn content_mapper_extension_rewrites(&self) -> &[ExtensionRewrite] {
+        self.content_mapper_extension_rewrites
+            .get_or_init(|| self.compute_content_mapper_extension_rewrites())
+    }
+
+    fn compute_content_mapper_extension_rewrites(&self) -> Vec<ExtensionRewrite> {
+        let mut result = Vec::new();
+        let mut has_non_identity_mapping = false;
+        let ignore_case = !self.use_case_sensitive_file_names();
+        for mapper in self.content_mappers() {
+            for source in &mapper.definition.extensions {
+                let target = get_content_mapper_output_extension(
+                    &mapper.definition.output_extensions,
+                    source,
+                    ignore_case,
+                );
+                let target = match target {
+                    Some(target)
+                        if target != source
+                            && !(ignore_case
+                                && tsrs_core::stringutil::equal_fold(target, source)) =>
+                    {
+                        has_non_identity_mapping = true;
+                        target.clone()
+                    }
+                    _ => source.clone(),
+                };
+                result.push(ExtensionRewrite { source: source.clone(), target });
+            }
+        }
+        if !has_non_identity_mapping {
+            return Vec::new();
+        }
+        result.sort_by_key(|rewrite| std::cmp::Reverse(rewrite.source.len()));
+        result
+    }
+
     // GetContentMapperForFileName returns the configured content mapper whose extensions include fileName,
     // or nil if no content mapper is registered for the file's extension.
     pub fn get_content_mapper_for_file_name(&self, file_name: &str) -> Option<&Mapper> {
@@ -612,6 +651,22 @@ impl ParsedCommandLine {
     }
 }
 
+pub(crate) fn get_content_mapper_output_extension<'a>(
+    output_extensions: &'a FxHashMap<String, String>,
+    source_extension: &str,
+    ignore_case: bool,
+) -> Option<&'a String> {
+    output_extensions.get(source_extension).or_else(|| {
+        ignore_case
+            .then(|| {
+                output_extensions.iter().find_map(|(source, output)| {
+                    tsrs_core::stringutil::equal_fold(source, source_extension).then_some(output)
+                })
+            })
+            .flatten()
+    })
+}
+
 pub struct SourceOutputAndProjectReference {
     pub source: String,
     pub output_dts: String,
@@ -641,6 +696,10 @@ impl OutputPathsHost for ParsedCommandLine {
 
     fn content_mapper_extensions(&self) -> Vec<String> {
         ParsedCommandLine::content_mapper_extensions(self)
+    }
+
+    fn content_mapper_extension_rewrites(&self) -> Vec<ExtensionRewrite> {
+        ParsedCommandLine::content_mapper_extension_rewrites(self).to_vec()
     }
 
     fn get_current_directory(&self) -> &str {

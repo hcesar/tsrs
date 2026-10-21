@@ -79,6 +79,7 @@ fn mapper(package: &str, name: &str, version: &str, dynamic_config: bool) -> Map
             package: package.to_string(),
             extensions: vec![".vue".to_string()],
             options: String::new(),
+            ..Default::default()
         },
         manifest: Manifest {
             name: name.to_string(),
