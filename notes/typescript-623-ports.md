@@ -2900,3 +2900,42 @@ No release instruction-count, wall-time, or peak-RSS comparison was collected
 for source 64 under the user's nonblocking migration policy; no numerical
 performance-equality claim follows. The measured source-11 regressions remain
 disclosed above. Evidence is under `target/port-623/0064-95c9d99127/`.
+
+## 65. `5b3a367c29` — Preserve JSDoc modifiers on constructor-assigned properties
+
+Upstream `5b3a367c292a1a119384969b670279f991ec5962` changes the declaration
+transformer to call `ensureModifierFlags` for JavaScript `this` property
+assignments, OR in `static` when needed, and synthesize modifiers from the
+resulting flags. Rust mirrors that exact branch with its existing helper. Before
+the edit, the new `jsDeclarationEmitThisPropertyJSDocModifiers` fixture and the
+updated `jsdocAccessibilityTagsDeclarations` and `jsdocReadonlyDeclarations`
+baselines all failed declaration emit: constructor-assigned properties lacked
+`private`, `protected`, or `readonly`; the static property retained only
+`static`. The new fixture also acquired two TS7008 errors when its generated
+declaration was checked without `private`. After the edit, all three `.js`
+baselines match the exact upstream source, including `private static`; their
+diagnostic, type, and symbol outcomes remain passing or intentionally skipped.
+
+All 18 Go-history, 18 canonical, and 36 emit pass/nonpass lists retain every
+source-64 passing outcome, with no new failure, crash, or timeout. The new
+fixture adds one diagnostic pass in each mode, one JavaScript/declaration pass
+in emit, and the expected type, symbol, and map skips. Go-history and
+canonical checker diagnostics pass 13,561 baselines; Go-history type/symbol
+passes 12,868 and canonical 12,867. Emit passes 13,565 diagnostics, 12,868
+type/symbol, 13,491 JavaScript/declaration, 149 JavaScript-map, and 156
+source-map baselines. Exact-source Fourslash passes 4,088 of 4,558 groups,
+skips 470, fails none, and preserves all 4,622 named source-64 outcomes. The
+ignored `ts-ref` checkout advances to source 65; the published TypeScript pin
+remains unchanged until the full upgrade.
+
+The full Rust workspace, 40 CLI regressions, WebAssembly target check,
+warnings-denied Clippy, source lint, formatting, and generated-code freshness
+pass. Fourslash and the workspace transport socket test used the established
+sandbox escalation after local Unix-socket binds were denied. The compatibility
+table records the new pass counts and declaration behavior. The root and npm
+README compatibility summaries need no change because declaration emit remains
+supported. No release instruction-count, wall-time, or peak-RSS comparison was
+collected for source 65 under the user's nonblocking migration policy; no
+numerical performance-equality claim follows. The measured source-11
+regressions remain disclosed above. Evidence is under
+`target/port-623/0065-5b3a367c29/`.
