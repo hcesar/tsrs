@@ -3186,3 +3186,64 @@ The user's nonblocking migration policy permits this correctness-valid port
 while measured changes remain disclosed. Raw samples, stdout and binary
 hashes, and all validation evidence are under
 `target/port-623/0070-d11c071957/`.
+
+## 71. `ba1819f3f9` — Add `Intl.PluralRules.selectRange` typing
+
+Upstream `ba1819f3f98b74662aaca9ba67f6b0c10edd67da` adds the
+`selectRange(start: number, end: number): LDMLPluralRule` member to the
+`Intl.PluralRules` interface in `lib.es2023.intl.d.ts` and adds a
+conformance fixture. The bundled Rust library is byte-identical to the
+exact-source Go declaration. The new fixture passes its diagnostic, type,
+symbol, and JavaScript baselines. Its materialized project has identical
+Go and Rust exit status, diagnostics, and emitted JavaScript hash. The
+ignored `ts-ref` checkout advances to source 71; the published TypeScript
+pin remains unchanged until the full upgrade.
+
+All 18 Go-history, 18 canonical, and 36 emit outcome lists preserve every
+source-70 outcome: no lost passes, new failures, crashes, or timeouts. The
+new fixture adds one diagnostics, type, and symbol pass in each checker
+history, and those plus one JavaScript pass in emit; its absent map baselines
+are skipped. Go-history diagnostics pass 13,567 of 13,571 baselines and
+type/symbol baselines pass 12,871; canonical diagnostics pass 13,567 and
+type/symbol pass 12,870 because its pre-existing
+`objectLiteralNormalization` difference remains. Emit passes 13,571
+diagnostics, 12,871 type/symbol, 13,497 JavaScript/declaration, 149
+JavaScript-map, and 156 source-map baselines. Exact-source Fourslash passes
+4,088 of 4,558 groups, skips 470, fails none, and preserves all 4,622
+named source-70 outcomes.
+
+The full Rust workspace, 40 CLI regressions, WebAssembly target check,
+warnings-denied Clippy, source lint, formatting, and generated-code freshness
+pass. The Fourslash and workspace transport tests needed the established
+sandbox escalation for local Unix-socket binds. The compatibility table records the new standard-library
+member and measured pass counts; the root and npm README summaries contain
+no counts to change.
+
+Paired release measurements compared the source-70 and source-71 binaries
+on three public projects in single-threaded and default modes, with five
+alternating pairs per cell. Each ran `-p <project> --noEmit --incremental
+false --pretty false`. Instructions are macOS `time -l` retired counts,
+including kernel work; wall time surrounds the compiler process; peak RSS
+is the same `time -l` resident-set measure. Medians are before → after:
+
+| Public project | Mode | Instructions, billion | Wall, seconds | Peak RSS, MiB |
+| --- | --- | ---: | ---: | ---: |
+| Compiler-Unions | single | 3.273 → 3.273 (+0.001%) | 0.267 → 0.259 (−2.671%) | 59.5 → 59.5 (+0.000%) |
+| Compiler-Unions | default | 3.964 → 3.967 (+0.076%) | 0.148 → 0.149 (+0.737%) | 83.2 → 83.3 (+0.131%) |
+| webpack | single | 10.866 → 10.871 (+0.050%) | 0.917 → 0.911 (−0.623%) | 310.7 → 310.7 (−0.005%) |
+| webpack | default | 15.084 → 15.256 (+1.138%) | 0.204 → 0.204 (+0.135%) | 499.2 → 503.4 (+0.845%) |
+| vscode | single | 81.337 → 81.360 (+0.029%) | 7.669 → 7.739 (+0.923%) | 1606.7 → 1606.7 (+0.000%) |
+| vscode | default | 93.568 → 93.428 (−0.150%) | 1.033 → 1.025 (−0.780%) | 2100.7 → 2118.7 (+0.856%) |
+
+The five-pair webpack/default instruction median was +1.138%, despite
+mixed pairwise signs and only +0.135% wall time. An independent ten-pair
+reversed-order confirmation against the same binaries measured +0.357%
+instructions, −0.016% wall, and +0.266% peak RSS; the >1% instruction
+increase did not reproduce. Single-thread instruction medians change by
+at most +0.050%, wall has no increase above +0.923%, and default-mode RSS
+increases remain under 1% in the screen. These local measurements are not
+the repository's two-publish Linux performance gate. The user's
+nonblocking migration policy permits the correctness-valid port while
+all observed differences remain disclosed. The earlier measured source-11
+regressions remain disclosed above. Raw samples, stdout and binary hashes,
+and all validation evidence are under `target/port-623/0071-ba1819f3f9/`.
