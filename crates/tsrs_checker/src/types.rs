@@ -328,16 +328,15 @@ pub struct SignatureId(pub u32);
 
 // Links for value symbols
 //
-// Go's `ValueSymbolLinks` holds seven fields inline (56 bytes). Here a record is three fields (`resolved_type`,
+// Go's `ValueSymbolLinks` holds six fields inline (48 bytes). Here a record is three fields (`resolved_type`,
 // `first`, `second`): 16 bytes with compressed pointers (two 4-byte handles and a usize), 24 with plain pointers on
 // 64-bit targets, 12 on 32-bit. `resolved_type` and two fields whose meaning depends on the record's mode, kept in
 // the low two bits of `second` (every stored pointer is 8-aligned):
 //
 // - plain (the common case: instantiated symbols and most others): `target`, `mapper`;
 // - synthetic: `containing_type`, `name_type`, for records that set those but never `target` / `mapper` (union and
-//   intersection properties, mapped type members: 2.15M of the 2.5M records on the private monorepo that set any of the four
-//   rare fields);
-// - tail: a pointer to `ValueSymbolLinksTail`, which holds all six other fields, for the remaining records (0.35M).
+//   intersection properties and mapped type members);
+// - tail: a pointer to `ValueSymbolLinksTail`, which holds all five other fields for the remaining records.
 //
 // A record starts plain and moves to synthetic or tail mode on the first write that its mode cannot hold; it never
 // moves back. Every getter returns what was last set (the zero value if never set), whatever the mode.
@@ -356,15 +355,20 @@ struct ValueSymbolLinksTail {
     write_type: Cell<Option<P<Type>>>,
     name_type: Cell<Option<P<Type>>>,
     containing_type: Cell<Option<P<Type>>>, // Mapped type for mapped type property, containing union or intersection type for synthetic property
-    function_or_constructor_checked: Cell<bool>,
 }
 
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(
     std::mem::size_of::<ValueSymbolLinks>() == if tsrs_core::COMPRESSED_PTRS { 16 } else { 24 }
 );
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(
+    std::mem::size_of::<ValueSymbolLinksTail>() == if tsrs_core::COMPRESSED_PTRS { 20 } else { 40 }
+);
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(std::mem::size_of::<ValueSymbolLinks>() == 12);
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(std::mem::size_of::<ValueSymbolLinksTail>() == 20);
 
 const MODE_MASK: usize = 3;
 const SYNTHETIC: usize = 1;
@@ -537,16 +541,6 @@ impl ValueSymbolLinks {
     pub fn set_write_type(&self, t: Option<P<Type>>) {
         if t.is_some() || self.mode() == LinksMode::Tail {
             self.tail_for_write().write_type.set(t);
-        }
-    }
-    #[inline]
-    pub fn function_or_constructor_checked(&self) -> bool {
-        self.mode() == LinksMode::Tail && self.tail().function_or_constructor_checked.get()
-    }
-    #[inline]
-    pub fn set_function_or_constructor_checked(&self, v: bool) {
-        if v || self.mode() == LinksMode::Tail {
-            self.tail_for_write().function_or_constructor_checked.set(v);
         }
     }
 }
@@ -3418,14 +3412,7 @@ mod tests {
         let s = Symbol::new(SymbolFlags::Property, "p");
         let m = new_simple_type_mapper(t1, t2);
         let fields = |l: &ValueSymbolLinks| {
-            (
-                l.target(),
-                l.mapper(),
-                l.containing_type(),
-                l.name_type(),
-                l.write_type(),
-                l.function_or_constructor_checked(),
-            )
+            (l.target(), l.mapper(), l.containing_type(), l.name_type(), l.write_type())
         };
 
         // A synthetic property: containing and name type in the words of target and mapper, then a target moves them.
@@ -3433,15 +3420,14 @@ mod tests {
         l.set_containing_type(Some(t1));
         l.set_name_type(Some(t2));
         l.set_target(None);
-        assert_eq!(fields(&l), (None, None, Some(t1), Some(t2), None, false));
+        assert_eq!(fields(&l), (None, None, Some(t1), Some(t2), None));
         l.set_write_type(Some(t1));
-        l.set_function_or_constructor_checked(true);
-        assert_eq!(fields(&l), (None, None, Some(t1), Some(t2), Some(t1), true));
+        assert_eq!(fields(&l), (None, None, Some(t1), Some(t2), Some(t1)));
         l.set_mapper(Some(m));
-        assert_eq!(fields(&l), (None, Some(m), Some(t1), Some(t2), Some(t1), true));
+        assert_eq!(fields(&l), (None, Some(m), Some(t1), Some(t2), Some(t1)));
         l.set_target(Some(s));
         l.set_containing_type(None);
-        assert_eq!(fields(&l), (Some(s), Some(m), None, Some(t2), Some(t1), true));
+        assert_eq!(fields(&l), (Some(s), Some(m), None, Some(t2), Some(t1)));
 
         // An instantiated symbol keeps containing/name types in the tail.
         let l = ValueSymbolLinks::default();
@@ -3449,9 +3435,9 @@ mod tests {
         l.set_name_type(Some(t2));
         l.set_target(None);
         l.set_containing_type(Some(t1));
-        assert_eq!(fields(&l), (None, None, Some(t1), Some(t2), None, false));
+        assert_eq!(fields(&l), (None, None, Some(t1), Some(t2), None));
         l.set_mapper(Some(m));
-        assert_eq!(fields(&l), (None, Some(m), Some(t1), Some(t2), None, false));
+        assert_eq!(fields(&l), (None, Some(m), Some(t1), Some(t2), None));
     }
 }
 
@@ -3497,7 +3483,6 @@ impl crate::links::LinkCopy for ValueSymbolLinks {
             tail.write_type.set(src.write_type.get());
             tail.name_type.set(src.name_type.get());
             tail.containing_type.set(src.containing_type.get());
-            tail.function_or_constructor_checked.set(src.function_or_constructor_checked.get());
             self.first.set(erase(Some(tail)));
         }
     }

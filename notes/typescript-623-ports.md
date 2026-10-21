@@ -3017,3 +3017,70 @@ wall-time, or peak-RSS comparison was collected for source 67 under the user's
 nonblocking migration policy; no numerical performance-equality claim
 follows. The measured source-11 regressions remain disclosed above. Evidence
 is under `target/port-623/0067-bdc93bd987/`.
+
+## 68. `96fffa9f65` — Keep function-check state outside value-symbol links
+
+Upstream `96fffa9f650a7e75bf1448cf641d97e563a086cd` removes
+`functionOrConstructorChecked` from Go's `ValueSymbolLinks` (56 → 48 bytes)
+and records checked symbols in a checker-owned set. Rust already packs the
+common value-symbol link into 16 bytes with compressed pointers, so there
+was no inline 16-byte reduction to repeat. The previous Rust Boolean forced
+an allocation of `ValueSymbolLinksTail` when checking a function or
+constructor whose other rare link fields were absent. Rust now uses
+`constructor_or_function_checked.add_if_absent(symbol)`, matching Go's
+once-only check. The set is copied with a checker fork. Compile-time size
+assertions hold the compressed inline record at 16 bytes and the rare-field
+tail at 20 bytes (24 and 40 bytes, respectively, with plain 64-bit pointers).
+The focused `overloadsInDifferentContainersDisagreeOnAmbient` diagnostic,
+type, and symbol baselines pass; the full suites below cover other overload
+and constructor cases. The comment on synthetic links was generalized to
+remove stale implementation-specific workload counts.
+
+All 18 Go-history, 18 canonical, and 36 emit outcome lists are identical to
+source 67: no lost or added passes, failures, crashes, or timeouts. Go-history
+and canonical checker diagnostics pass 13,565 of 13,569 baselines;
+Go-history type/symbol passes 12,870 and canonical 12,869. Emit passes
+13,569 diagnostics, 12,870 type/symbol, 13,495 JavaScript/declaration,
+149 JavaScript-map, and 156 source-map baselines. Exact-source Fourslash
+passes 4,088 of 4,558 groups, skips 470, fails none, and preserves all
+4,622 named source-67 outcomes. The ignored `ts-ref` checkout advances to
+source 68; the published TypeScript pin remains unchanged until the full
+upgrade.
+
+The full Rust workspace, 40 CLI regressions, WebAssembly target check,
+warnings-denied Clippy, source lint, formatting, and generated-code freshness
+pass. Fourslash and the workspace transport socket test needed the established
+sandbox escalation for local Unix-socket binds. The compatibility table and
+README summaries do not change: this is a representation change without a
+capability or pass-count change.
+
+Paired release measurements used five alternating source-67/source-68 pairs
+on each public project and mode, `-p <project> --noEmit --incremental false
+--pretty false`. Instructions are macOS `time -l` retired counts (including
+kernel work); wall time surrounds the compiler process; peak RSS is the same
+`time -l` resident-set measure. The medians below are before → after. Raw
+samples, stdout hashes, and binary hashes are in
+`target/port-623/0068-96fffa9f65/public-performance.json`.
+
+| Public project | Mode | Instructions, billion | Wall, seconds | Peak RSS, MiB |
+| --- | --- | ---: | ---: | ---: |
+| Compiler-Unions | single | 3.274 → 3.273 (−0.022%) | 0.263 → 0.261 (−0.846%) | 59.8 → 59.6 (−0.340%) |
+| Compiler-Unions | default | 3.962 → 3.961 (−0.025%) | 0.147 → 0.147 (−0.368%) | 83.5 → 83.6 (+0.056%) |
+| webpack | single | 10.828 → 10.826 (−0.018%) | 0.911 → 0.914 (+0.338%) | 311.3 → 310.7 (−0.191%) |
+| webpack | default | 15.234 → 15.192 (−0.276%) | 0.203 → 0.210 (+3.269%) | 504.7 → 501.9 (−0.554%) |
+| vscode | single | 81.349 → 81.353 (+0.005%) | 7.706 → 7.708 (+0.031%) | 1609.8 → 1606.6 (−0.196%) |
+| vscode | default | 93.437 → 93.385 (−0.055%) | 1.027 → 1.016 (−1.041%) | 2115.9 → 2111.5 (−0.208%) |
+
+Peak RSS medians decline in five of six cells, with a +0.056% change on
+Compiler-Unions/default. Wall and instruction medians are mixed. The
+webpack/default +3.269% wall result came from five positive pairs; an
+independent ten-pair reverse-order confirmation against the same binaries
+measured 0.207 → 0.206 seconds (−0.404% median wall), 15.247 → 15.183
+billion instructions (−0.416%), and 506.1 → 503.0 MiB peak RSS
+(−0.617%), so the wall increase did not reproduce. Its raw samples are in
+`target/port-623/0068-96fffa9f65/webpack-default-confirm.json`.
+The small observed increases are disclosed rather than treated as porting
+blockers under the user's nonblocking migration policy. These local pairs
+are not the repository's two-publish Linux performance gate. The earlier
+measured source-11 regressions remain disclosed above. All source-68
+evidence is under `target/port-623/0068-96fffa9f65/`.
