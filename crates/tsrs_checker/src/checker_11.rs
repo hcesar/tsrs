@@ -1733,7 +1733,7 @@ impl Checker {
             t
         };
         let type_parameters: &'static [P<Type>] =
-            if let Some(type_parameters) = links.outer_type_parameters.get() {
+            if let Some(type_parameters) = links.outer_type_parameters() {
                 type_parameters
             } else {
                 // The first time an anonymous type is instantiated we compute and store a list of the type
@@ -1768,7 +1768,7 @@ impl Checker {
                     }
                 }
                 let type_parameters = alloc_vec(type_parameters);
-                links.outer_type_parameters.set(Some(type_parameters));
+                links.set_outer_type_parameters(Some(type_parameters));
                 type_parameters
             };
         if type_parameters.is_empty() {

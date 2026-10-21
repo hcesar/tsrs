@@ -4368,3 +4368,80 @@ The dev CLI and testrunner
 build, Rust checker unit tests, warnings-denied Clippy, source lint,
 formatting, and generator freshness pass. Evidence is under
 `target/port-623/0093-82db71afa0/`.
+
+## 94. `158a0805fe` — Keep optional type-node and signature state out of hot records
+
+Upstream `158a0805feea665f16bb7d58f0535afb18cc6930` moves a Go type
+node's optional outer type parameters behind an arena-allocated slice header.
+It also moves type parameters and the other optional signature fields into a
+lazy `signatureExtra`; a bit represents the common resolved no-predicate
+sentinel without allocating an extra record. Its new Go tests cover record
+sizes, lazy allocation, nil versus non-nil empty slices, stable slice-header
+identity, and garbage-collection retention. There is no compiler fixture,
+library, or user-visible behavior change.
+
+Rust's signature already had a rare tail for this parameter, isolated type,
+composite signature, and resolved predicate, with the no-predicate bit in its
+tail word. This port moves only `type_parameters` from every hot signature
+into that tail, preserving an explicitly present empty list for cloning while
+leaving an absent or empty constructor input unallocated. `TypeNodeLinks` now
+holds an optional arena-owned `ThinSliceCell` pointer and reuses that cell on
+subsequent non-nil writes; nil still means not computed and differs from
+`Some(&[])`. The keyed-link record remains eight-byte aligned for compressed
+array handles. The pinned hot sizes become 16 versus 24 bytes for
+`TypeNodeLinks` and 48 versus 56 for `Signature` with compressed pointers on
+64-bit targets; plain-pointer sizes become 24 versus 32 and 64 versus 72,
+respectively. The rare signature tail grows from 16 to 24 bytes with
+compressed pointers. The 32-bit layout assertions and WASM build pass.
+Focused Rust tests exercise nil and empty lists, stable header and tail
+identity, lazy allocation, predicate bit, clone independence, and arena
+retention. The ignored `ts-ref` checkout advances to this exact source commit;
+the published TypeScript pin stays at the base revision until the full upgrade.
+The compatibility table and README summaries do not change.
+
+Before implementing this layout, we reviewed `docs/RUST.md` Techniques,
+`notes/perf-round2-followups.md` Measured and rejected,
+`notes/mem-layout3.md`, `notes/checker-11.md`, and the newest
+`notes/mem-round4.md`. None reject this specific Go-parity layout. The change
+introduces neither a thread nor a cache nor a new phase invariant. Its measured
+memory gain is smaller than the 5% standalone optimization bar in `AGENTS.md`;
+the corresponding upstream port is required by this migration, and that
+smaller gain is disclosed rather than presented as an independent optimization.
+
+Exact-source Go checker tests, Rust checker unit tests, the dev CLI and
+testrunner build, full workspace, exact-source Fourslash (4,091 exercised
+groups passed, 470 skipped, none failed), 40 CLI regressions, warnings-denied
+Clippy, source lint, formatting, and the release build pass. Full named
+compiler outcome lists match source 93: 18 Go-history, 18 canonical, and 36
+emit lists, with no lost pass. Go-history checker totals are 13,572 passing
+diagnostic tests and 12,876 passing type and symbol baselines; emit totals are
+13,576 diagnostics, 13,502 JS outputs, 149 JS maps, and 156 source maps.
+The deterministic assignment check matches for xstate, webpack, and all 40
+CLI cases (798 runs), but its full command exits nonzero because the Nuxt and
+Drizzle benchmark checkouts are absent locally. The optional plain-pointer
+build stops at an unchanged `InferenceInfo` size assertion outside this port;
+the compressed and WASM layouts pass.
+
+Five alternating release-binary pairs on each available public project and
+checker mode recorded these median before/after values. Instructions are
+billions retired from macOS `/usr/bin/time -l` (including kernel work); RSS is
+peak MiB. All exit statuses and diagnostic hashes match within each pair.
+
+| Project | Checkers | Instructions, before → after | Peak RSS, before → after | Wall change |
+| --- | --- | ---: | ---: | ---: |
+| Compiler-Unions | one | 3.27219 → 3.27177 (−0.013%) | 59.63 → 59.19 (−0.73%) | −0.15% |
+| Compiler-Unions | default | 3.96291 → 3.96038 (−0.064%) | 83.39 → 82.73 (−0.79%) | +0.35% |
+| webpack | one | 10.83467 → 10.83287 (−0.017%) | 311.61 → 309.27 (−0.75%) | +0.14% |
+| webpack | default | 15.32852 → 15.35434 (+0.168%) | 507.53 → 503.41 (−0.81%) | +2.80% |
+| vscode | one | 81.52743 → 81.55706 (+0.036%) | 1613.63 → 1603.67 (−0.62%) | −0.54% |
+| vscode | default | 93.77953 → 93.66330 (−0.124%) | 2110.55 → 2097.06 (−0.64%) | −0.54% |
+
+The webpack/default wall-time increase did not reproduce in a separate
+reversed-order ten-pair batch: wall time changed −1.05%, RSS 502.52 → 499.34
+MiB (−0.63%), and retired instructions 15.20156 → 15.25062 billion
+(+0.323%). Individual instruction pair changes ranged from −2.05% to +4.12%,
+so the kernel-inclusive count is noisy; the positive default-mode median is
+disclosed, without claiming exact equality or a confirmed material
+regression. The deterministic Linux `bench/count.py` gate was unavailable on
+this macOS host. Raw pair measurements, outputs, release binaries, test logs,
+and the JavaScript collector are under `target/port-623/0094-158a0805fe/`.

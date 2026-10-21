@@ -233,7 +233,7 @@ impl NodeBuilderImpl {
                     c,
                     Some(d.signature),
                     &expanded_params,
-                    signature.type_parameters.get(),
+                    signature.type_parameters(),
                     Some(signature.parameters.get()),
                     signature.mapper.get(),
                 );
@@ -303,7 +303,7 @@ impl NodeBuilderImpl {
                             c,
                             e.signature(),
                             &expanded_params,
-                            signature.type_parameters.get(),
+                            signature.type_parameters(),
                             Some(signature.parameters.get()),
                             signature.mapper.get(),
                         ));
@@ -765,7 +765,7 @@ impl NodeBuilderImpl {
                     return false;
                 };
                 let pt = t.as_pseudo_type_single_call_signature();
-                if target_sig.type_parameters.get().len() != pt.type_parameters.len() {
+                if target_sig.type_parameters().len() != pt.type_parameters.len() {
                     if report_errors {
                         self.ctx()
                             .tracker

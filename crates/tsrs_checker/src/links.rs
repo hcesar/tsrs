@@ -205,9 +205,9 @@ pub trait KeyedLinks {
 /// `LinkStore` for values with room for their key: a bucket holds only the value's index (4 bytes plus
 /// hashbrown's control byte, against 8 + 1), and a probe compares the key the value holds.
 ///
-/// `signature_links` and `type_node_links` keep the key in what was padding (`SignatureLinks` 12 -> 16 bytes
-/// in a 16-byte slot, `TypeNodeLinks` 20 -> 24 in 24, compressed pointers), so the values do not grow and the
-/// tables shrink by 4/9 (notes/mem-dense-link-tables.md: 18.0 -> 10.0 MiB each on vscode at one checker).
+/// `signature_links` and `type_node_links` keep the key in their records (`SignatureLinks` 16 bytes,
+/// `TypeNodeLinks` 16 bytes with compressed pointers); the tables shrink by 4/9
+/// (notes/mem-dense-link-tables.md: 18.0 -> 10.0 MiB each on vscode at one checker).
 /// Go's `LinkStore` maps the key's identity the same way.
 ///
 /// The key is written before the index is inserted, so a probe never sees a value without its key (and a

@@ -3658,7 +3658,7 @@ impl Checker {
                 apparent_type.unwrap_or(self.unknown_type),
                 SignatureKind::Call,
             );
-            if signatures.len() == 1 && signatures[0].type_parameters.get().is_empty() {
+            if signatures.len() == 1 && signatures[0].type_parameters().is_empty() {
                 signature = Some(signatures[0]);
             } else if signatures.iter().any(|&s| self.has_type_predicate_or_never_return_type(s)) {
                 signature = Some(self.get_resolved_signature(node, None, CheckMode::Normal));

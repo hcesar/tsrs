@@ -2858,7 +2858,9 @@ impl Checker {
         sig.id.set(SignatureId(self.signature_count));
         sig.flags.set(flags);
         sig.declaration.set(declaration);
-        sig.type_parameters.set(alloc_slice(type_parameters));
+        sig.set_type_parameters(
+            (!type_parameters.is_empty()).then(|| alloc_slice(type_parameters)),
+        );
         sig.parameters.set(alloc_slice(parameters));
         sig.set_this_parameter(this_parameter);
         sig.resolved_return_type.set(resolved_return_type);

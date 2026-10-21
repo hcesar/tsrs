@@ -21,7 +21,7 @@ fn get_instantiated_signatures(
 ) -> Cow<'static, [P<Signature>]> {
     let type_arguments = st.type_arguments;
     let applicable_signatures = tsrs_core::filter(signatures, |sig| {
-        !sig.type_parameters.get().is_empty()
+        !sig.type_parameters().is_empty()
             && checker::Checker::has_correct_type_argument_arity(*sig, type_arguments)
     });
     let mapped = tsrs_core::same_map(&applicable_signatures, |sig| {

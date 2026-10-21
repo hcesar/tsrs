@@ -28,7 +28,7 @@ impl Checker {
         let type_arguments: Vec<P<Type>> =
             type_argument_nodes.iter().map(|n| self.get_type_from_type_node(*n)).collect();
         same_map(&signatures, |sig| {
-            if !sig.type_parameters.get().is_empty() {
+            if !sig.type_parameters().is_empty() {
                 return self.get_signature_instantiation(
                     *sig,
                     &type_arguments,
@@ -52,8 +52,8 @@ impl Checker {
         let signatures = self.get_signatures_of_type(t, SignatureKind::Construct);
         let mut result = Vec::new();
         result.extend(signatures.iter().filter_map(|&sig| {
-            if type_arg_count >= Self::get_min_type_argument_count(sig.type_parameters.get())
-                && type_arg_count <= sig.type_parameters.get().len()
+            if type_arg_count >= Self::get_min_type_argument_count(sig.type_parameters())
+                && type_arg_count <= sig.type_parameters().len()
             {
                 Some(sig)
             } else {
@@ -71,10 +71,10 @@ impl Checker {
         is_java_script: bool,
         inferred_type_parameters: &[P<Type>],
     ) -> P<Signature> {
-        let min_type_argument_count = Self::get_min_type_argument_count(sig.type_parameters.get());
+        let min_type_argument_count = Self::get_min_type_argument_count(sig.type_parameters());
         let filled = self.fill_missing_type_arguments(
             type_arguments,
-            sig.type_parameters.get(),
+            sig.type_parameters(),
             min_type_argument_count,
             is_java_script,
         );
@@ -85,7 +85,8 @@ impl Checker {
             let return_signature = self.get_single_call_or_construct_signature(return_type);
             if let Some(return_signature) = return_signature {
                 let new_return_signature = self.clone_signature(return_signature);
-                new_return_signature.type_parameters.set(alloc_slice(inferred_type_parameters));
+                new_return_signature
+                    .set_type_parameters(Some(alloc_slice(inferred_type_parameters)));
                 let new_return_type = self.get_or_create_type_from_signature(new_return_signature);
                 new_return_type.as_object_type().mapper.set(instantiated_signature.mapper.get());
                 let new_instantiated_signature = self.clone_signature(instantiated_signature);
@@ -102,13 +103,16 @@ impl Checker {
         let result = self.new_signature(
             sig.flags.get() & SignatureFlags::PropagatingFlags,
             sig.declaration.get(),
-            sig.type_parameters.get(),
+            sig.type_parameters(),
             sig.this_parameter(),
             sig.parameters.get(),
             None,
             None,
             sig.min_argument_count.get(),
         );
+        if sig.type_parameters_option().is_some_and(<[_]>::is_empty) {
+            result.set_type_parameters(Some(&[]));
+        }
         result.target.set(sig.target.get());
         result.mapper.set(sig.mapper.get());
         result.set_composite(sig.composite());
@@ -153,8 +157,7 @@ impl Checker {
 
     // checker.go:19677
     pub(crate) fn get_type_parameters_for_mapper(&mut self, sig: P<Signature>) -> Vec<P<Type>> {
-        same_map(sig.type_parameters.get(), |tp| self.instantiate_type(*tp, tp.mapper()))
-            .into_owned()
+        same_map(sig.type_parameters(), |tp| self.instantiate_type(*tp, tp.mapper())).into_owned()
     }
 
     // If type has a single call signature and no other members, return that signature. Otherwise, return nil.
@@ -245,13 +248,13 @@ impl Checker {
 
     // checker.go:19737
     pub(crate) fn get_erased_signature(&mut self, signature: P<Signature>) -> P<Signature> {
-        if signature.type_parameters.get().is_empty() {
+        if signature.type_parameters().is_empty() {
             return signature;
         }
         let key = CachedSignatureKey { sig: signature, key: SignatureKeyErased };
         let mut erased = self.cached_signatures.get(&key);
         if erased.is_none() {
-            let m = new_array_to_single_type_mapper(signature.type_parameters.get(), self.any_type);
+            let m = new_array_to_single_type_mapper(signature.type_parameters(), self.any_type);
             let created =
                 self.instantiate_signature_ex(signature, m, true /*eraseTypeParameters*/);
             self.cached_signatures.insert(key, created);
@@ -262,7 +265,7 @@ impl Checker {
 
     // checker.go:19750
     pub(crate) fn get_canonical_signature(&mut self, signature: P<Signature>) -> P<Signature> {
-        if signature.type_parameters.get().is_empty() {
+        if signature.type_parameters().is_empty() {
             return signature;
         }
         let key = CachedSignatureKey { sig: signature, key: SignatureKeyCanonical };
@@ -283,8 +286,8 @@ impl Checker {
         // where different generations of the same type parameter are in scope). This leads to a lot of new type
         // identities, and potentially a lot of work comparing those identities, so here we create an instantiation
         // that uses the original type identities for all unconstrained type parameters.
-        let mut type_arguments = Vec::with_capacity(signature.type_parameters.get().len());
-        type_arguments.extend(signature.type_parameters.get().iter().map(|&tp| {
+        let mut type_arguments = Vec::with_capacity(signature.type_parameters().len());
+        type_arguments.extend(signature.type_parameters().iter().map(|&tp| {
             if let Some(target) = tp.target() {
                 if self.get_constraint_of_type_parameter(target).is_none() {
                     return target;
@@ -302,7 +305,7 @@ impl Checker {
 
     // checker.go:19779
     pub(crate) fn get_base_signature(&mut self, signature: P<Signature>) -> P<Signature> {
-        let type_parameters = signature.type_parameters.get();
+        let type_parameters = signature.type_parameters();
         if type_parameters.is_empty() {
             return signature;
         }
@@ -2076,17 +2079,14 @@ impl Checker {
     ) -> P<Signature> {
         let mut m = m;
         let mut fresh_type_parameters: Vec<P<Type>> = Vec::new();
-        if !sig.type_parameters.get().is_empty() && !erase_type_parameters {
+        if !sig.type_parameters().is_empty() && !erase_type_parameters {
             // First create a fresh set of type parameters, then include a mapping from the old to the
             // new type parameters in the mapper function. Finally store this mapper in the new type
             // parameters such that we can use it when instantiating constraints.
             fresh_type_parameters =
-                sig.type_parameters.get().iter().map(|tp| self.clone_type_parameter(*tp)).collect();
+                sig.type_parameters().iter().map(|tp| self.clone_type_parameter(*tp)).collect();
             m = Self::combine_type_mappers(
-                Some(new_type_mapper(
-                    sig.type_parameters.get(),
-                    alloc_slice(&fresh_type_parameters),
-                )),
+                Some(new_type_mapper(sig.type_parameters(), alloc_slice(&fresh_type_parameters))),
                 m,
             );
             for tp in &fresh_type_parameters {
@@ -2487,15 +2487,15 @@ impl Checker {
         let mut result = Vec::new();
         result.extend(base_signatures.iter().filter_map(|&base_sig| {
             let min_type_argument_count =
-                Self::get_min_type_argument_count(base_sig.type_parameters.get());
-            let type_param_count = base_sig.type_parameters.get().len();
+                Self::get_min_type_argument_count(base_sig.type_parameters());
+            let type_param_count = base_sig.type_parameters().len();
             if is_java_script
                 || type_arg_count >= min_type_argument_count && type_arg_count <= type_param_count
             {
                 let sig = if type_param_count != 0 {
                     let filled = self.fill_missing_type_arguments(
                         &type_arguments,
-                        base_sig.type_parameters.get(),
+                        base_sig.type_parameters(),
                         min_type_argument_count,
                         is_java_script,
                     );
@@ -2503,7 +2503,9 @@ impl Checker {
                 } else {
                     self.clone_signature(base_sig)
                 };
-                sig.type_parameters.set(class_type.as_interface_type().local_type_parameters());
+                sig.set_type_parameters(Some(
+                    class_type.as_interface_type().local_type_parameters(),
+                ));
                 sig.resolved_return_type.set(Some(class_type));
                 if is_abstract {
                     sig.flags.set(sig.flags.get() | SignatureFlags::Abstract);
@@ -3302,12 +3304,12 @@ impl Checker {
                 if i != index_with_length_over_one {
                     let signature = signatures[0];
                     let current = results.take().unwrap();
-                    if !signature.type_parameters.get().is_empty()
+                    if !signature.type_parameters().is_empty()
                         && current.iter().any(|s| {
-                            !s.type_parameters.get().is_empty()
+                            !s.type_parameters().is_empty()
                                 && !self.compare_type_parameters_identical(
-                                    signature.type_parameters.get(),
-                                    s.type_parameters.get(),
+                                    signature.type_parameters(),
+                                    s.type_parameters(),
                                 )
                         })
                     {
@@ -3341,15 +3343,14 @@ impl Checker {
         right: P<Signature>,
         is_union: bool,
     ) -> P<Signature> {
-        let mut type_params = left.type_parameters.get();
+        let mut type_params = left.type_parameters();
         if type_params.is_empty() {
-            type_params = right.type_parameters.get();
+            type_params = right.type_parameters();
         }
         let mut param_mapper = None;
-        if !left.type_parameters.get().is_empty() && !right.type_parameters.get().is_empty() {
+        if !left.type_parameters().is_empty() && !right.type_parameters().is_empty() {
             // We just use the type parameter defaults from the first signature
-            param_mapper =
-                Some(new_type_mapper(right.type_parameters.get(), left.type_parameters.get()));
+            param_mapper = Some(new_type_mapper(right.type_parameters(), left.type_parameters()));
         }
         let mut flags = (left.flags.get() | right.flags.get())
             & (SignatureFlags::PropagatingFlags & !SignatureFlags::HasRestParameter);

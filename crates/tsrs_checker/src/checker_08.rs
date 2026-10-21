@@ -3316,7 +3316,7 @@ impl Checker {
         let signatures = self.get_signatures_of_type(t, SignatureKind::Construct);
         if signatures.len() == 1 {
             let s = signatures[0];
-            if s.type_parameters.get().is_empty()
+            if s.type_parameters().is_empty()
                 && s.parameters.get().len() == 1
                 && signature_has_rest_parameter(s)
             {

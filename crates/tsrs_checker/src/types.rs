@@ -4,7 +4,7 @@ use std::num::NonZeroU32;
 
 use crate::direct_bitflags as bitflags;
 use tsrs_core::sharedgraph::{OvCell, OvExact, OvOptionThinSliceCell, RawWord};
-use tsrs_core::{TextPos, ThinSliceCell};
+use tsrs_core::{OptionThinSliceCell, TextPos, ThinSliceCell};
 
 use crate::*;
 
@@ -779,11 +779,34 @@ pub struct SymbolNodeLinks {
     pub resolved_symbol: Cell<Option<P<Symbol>>>, // Resolved symbol associated with node
 }
 
+// KeyedLinkStore's compressed handles need every array element to start at an eight-byte boundary.
+#[cfg_attr(target_pointer_width = "64", repr(align(8)))]
 #[derive(Default)]
 pub struct TypeNodeLinks {
     pub resolved_type: Cell<Option<P<Type>>>, // Resolved type associated with node
-    pub outer_type_parameters: Cell<Option<&'static [P<Type>]>>, // Outer type parameters of anonymous object type (Go distinguishes nil = not computed)
-    link_key: Cell<tsrs_core::PKey>, // tsrs: the node this record is filed under (`KeyedLinkStore`), in what was padding
+    outer_type_parameters: Cell<Option<P<ThinSliceCell<P<Type>>>>>, // Outer type parameters of anonymous object type; nil means not computed
+    link_key: Cell<tsrs_core::PKey>, // tsrs: the node this record is filed under (`KeyedLinkStore`)
+}
+
+impl TypeNodeLinks {
+    #[inline]
+    pub(crate) fn outer_type_parameters(&self) -> Option<&'static [P<Type>]> {
+        self.outer_type_parameters.get().map(|types| types.get().get())
+    }
+
+    #[inline]
+    pub(crate) fn set_outer_type_parameters(&self, types: Option<&'static [P<Type>]>) {
+        match types {
+            Some(types) => {
+                if let Some(stored) = self.outer_type_parameters.get() {
+                    stored.set(types);
+                } else {
+                    self.outer_type_parameters.set(Some(P::new(ThinSliceCell::new(types))));
+                }
+            }
+            None => self.outer_type_parameters.set(None),
+        }
+    }
 }
 
 impl crate::links::KeyedLinks for TypeNodeLinks {
@@ -793,13 +816,13 @@ impl crate::links::KeyedLinks for TypeNodeLinks {
     }
 }
 
-// The key fills padding with compressed pointers (20 -> 24 bytes); plain pointers: 24 -> 32.
+// With compressed pointers, the optional outer list and key take four bytes each, then align to eight.
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(
-    std::mem::size_of::<TypeNodeLinks>() == if tsrs_core::COMPRESSED_PTRS { 24 } else { 32 }
+    std::mem::size_of::<TypeNodeLinks>() == if tsrs_core::COMPRESSED_PTRS { 16 } else { 24 }
 );
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(std::mem::size_of::<TypeNodeLinks>() == 16);
+const _: () = assert!(std::mem::size_of::<TypeNodeLinks>() == 12);
 
 #[derive(Default)]
 pub struct ComputedNameNodeLinks {
@@ -3053,13 +3076,12 @@ pub struct Signature {
     pub min_argument_count: CountCell,
     pub resolved_min_argument_count: OptionalCountCell,
     pub declaration: Cell<Option<P<Node>>>,
-    pub type_parameters: ThinSliceCell<P<Type>>, // one word each (`tsrs_core::ThinSlice`)
     pub parameters: ThinSliceCell<P<Symbol>>,
     pub resolved_return_type: OvCell<Option<P<Type>>>,
     pub target: Cell<Option<P<Signature>>>,
     pub mapper: MapperCell,
-    // `thisParameter`, `isolatedSignatureType`, `composite` and a resolved type predicate other than the checker's
-    // `noTypePredicate` (few signatures have any) live in a tail allocated on the first non-nil write;
+    // Type parameters, `thisParameter`, `isolatedSignatureType`, `composite` and a resolved type predicate other
+    // than the checker's `noTypePredicate` live in a tail allocated on the first non-nil write.
     // `this_parameter()` / `set_this_parameter()` & co. read nil when it is absent. `resolvedTypePredicate ==
     // c.noTypePredicate` (every resolved signature without a predicate) is bit 0 of the same word.
     rare: SignatureRareWord,
@@ -3067,17 +3089,25 @@ pub struct Signature {
 
 #[cfg(target_pointer_width = "64")]
 const _: () =
-    assert!(std::mem::size_of::<Signature>() == if tsrs_core::COMPRESSED_PTRS { 56 } else { 72 });
+    assert!(std::mem::size_of::<Signature>() == if tsrs_core::COMPRESSED_PTRS { 48 } else { 64 });
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(std::mem::size_of::<Signature>() == 52);
+const _: () = assert!(std::mem::size_of::<Signature>() == 44);
 
 #[derive(Default)]
 struct SignatureRare {
+    type_parameters: OptionThinSliceCell<P<Type>>,
     this_parameter: Cell<Option<P<Symbol>>>,
     isolated_signature_type: OvCell<Option<P<Type>>>,
     composite: Cell<Option<P<CompositeSignature>>>,
     resolved_type_predicate: OvCell<Option<P<TypePredicate>>>, // never the checker's `noTypePredicate` (that is the bit)
 }
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(
+    std::mem::size_of::<SignatureRare>() == if tsrs_core::COMPRESSED_PTRS { 24 } else { 40 }
+);
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(std::mem::size_of::<SignatureRare>() == 24);
 
 /// `Signature`'s tail pointer (8-aligned, null when absent) with the "no type predicate" bit in bit 0.
 struct SignatureRareWord(OvExact<RawWord>);
@@ -3132,7 +3162,17 @@ impl Signature {
     }
     #[inline]
     pub fn type_parameters(&self) -> &'static [P<Type>] {
-        self.type_parameters.get()
+        self.type_parameters_option().unwrap_or(&[])
+    }
+    #[inline]
+    pub(crate) fn type_parameters_option(&self) -> Option<&'static [P<Type>]> {
+        self.rare.tail()?.type_parameters.get()
+    }
+    #[inline]
+    pub(crate) fn set_type_parameters(&self, types: Option<&'static [P<Type>]>) {
+        if types.is_some() || self.rare.tail().is_some() {
+            self.rare_for_write().type_parameters.set(types);
+        }
     }
     #[inline]
     pub fn declaration(&self) -> Option<P<Node>> {
@@ -3402,6 +3442,107 @@ pub type StringLiteralType = Type;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn compact_type_node_links_keep_nil_distinct_from_empty() {
+        let t1 =
+            Type::alloc(TypeFlags::Any, ObjectFlags::None, TypeId(1), IntrinsicType::default());
+        let t2 =
+            Type::alloc(TypeFlags::Any, ObjectFlags::None, TypeId(2), IntrinsicType::default());
+        let links = TypeNodeLinks::default();
+        links.resolved_type.set(Some(t1));
+        assert!(links.outer_type_parameters().is_none());
+        links.set_outer_type_parameters(None);
+        assert!(links.outer_type_parameters.get().is_none());
+
+        links.set_outer_type_parameters(Some(&[]));
+        assert_eq!(links.outer_type_parameters().unwrap().len(), 0);
+        let header = links.outer_type_parameters.get().unwrap();
+        let list = alloc_vec(vec![t1, t2]);
+        links.set_outer_type_parameters(Some(list));
+        assert_eq!(links.outer_type_parameters.get(), Some(header));
+        assert_eq!(links.outer_type_parameters().unwrap().as_ptr(), list.as_ptr());
+        for _ in 0..1024 {
+            let other = TypeNodeLinks::default();
+            other.set_outer_type_parameters(Some(list));
+        }
+        assert_eq!(links.outer_type_parameters(), Some(list));
+        assert_eq!(links.resolved_type.get(), Some(t1));
+        links.set_outer_type_parameters(None);
+        assert!(links.outer_type_parameters().is_none());
+        assert_eq!(links.resolved_type.get(), Some(t1));
+    }
+
+    #[test]
+    fn compact_signature_extra_keeps_optional_state_independent() {
+        let t1 =
+            Type::alloc(TypeFlags::Any, ObjectFlags::None, TypeId(1), IntrinsicType::default());
+        let t2 =
+            Type::alloc(TypeFlags::Any, ObjectFlags::None, TypeId(2), IntrinsicType::default());
+        let no_predicate = P::new(TypePredicate::default());
+        let predicate = P::new(TypePredicate::default());
+        let sig = P::new(Signature::default());
+        sig.flags.set(SignatureFlags::HasRestParameter);
+        sig.resolved_return_type.set(Some(t1));
+        assert!(sig.rare.tail().is_none());
+        assert!(sig.type_parameters_option().is_none());
+        assert_eq!(sig.type_parameters(), []);
+        sig.set_type_parameters(None);
+        sig.set_this_parameter(None);
+        sig.set_composite(None);
+        sig.set_resolved_type_predicate(None, no_predicate);
+        assert!(sig.rare.tail().is_none());
+        sig.set_resolved_type_predicate(Some(no_predicate), no_predicate);
+        assert!(sig.rare.tail().is_none());
+        assert_eq!(sig.resolved_type_predicate(no_predicate), Some(no_predicate));
+        assert_eq!(sig.flags(), SignatureFlags::HasRestParameter);
+        sig.set_resolved_type_predicate(None, no_predicate);
+
+        sig.set_type_parameters(Some(&[]));
+        assert!(sig.type_parameters_option().is_some());
+        let tail = sig.rare.tail().unwrap();
+        let list = alloc_vec(vec![t1, t2]);
+        sig.set_type_parameters(Some(list));
+        assert_eq!(sig.rare.tail(), Some(tail));
+        assert_eq!(sig.type_parameters().as_ptr(), list.as_ptr());
+        let this_parameter = P::new(Symbol::default());
+        let composite = P::new(CompositeSignature::default());
+        sig.set_this_parameter(Some(this_parameter));
+        sig.set_composite(Some(composite));
+        sig.set_isolated_signature_type(Some(t2));
+        sig.set_resolved_type_predicate(Some(predicate), no_predicate);
+        assert_eq!(sig.rare.tail(), Some(tail));
+
+        let clone = P::new(Signature::default());
+        clone.set_type_parameters(sig.type_parameters_option());
+        clone.set_this_parameter(sig.this_parameter());
+        clone.set_composite(sig.composite());
+        assert_ne!(clone.rare.tail(), sig.rare.tail());
+        assert_eq!(clone.type_parameters(), list);
+        assert_eq!(clone.this_parameter(), Some(this_parameter));
+        assert_eq!(clone.composite(), Some(composite));
+        assert!(clone.isolated_signature_type().is_none());
+        assert!(clone.resolved_type_predicate(no_predicate).is_none());
+        clone.set_this_parameter(None);
+        assert_eq!(sig.this_parameter(), Some(this_parameter));
+
+        for _ in 0..1024 {
+            let other = P::new(Signature::default());
+            other.set_type_parameters(Some(list));
+            other.set_resolved_type_predicate(Some(predicate), no_predicate);
+        }
+        assert_eq!(sig.rare.tail(), Some(tail));
+        assert_eq!(sig.type_parameters(), list);
+        assert_eq!(sig.isolated_signature_type(), Some(t2));
+        assert_eq!(sig.resolved_type_predicate(no_predicate), Some(predicate));
+        sig.set_type_parameters(None);
+        sig.set_this_parameter(None);
+        sig.set_composite(None);
+        assert_eq!(sig.rare.tail(), Some(tail));
+        assert!(sig.type_parameters_option().is_none());
+        assert_eq!(sig.resolved_return_type.get(), Some(t1));
+        assert_eq!(sig.flags(), SignatureFlags::HasRestParameter);
+    }
 
     #[test]
     fn compact_type_payload_casts_survive_arena_growth() {
