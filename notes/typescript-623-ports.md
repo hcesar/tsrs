@@ -4119,3 +4119,51 @@ needed an escalated Fourslash/workspace rerun; one FSEvents load-test assertion
 on the first unrestricted workspace run passed on the clean rerun. Source 87's
 CLI regressions and WASM checks apply unchanged because no production file
 changed. No capability status, README summary, or compatibility count changes.
+
+## 89. `3c105e1420` — Compact type mappers and coallocate inference mapper storage
+
+Upstream `3c105e1420572a18e4487cd05e9db903b0feb976` replaces Go's stored
+`TypeMapperData` interface with a kind header and concrete dispatch, embeds
+both inference mapper records in each `InferenceContext`, and adds mapper
+dispatch, layout, clone, and lifetime tests. Rust already stores every mapper
+in a pinned **16-byte** two-word tagged record; Go's new simple and merged
+mapper bound is 24 bytes on 64-bit. Rust's `TypeMapper::kind()` already gives
+structural ordering to simple, array, and merged mappers and treats all other
+kinds as unknown in comparisons, matching Go's new `comparableMapperKind`.
+Its fixing and non-fixing inference mappers are created only on first use,
+keep stable identities, and participate in context escape and arena recycling.
+
+Embedding two 16-byte mapper slots would add 32 bytes to *every* Rust
+inference context, including contexts that use neither mapper. This would
+discard the measured lazy-allocation saving in `notes/mem-round3.md` and
+require a new ownership scheme for the escape/recycle paths in
+`notes/mem-recycle.md`. The already compact Rust runtime representation is
+therefore retained. Focused Rust tests now exercise each packed mapper kind
+and payload after arena growth, `maps_this_only`, lazy and eager inference
+mapper identity, cloning, escape, and recycling, including with arena poison.
+The exact-source Go checker package passes. The ignored `ts-ref` checkout
+advances to this source commit; the published TypeScript pin remains at the
+base revision until the complete upgrade.
+
+All 18 Go-history, 18 canonical, and 36 emit named compiler outcome lists
+match source 88 exactly, with no lost passes. Go-history checking retains
+13,572 diagnostic and 12,876 type/symbol passes; canonical checking retains
+13,572 and 12,875. Emit retains 13,502 JavaScript, 149 JavaScript-map, and
+156 source-map passes. Exact-source Fourslash has 4,091 exercised groups
+passing, 470 skipped, and none failing. The full Rust workspace, 40 CLI
+regressions, `wasm32-wasip1` check, warnings-denied Clippy, source lint, and
+formatting pass. The workspace and Fourslash tests needed local Unix-socket
+access after sandboxed socket creation was denied. No capability status,
+README summary, or compatibility count changes. Evidence is under
+`target/port-623/0089-3c105e1420/`.
+
+Prior performance work was reviewed in `docs/RUST.md` Techniques,
+`notes/perf-round2-followups.md` Measured and rejected, the newest
+`notes/mem-round4.md`, and the mapper/layout/recycling notes above. This
+entry changes only Rust test code and the port ledger, with no runtime path.
+A fresh release build produced a byte-identical CLI executable to source 88
+(both SHA-256 `106a23c08ca5a6a6041e5d49ac28784d4e120b66d0d351a62aece14980f3d42a`).
+Thus source 88's public instruction, peak-RSS, and wall measurements apply
+unchanged: this commit cannot introduce a runtime performance regression for
+the same inputs. Generator freshness is checked after the commit because the
+generator script rejects the intentional dirty checker test edit.
