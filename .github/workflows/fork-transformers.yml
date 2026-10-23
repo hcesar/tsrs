@@ -1,0 +1,360 @@
+# Fork-only CI (tsrs-with-transformers). Upstream workflows stay in the tree, untouched, so rebases stay clean;
+# the `disable-upstream` job switches them off on GitHub after every sync.
+#
+# Weekly: `upstream-rebase` moves main (one fork commit) onto upstream's newest release tag, so main never carries
+# unreleased upstream code; `release-tag` then pushes `v<npm version>` on main (`test-v<version>` for a test release),
+# which runs `build` and `publish`.
+# Secrets: SYNC_TOKEN (fine-grained, Contents + Workflows write; pushes main and release tags). NPM_TOKEN only until
+# each npm package has this workflow as its trusted publisher.
+name: Fork transformers
+
+permissions: {}
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*-ts*", "test-v*"]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      release_revision:
+        description: "Fix release: publish <upstream version>.<n> (0 publishes upstream's exact version)"
+        default: "0"
+      test_version:
+        description: "Test release: publish this version (e.g. 0.0.1-rc) under the npm tag `test` instead of upstream's"
+        default: ""
+
+concurrency:
+  group: fork-transformers-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  disable-upstream:
+    name: Disable upstream workflows
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Disable every active workflow but this one
+        run: |
+          gh api "repos/$GH_REPO/actions/workflows" --paginate \
+            --jq '.workflows[] | select(.state == "active" and .path != ".github/workflows/fork-transformers.yml") | "\(.id) \(.path)"' |
+          while read -r id path; do
+            echo "disabling $path"
+            gh api -X PUT "repos/$GH_REPO/actions/workflows/$id/disable"
+          done
+
+  test:
+    name: Plugin tests
+    if: github.event_name != 'schedule' && github.ref_type != 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
+      - uses: oxc-project/setup-rust@3d6fb132fbe7cdcb66bf8ec193911c2945369d12 # v1.0.17
+        with:
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
+          cache-key: fork-transformers-test
+      - name: Plugin host tests
+        run: cargo test --locked -p tsrs_plugin_host
+      - name: CLI loads a plugin library from tsconfig
+        run: cargo test --locked -p tsrs_cli --test plugin_emit
+      - name: Clippy (fork crates)
+        run: cargo clippy --locked --no-deps --all-targets -p tsrs_plugin_api -p tsrs_plugin_host --config 'build.warnings="deny"'
+      - name: Source lint
+        run: if [ -f tools/lint/source.mjs ]; then node tools/lint/source.mjs; else python3 tools/lint/source.py; fi
+
+  build:
+    name: Build tsrs (${{ matrix.target }})
+    if: github.ref_type == 'tag'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 22.04, like upstream's release, so the binary needs at most glibc 2.35.
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-22.04 }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-22.04-arm }
+          - { target: aarch64-apple-darwin, os: macos-14 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
+      - uses: oxc-project/setup-rust@3d6fb132fbe7cdcb66bf8ec193911c2945369d12 # v1.0.17
+        with:
+          cache-key: fork-transformers-release
+      - name: Build the npm binary
+        run: |
+          # The binary reports the TypeScript npm version it matches, like upstream's release.
+          export TSRS_TS_VERSION="$(node npm/build.mjs --print-typescript-nightly)"
+          cargo build --release --locked -p tsrs_cli --features tsrs_cli/noembed
+          version=$(TSRS_LIB_PATH="$PWD/crates/tsrs_vfs/libs" target/release/tsrs --version)
+          echo "$version"
+          case "$version" in "Version $TSRS_TS_VERSION ("*) ;; *) echo "::error::not stamped with TypeScript $TSRS_TS_VERSION"; exit 1 ;; esac
+          mkdir -p "artifacts/${{ matrix.target }}"
+          cp target/release/tsrs "artifacts/${{ matrix.target }}/"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bin-${{ matrix.target }}
+          path: artifacts
+          if-no-files-found: error
+
+  publish:
+    name: Publish to npm
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    permissions:
+      contents: write # GitHub release
+      id-token: write # npm trusted publishing and provenance
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
+      - uses: oxc-project/setup-node@f46a72f95efdc55273fcd042d61c84e723b2892c # v1.4.1
+      - uses: oxc-project/setup-rust@3d6fb132fbe7cdcb66bf8ec193911c2945369d12 # v1.0.17
+        with:
+          cache-key: fork-transformers-publish
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: bin-*
+          path: artifacts
+          merge-multiple: true
+      - name: Package names and version
+        run: |
+          case "$GITHUB_REF_NAME" in
+            test-v*) version=${GITHUB_REF_NAME#test-v} npm_tag=test ;;
+            *) version=${GITHUB_REF_NAME#v} npm_tag=latest ;;
+          esac
+          # Platform packages: @tsrs-with-transformers/compiler-<os>-<cpu>[-gnu], from Node's process.platform/arch.
+          {
+            echo "NAME=tsrs-with-transformers"
+            echo "PREFIX=@tsrs-with-transformers/compiler-"
+            echo "VERSION=$version"
+            echo "NPM_TAG=$npm_tag"
+          } >> "$GITHUB_ENV"
+      - name: Assemble and pack
+        run: |
+          node tools/fork/npm-pack.mjs --artifacts artifacts --name "$NAME" --platform-prefix "$PREFIX" --version "$VERSION"
+          node -e 'const n = require("./npm/dist/packages.json").packages.length; if (n !== 4) throw new Error(`${n} packages, expected 3 platforms and the main package`)'
+      - name: Check the packages before publishing
+        run: |
+          cargo build --release --manifest-path examples/transform_plugin/Cargo.toml --target-dir target/plugin
+          node tools/fork/npm-smoke.mjs --plugin target/plugin/release/libtsrs_example_plugin.so
+      - name: Publish (platform packages, then the main package)
+        env:
+          # Used only while a package has no trusted publisher yet; npm prefers this job's OIDC identity.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          node -e 'for (const p of require("./npm/dist/packages.json").packages) console.log(`${p.name} ${p.tarball}`)' > "$RUNNER_TEMP/publish.txt"
+          while read -r name tarball; do
+            # Re-running a partially published release skips what is already on the registry.
+            if [ -n "$(pnpm view "$name@$VERSION" version 2> /dev/null)" ]; then
+              echo "$name@$VERSION already published"
+              continue
+            fi
+            [ "$name" = "$NAME" ] && node .github/scripts/wait-for-npm-packages.mjs npm/dist/tsrs/package.json
+            pnpm publish "$tarball" --access public --tag "$NPM_TAG" --no-git-checks --provenance
+          done < "$RUNNER_TEMP/publish.txt"
+          # npm stages a new version for a few minutes before serving it; wait until all are installable.
+          # The release check also requires `latest` to name this version.
+          if [ "$NPM_TAG" = latest ]; then
+            node .github/scripts/wait-for-npm-packages.mjs --release npm/dist/packages.json
+          else
+            printf '{"optionalDependencies":{"%s":"%s"}}' "$NAME" "$VERSION" > "$RUNNER_TEMP/main.json"
+            node .github/scripts/wait-for-npm-packages.mjs "$RUNNER_TEMP/main.json"
+          fi
+      - name: GitHub release
+        run: |
+          flags=()
+          [[ "$GITHUB_REF_NAME" == test-v* ]] && flags=(--prerelease --latest=false)
+          gh release create "$GITHUB_REF_NAME" npm/dist/*.tgz --verify-tag "${flags[@]}" --title "$NAME@$VERSION" \
+            --notes "\`npm i -D $NAME@$VERSION\`: upstream tsrs ${VERSION%%-*} plus native transformer plugins."
+
+  upstream-rebase:
+    name: Rebase onto the newest upstream release
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      ISSUE_TITLE: Rebase onto upstream needs attention
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: oxc-project/setup-rust@3d6fb132fbe7cdcb66bf8ec193911c2945369d12 # v1.0.17
+        with:
+          cache-key: fork-transformers-sync
+      - name: Rebase onto the newest oxc-project/tsrs release tag
+        id: rebase
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/oxc-project/tsrs.git
+          upstream_tag=$(git ls-remote --tags --refs upstream | sed 's#.*refs/tags/##' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          git fetch --quiet --no-tags upstream "+refs/tags/$upstream_tag:refs/tags/$upstream_tag"
+          echo "upstream_tag=$upstream_tag" >> "$GITHUB_OUTPUT"
+          echo "old=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "behind=$(git rev-list --count "HEAD..$upstream_tag")" >> "$GITHUB_OUTPUT"
+          # main is the previous release plus the fork commit; the merge base is that release.
+          node tools/fork/rebase.mjs "$upstream_tag" "$(git merge-base HEAD "$upstream_tag")" || echo "failure=rebase" >> "$GITHUB_OUTPUT"
+      - name: Test the rebased tree
+        id: tests
+        if: steps.rebase.outputs.failure == '' && steps.rebase.outputs.behind != '0'
+        run: |
+          if [ -f tools/lint/source.mjs ]; then node tools/lint/source.mjs; else python3 tools/lint/source.py; fi
+          cargo test --locked -p tsrs_plugin_host
+          cargo test --locked -p tsrs_cli --test plugin_emit
+          cargo clippy --locked --no-deps --all-targets -p tsrs_plugin_api -p tsrs_plugin_host --config 'build.warnings="deny"'
+      - name: Push the rebased main
+        id: push
+        if: steps.tests.outcome == 'success'
+        env:
+          # GITHUB_TOKEN cannot push upstream's workflow-file changes, so this needs a token with Workflows write.
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          OLD: ${{ steps.rebase.outputs.old }}
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "::error::Missing SYNC_TOKEN secret: a fine-grained token for this repository with Contents and Workflows read and write."
+            exit 1
+          fi
+          git -c core.hooksPath=/dev/null push --force-with-lease="main:$OLD" \
+            "https://x-access-token:${SYNC_TOKEN}@github.com/${GH_REPO}.git" HEAD:refs/heads/main
+      - name: Report
+        if: always() && (steps.rebase.outputs.failure != '' || steps.tests.outcome == 'failure' || steps.push.outcome == 'failure')
+        env:
+          UPSTREAM_TAG: ${{ steps.rebase.outputs.upstream_tag }}
+          BEHIND: ${{ steps.rebase.outputs.behind }}
+          REBASE_FAILURE: ${{ steps.rebase.outputs.failure }}
+          TESTS: ${{ steps.tests.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "The automatic rebase of \`main\` onto oxc-project/tsrs \`$UPSTREAM_TAG\` ($BEHIND commits ahead of main) needs attention. \`main\` was not changed."
+            echo
+            if [ -s conflicts.txt ]; then
+              echo "Rebase conflicts in:"
+              sed 's/^/- `/; s/$/`/' conflicts.txt
+            elif [ -n "$REBASE_FAILURE" ]; then
+              echo "The rebase stopped; see the run log."
+            elif [ "$TESTS" = failure ]; then
+              echo "The rebase applies, but the plugin tests or lints fail on the rebased tree."
+            else
+              echo "The rebased tree passes, but the push failed (missing \`SYNC_TOKEN\`, or \`main\` moved during the run)."
+            fi
+            echo
+            echo "Run: $RUN_URL"
+          } > body.md
+          existing=$(gh issue list --state open --search "in:title \"$ISSUE_TITLE\"" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file body.md
+          else
+            gh issue create --title "$ISSUE_TITLE" --body-file body.md
+          fi
+          # A failed run is what triggers GitHub's failure email.
+          exit 1
+
+  release-tag:
+    name: Tag the release
+    needs: upstream-rebase
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      ISSUE_TITLE: npm release needs attention
+      REVISION: ${{ inputs.release_revision || '0' }}
+      TEST_VERSION: ${{ inputs.test_version || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The branch, not the run's commit: upstream-rebase may have just pushed a new main.
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: oxc-project/setup-rust@3d6fb132fbe7cdcb66bf8ec193911c2945369d12 # v1.0.17
+        with:
+          cache-key: fork-transformers-release-tag
+      - name: Release version
+        id: prepare
+        run: |
+          [[ "$REVISION" =~ ^(0|[1-9][0-9]*)$ ]] || { echo "::error::release_revision must be a number"; exit 1; }
+          echo "base=v$(node npm/build.mjs --print-crate-version)" >> "$GITHUB_OUTPUT"
+          package=tsrs-with-transformers
+          if [ -n "$TEST_VERSION" ]; then
+            [[ "$TEST_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "::error::test_version must be a semver version"; exit 1; }
+            version=$TEST_VERSION tag_prefix=test-v
+          else
+            version=$(node npm/build.mjs --print-version) tag_prefix=v
+            if [ "$REVISION" != 0 ]; then version="$version.$REVISION"; fi
+          fi
+          tag="$tag_prefix$version"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null || [ -n "$(npm view "$package@$version" version 2> /dev/null)" ]; then
+            echo "$package@$version is already released"
+            echo "released=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Test main
+        id: tests
+        if: steps.prepare.outputs.released != 'true'
+        run: |
+          cargo test --locked -p tsrs_plugin_host
+          cargo test --locked -p tsrs_cli --test plugin_emit
+      - name: Push the release tag
+        id: push
+        if: steps.tests.outcome == 'success'
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          TAG: ${{ steps.prepare.outputs.tag }}
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "::error::Missing SYNC_TOKEN secret: a fine-grained token for this repository with Contents and Workflows read and write."
+            exit 1
+          fi
+          # Pushed with SYNC_TOKEN so the tag push starts this workflow's build and publish jobs.
+          git -c core.hooksPath=/dev/null push "https://x-access-token:${SYNC_TOKEN}@github.com/${GH_REPO}.git" "HEAD:refs/tags/$TAG"
+      - name: Report
+        if: failure()
+        env:
+          BASE: ${{ steps.prepare.outputs.base }}
+          TESTS: ${{ steps.tests.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "Releasing \`main\` (upstream \`${BASE:-?}\` plus the fork commit) failed. Nothing was tagged or published."
+            echo
+            if [ "$TESTS" = failure ]; then
+              echo "The plugin tests fail on \`main\`."
+            else
+              echo "See the run log (missing \`SYNC_TOKEN\` if the tag push failed)."
+            fi
+            echo
+            echo "Run: $RUN_URL"
+          } > body.md
+          existing=$(gh issue list --state open --search "in:title \"$ISSUE_TITLE\"" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file body.md
+          else
+            gh issue create --title "$ISSUE_TITLE" --body-file body.md
+          fi
+          exit 1

@@ -339,7 +339,11 @@ mod emit {
                 diags.extend(declaration.get_diagnostics());
                 let source_file = supplemental.transform_source_file(source_file);
                 diags.extend(supplemental.get_diagnostics());
-                source_file
+                tsrs_plugin_host::run_declaration_plugins(
+                    declaration.base.emit_context(),
+                    self.host,
+                    source_file,
+                )
             });
             (source_file, diags)
         }
@@ -855,6 +859,8 @@ mod emit {
             }),
         };
 
+        tx.extend(tsrs_plugin_host::before_transformers(&opts, host));
+
         // transform TypeScript syntax
         {
             // use type nodes to add metadata decorators
@@ -890,6 +896,7 @@ mod emit {
         tx.extend(estransforms::new_use_strict_transformer(&opts));
 
         // transform module syntax
+        tx.extend(tsrs_plugin_host::after_transformers(&opts, host));
         tx.extend(get_module_transformer(&opts));
 
         // inlining (formerly done via substitutions)

@@ -1079,6 +1079,7 @@ dependencies = [
  "tsrs_module",
  "tsrs_modulespecifiers",
  "tsrs_parser",
+ "tsrs_plugin_host",
  "tsrs_printer",
  "tsrs_scanner",
  "tsrs_sourcemap",
@@ -1324,6 +1325,26 @@ dependencies = [
  "tsrs_core",
  "tsrs_diagnostics",
  "tsrs_scanner",
+ "tsrs_vfs",
+]
+
+[[package]]
+name = "tsrs_plugin_api"
+version = "0.18.0"
+
+[[package]]
+name = "tsrs_plugin_host"
+version = "0.18.0"
+dependencies = [
+ "rustc-hash",
+ "tsrs_ast",
+ "tsrs_checker",
+ "tsrs_compiler",
+ "tsrs_core",
+ "tsrs_plugin_api",
+ "tsrs_printer",
+ "tsrs_transformers",
+ "tsrs_tsoptions",
  "tsrs_vfs",
 ]
 

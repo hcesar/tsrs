@@ -1,3 +1,72 @@
+> **This is a fork of [oxc-project/tsrs](https://github.com/oxc-project/tsrs).**
+> It adds native AST transformer plugins declared in `tsconfig.json`, with the `plugins[].transform`
+> syntax of [ttsc](https://ttsc.dev/) for TypeScript-Go. Everything else is upstream `tsrs` at its latest release.
+> The upstream README follows the fork section.
+
+## Fork: transformer plugins
+
+A plugin is a shared library (`.dylib` / `.so`) that runs inside the emit pipeline. It reads the AST, queries the type
+checker and returns a rewritten source file:
+
+```jsonc
+{
+  "compilerOptions": {
+    "plugins": [
+      // Before the TypeScript transforms (type erasure, import elision, decorators, class fields…)
+      { "transform": "./plugins/libmy_plugin.dylib" },
+      // After the TypeScript and downlevel transforms, before the module transform
+      { "transform": "${configDir}/plugins/libmy_plugin.dylib", "after": true },
+      // On the .d.ts output
+      { "transform": "./plugins/libmy_plugin.dylib", "afterDeclarations": true }
+    ]
+  }
+}
+```
+
+`transform` is a library path, resolved from the tsconfig's directory. Install from npm (Linux x64 and arm64, macOS
+arm64); the package provides the `tsrs` command, and its version is the upstream `tsrs` release it is built from:
+
+```sh
+npm i -D tsrs-with-transformers
+npx tsrs -p tsconfig.json
+```
+
+Or build from source:
+
+```sh
+cargo build --release -p tsrs_cli
+target/release/tsrs -p tsconfig.json
+```
+
+To write a plugin, build a Rust `cdylib` that depends only on
+[`crates/tsrs_plugin_api`](crates/tsrs_plugin_api/src/lib.rs). That crate is the C ABI, and it has no dependencies.
+The plugin exports `tsrs_plugin_transform`. [`examples/transform_plugin`](examples/transform_plugin/src/lib.rs) is a
+complete example: it rewrites calls, injects an import and queries the checker. Plugins run on macOS and Linux.
+
+What the fork changes, kept small so it rebases cleanly:
+
+| where | what |
+| --- | --- |
+| `crates/tsrs_plugin_api` (new) | the C ABI and safe `Api` wrapper that plugins build against |
+| `crates/tsrs_plugin_host` (new) | the library loader and the host side of the ABI, with its tests |
+| `examples/transform_plugin`, `crates/tsrs_cli/tests/plugin_emit.rs` (new) | an example plugin and an end-to-end CLI test that loads it |
+| `crates/tsrs_core/src/compileroptions.rs` | `PluginImport` keeps `transform`, `after` and `afterDeclarations` |
+| `crates/tsrs_tsoptions/src/{parsinghelpers,gojson}.rs` | read and write those three fields |
+| `crates/tsrs_compiler/src/emitter.rs`, `Cargo.toml` | three one-line calls into `tsrs_plugin_host` |
+| `tools/lint/unsafe_sites.tsv` | generated rows for the new crates' `unsafe` blocks (in releases that have the file) |
+| `tools/fork` (new) | the rebase helper and the npm packaging (`tsrs-with-transformers`, `@tsrs-with-transformers/compiler-*`) |
+
+The plugin API numbers syntax kinds on its own, append-only scale, and the host translates them by name. So when
+upstream inserts or reorders kinds, existing plugin binaries keep working.
+
+`main` is the newest upstream release tag plus one fork commit, so it never carries unreleased upstream code. To move
+it to a new release: `git fetch upstream --tags && node tools/fork/rebase.mjs <release tag>`. It regenerates
+`Cargo.lock` and `unsafe_sites.tsv` itself and stops on any other conflict. Then run `cargo test -p tsrs_plugin_host` and
+`cargo test -p tsrs_cli --test plugin_emit`. `tsrs_plugin_host`'s kind test names any new kind to append to
+`crates/tsrs_plugin_api/src/kind.rs`.
+
+---
+
 # `tsrs`
 
 [![npm](https://img.shields.io/npm/v/tsrs)](https://www.npmjs.com/package/tsrs)
