@@ -1,0 +1,16 @@
+[package]
+name = "tsrs_example_plugin"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+
+[workspace]
+
+[lib]
+name = "tsrs_example_plugin"
+crate-type = ["cdylib"]
+doctest = false
+
+[dependencies]
+tsrs_plugin_api = { path = "../../crates/tsrs_plugin_api" }

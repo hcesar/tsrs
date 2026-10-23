@@ -27,6 +27,7 @@ tsrs_checker.workspace = true
 tsrs_declarations.workspace = true
 tsrs_printer.workspace = true
 tsrs_transformers.workspace = true
+tsrs_plugin_host = { path = "../tsrs_plugin_host" }
 rustc-hash.workspace = true
 rayon.workspace = true
 

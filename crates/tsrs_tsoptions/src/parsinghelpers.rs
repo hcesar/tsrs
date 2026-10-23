@@ -457,6 +457,23 @@ pub fn parse_compiler_options_worker(
                                             .get("name")
                                             .unwrap_or(&CompilerOptionsValue::Null),
                                     ),
+                                    transform: parse_string(
+                                        plugin_map
+                                            .get("transform")
+                                            .unwrap_or(&CompilerOptionsValue::Null),
+                                    ),
+                                    after: parse_tristate(
+                                        plugin_map
+                                            .get("after")
+                                            .unwrap_or(&CompilerOptionsValue::Null),
+                                    )
+                                    .is_true(),
+                                    after_declarations: parse_tristate(
+                                        plugin_map
+                                            .get("afterDeclarations")
+                                            .unwrap_or(&CompilerOptionsValue::Null),
+                                    )
+                                    .is_true(),
                                 };
                             }
                             PluginImport::default()
@@ -918,6 +935,21 @@ impl ToOptionsValue for Option<Vec<PluginImport>> {
                     .map(|p| {
                         let mut m = OrderedMap::default();
                         m.insert("name".to_string(), CompilerOptionsValue::String(p.name.clone()));
+                        if !p.transform.is_empty() {
+                            m.insert(
+                                "transform".to_string(),
+                                CompilerOptionsValue::String(p.transform.clone()),
+                            );
+                        }
+                        if p.after {
+                            m.insert("after".to_string(), CompilerOptionsValue::Bool(true));
+                        }
+                        if p.after_declarations {
+                            m.insert(
+                                "afterDeclarations".to_string(),
+                                CompilerOptionsValue::Bool(true),
+                            );
+                        }
                         CompilerOptionsValue::Object(m)
                     })
                     .collect(),

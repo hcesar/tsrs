@@ -1,0 +1,30 @@
+[package]
+name = "tsrs_plugin_host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+# Fork-only crate: path dependencies keep the root Cargo.toml untouched.
+[dependencies]
+tsrs_core.workspace = true
+tsrs_ast.workspace = true
+tsrs_checker.workspace = true
+tsrs_printer.workspace = true
+tsrs_transformers.workspace = true
+tsrs_plugin_api = { path = "../tsrs_plugin_api" }
+rustc-hash.workspace = true
+
+[dev-dependencies]
+tsrs_compiler.workspace = true
+tsrs_tsoptions.workspace = true
+tsrs_vfs.workspace = true
+tsrs_execute.workspace = true
+
+[lib]
+test = false
+doctest = false

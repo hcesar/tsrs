@@ -8,6 +8,10 @@ use std::sync::{Arc, LazyLock};
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PluginImport {
     pub name: String,
+    // Fork: native transformer plugins (crates/tsrs_plugin_host).
+    pub transform: String,
+    pub after: bool,
+    pub after_declarations: bool,
 }
 
 // CompilerOptions contains the compiler options exposed by the API.

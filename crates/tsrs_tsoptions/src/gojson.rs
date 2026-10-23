@@ -210,6 +210,15 @@ impl GoJson for Option<Vec<PluginImport>> {
                     .map(|p| {
                         let mut o = JsonMap::new();
                         o.insert("name".to_string(), Value::String(p.name.clone()));
+                        if !p.transform.is_empty() {
+                            o.insert("transform".to_string(), Value::String(p.transform.clone()));
+                        }
+                        if p.after {
+                            o.insert("after".to_string(), Value::Bool(true));
+                        }
+                        if p.after_declarations {
+                            o.insert("afterDeclarations".to_string(), Value::Bool(true));
+                        }
                         Value::Object(o)
                     })
                     .collect(),
@@ -224,6 +233,14 @@ impl GoJson for Option<Vec<PluginImport>> {
                 .map(|item| match item {
                     Value::Object(o) => Ok(PluginImport {
                         name: String::from_go_json(o.get("name").unwrap_or(&Value::Null), field)?,
+                        transform: o
+                            .get("transform")
+                            .map_or_else(|| Ok(String::new()), |v| String::from_go_json(v, field))?,
+                        after: matches!(o.get("after"), Some(Value::Bool(true))),
+                        after_declarations: matches!(
+                            o.get("afterDeclarations"),
+                            Some(Value::Bool(true))
+                        ),
                     }),
                     v => Err(type_error(field, "PluginImport", v)),
                 })

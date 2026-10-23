@@ -458,6 +458,42 @@ crates/tsrs_ls/src/format/rulecontext.rs	is_option_enabled_or_undefined	leak	own
 crates/tsrs_ls/src/format/rulecontext.rs	option_equals	leak	ownership		safe-api-possible	owned by ordinary Rust ownership in Boshen's #638
 crates/tsrs_lsproto/src/lsp.rs	intern	leak	ownership		safe-api-possible	owned by ordinary Rust ownership in Boshen's #638
 crates/tsrs_parser/src/parser_1.rs	missing_list_nodes	block	logic	a zero-length slice needs only a non-null pointer aligned for `P<Node>`; a `usize`	keep	dangling non-null pointer for an empty slice
+crates/tsrs_plugin_api/src/lib.rs	(file)	extern	boundary		unknown	
+crates/tsrs_plugin_api/src/lib.rs	Api::new	block	logic	guaranteed by the caller.	unknown	
+crates/tsrs_plugin_api/src/lib.rs	Api::new	fn	logic	`host` and `ctx` must be the arguments of the current `tsrs_plugin_transform` call.	unknown	
+crates/tsrs_plugin_api/src/lib.rs	Api::str	block	logic	the host returns strings that live in the compiler's arenas for the whole compilation.	unknown	
+crates/tsrs_plugin_api/src/lib.rs	Api::trampoline	block	logic	`user_data` is the `&mut dyn FnMut` below, alive for the host call.	unknown	
+crates/tsrs_plugin_api/src/lib.rs	Api::trampoline	block	logic	`user_data` is the `&mut dyn FnMut` below, alive for the host call. #2	unknown	
+crates/tsrs_plugin_api/src/lib.rs	Str::as_str	block	logic	guaranteed by the caller.	unknown	
+crates/tsrs_plugin_api/src/lib.rs	Str::as_str	fn	logic	`self.ptr` must point to `self.len` bytes that live for `'a` (or `self.len == 0`). Invalid UTF-8 reads as `""`	unknown	
+crates/tsrs_plugin_host/src/lib.rs	(file)	extern	boundary		unknown	
+crates/tsrs_plugin_host/src/lib.rs	PluginCallContext::from_raw	block	logic	guaranteed by the caller; the context lives on the host stack for the whole call.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	PluginCallContext::from_raw	fn	logic	`ctx` must be the context pointer of the current plugin call.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	call_plugin	block	logic	`HOST_VTABLE` and `ctx` outlive the call, and `file` is a live node.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	ctx_of	block	logic	every host callback receives the context pointer of the current plugin call.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	host_new_array_literal	block	logic	the plugin passes `len` handles at `elements`.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	host_new_arrow_function	block	logic	the plugin passes `len` handles at `parameters`.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	host_new_block	block	logic	the plugin passes `len` handles at `statements`.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	host_new_call_expression	block	logic	the plugin passes `args_len` handles at `args`.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	host_new_get_accessor_declaration	block	logic	the plugin passes `modifiers_len` handles at `modifiers`.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	host_new_import_declaration	block	logic	the plugin passes `specs_len` specs at `specs`.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	host_new_object_literal	block	logic	the plugin passes `len` handles at `properties`.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	host_new_property_declaration	block	logic	the plugin passes `modifiers_len` handles at `modifiers`.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	host_new_syntax_list	block	logic	the plugin passes `len` handles at `nodes`.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	host_new_variable_statement	block	logic	the plugin passes `modifiers_len` handles at `modifiers`.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	host_update_class_declaration	block	logic	the plugin passes `len` handles at `members`.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	host_update_source_file	block	logic	the plugin passes `len` handles at `statements`.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	load_plugin_library_uncached	block	logic	`c_path` is NUL-terminated.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	load_plugin_library_uncached	block	logic	`dlerror` returns a NUL-terminated message (or null) for the calling thread.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	load_plugin_library_uncached	block	logic	`lib` came from `dlopen` and `symbol` is NUL-terminated.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	load_plugin_library_uncached	block	logic	the exported entry point has the `TransformFn` signature (the plugin API contract).	unknown	
+crates/tsrs_plugin_host/src/lib.rs	load_plugin_library_uncached	transmute	logic	the exported entry point has the `TransformFn` signature (the plugin API contract).	unknown	
+crates/tsrs_plugin_host/src/lib.rs	node_of	block	logic	plugins only pass back handles the host produced during the current call.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	nodes_of	block	logic	guaranteed by the caller.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	nodes_of	fn	logic	`ptr` must point to `len` handles (or `len == 0`).	unknown	
+crates/tsrs_plugin_host/src/lib.rs	str_arg	block	logic	plugins pass UTF-8 slices that live for the duration of the callback.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	symbol_of	block	logic	plugins only pass back handles the host produced during the current call.	unknown	
+crates/tsrs_plugin_host/src/lib.rs	type_of	block	logic	plugins only pass back handles the host produced during the current call.	unknown	
 crates/tsrs_printer/src/emitcontext.rs	EmitContext::new_node_visitor	block	logic	an EmitContext is only created by `new_emit_context_in` (`new_emit_context` /	keep	self-referential writer borrow inside one call; scoped
 crates/tsrs_printer/src/printer_3.rs	BorrowedWriter::r	block	logic	see `w`.	keep	self-referential writer borrow inside one call; scoped
 crates/tsrs_printer/src/printer_3.rs	BorrowedWriter::w	block	logic	`Printer::write` stores this adapter in `Printer::writer` only while it holds the `&mut` borrow the	keep	self-referential writer borrow inside one call; scoped
